@@ -159,6 +159,24 @@ public sealed class ContentImportTests(PostgresDatabaseFixture fixture)
     }
 
     [Fact]
+    public async Task Import_WithAnInvalidHashtag_ExitsWithOneWithTheApisMessage_AndTheDatabaseStaysEmpty()
+    {
+        var export = await ExportAsync(_source);
+        var path = Path.Combine(export, "categories.json");
+        var json = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsArray();
+        json[0]!.AsObject()["hashtags"] = System.Text.Json.Nodes.JsonNode.Parse("""[{"name":"two words","networks":"both"}]""");
+        await File.WriteAllTextAsync(path, json.ToJsonString());
+        var target = await NewDatabaseAsync();
+
+        var (exitCode, logs) = await RunImportAsync(target, export);
+
+        exitCode.Should().Be(1);
+        logs.Entries.Should().ContainSingle(entry => entry.Level == LogLevel.Error)
+            .Which.Message.Should().Contain("Hashtags: '#two words' may contain only letters, digits and underscores.");
+        (await CountsAsync(target)).Should().Equal(0, 0, 0, 0, 0);
+    }
+
+    [Fact]
     public async Task Import_TellsRunningInstancesOnCommit_SoTheirCachedEmptySiteDoesNotLinger()
     {
         var exportA = await ExportAsync(_source);

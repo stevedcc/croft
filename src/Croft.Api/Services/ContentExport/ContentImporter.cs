@@ -2,7 +2,9 @@ using System.Text;
 using System.Text.Json;
 using Croft.Api.Data;
 using Croft.Api.Models;
+using Croft.Shared.Contracts.Social;
 using Croft.Shared.Enums;
+using Croft.Shared.Social;
 using Microsoft.EntityFrameworkCore;
 
 namespace Croft.Api.Services.ContentExport;
@@ -152,6 +154,10 @@ public static partial class ContentImporter
         var posts = ReadPosts(Path.Combine(directory, ContentFormat.PostsDirectory), PostKind.Post);
         var pages = ReadPosts(Path.Combine(directory, ContentFormat.PagesDirectory), PostKind.Page);
 
+        // The same rules (and message) as the API's update: a hand-edited archive cannot bring in a hashtag the editor would refuse.
+        categories = [.. categories.Select(item => item with { Hashtags = NormalizeHashtags(ContentFormat.CategoriesFile, item.Name, item.Hashtags) })];
+        tags = [.. tags.Select(item => item with { Hashtags = NormalizeHashtags(ContentFormat.TagsFile, item.Name, item.Hashtags) })];
+
         RequireCount("posts", manifest.Counts.Posts, posts.Count);
         RequireCount("pages", manifest.Counts.Pages, pages.Count);
         RequireCount("categories", manifest.Counts.Categories, categories.Count);
@@ -214,6 +220,16 @@ public static partial class ContentImporter
         }
 
         return result;
+    }
+
+    private static List<HashtagDto>? NormalizeHashtags(string file, string name, IReadOnlyList<HashtagDto>? hashtags)
+    {
+        if (hashtags is null)
+            return null;
+
+        return Hashtags.TryNormalize(hashtags, "Hashtags", out var normalized, out var error)
+            ? normalized
+            : throw new ContentTransferException($"The export file '{file}' has an invalid hashtag on '{name}'. {error}");
     }
 
     private static T ReadJson<T>(string path)

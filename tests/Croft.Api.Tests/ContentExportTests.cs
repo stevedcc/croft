@@ -160,7 +160,10 @@ public sealed class ContentExportTests(PostgresDatabaseFixture fixture)
 
         Deserialize<List<CategoryEntry>>(output, "categories.json").Should().ContainSingle().Which.Hashtags.Should().Equal(
             [new HashtagDto("Homelab", HashtagNetworks.Both), new HashtagDto("SelfHosted", HashtagNetworks.BlueskyOnly)]);
-        Deserialize<List<TagEntry>>(output, "tags.json").Should().OnlyContain(tag => tag.Hashtags == null || tag.Hashtags.Count == 0);
+        var tags = Deserialize<List<TagEntry>>(output, "tags.json");
+        tags.Should().HaveCount(2).And.OnlyContain(tag => tag.Hashtags == null, "a tag without hashtags exports null, not an empty list");
+        System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(Path.Combine(output, "tags.json")), "\"hashtags\": null").Should().HaveCount(2,
+            "the file says null for each tag");
     }
 
     [Fact]
