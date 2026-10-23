@@ -512,10 +512,11 @@ start showing without anyone pasting a link.
   sent again; a failed one waits for **Retry** on the post's Discussion tab (Admin), which also has
   **Announce now** for a post that was published without announcing.
 - **The text** is the post's title and, after a blank line, its subtitle, unless the editor's "Announcement text"
-  says otherwise; the post's address (`Blog__BaseUrl` and `/post/<slug>`) is added at the end. It is composed
+  says otherwise; the post's address (`Blog__BaseUrl` and `/post/<slug>`) is added at the end. The post editor shows one
+  preview per network: the exact text that will go out, fitted to the limit, with its count as that network counts it. It is composed
   when it is sent, so an edit while pending is what goes out. Limits: Mastodon 500 and Bluesky 300 characters
   (grapheme clusters; Mastodon counts any address as 23, Bluesky as written). A default that is too long is
-  shortened with "…" (see Hashtags below for the order); a custom text that is too long is refused on save. Hashtags
+  shortened with "…" (see "Fitting a long default" below for the order); a custom text that is too long is refused on save. Hashtags
   (`#homelab`) are linked on both networks: Mastodon finds them itself, Croft marks them in the Bluesky post.
 - **Hashtags of categories and tags.** Link-only posts from a small account get little reach, and hashtags are how
   people find posts on both networks, so on **Tags & categories** (Admin) each category and tag can carry up to 10
