@@ -29,3 +29,8 @@ Thumbs.db
 # Secrets (appsettings.Development.json is tracked: log levels only, no values)
 .env
 appsettings.Production.json
+
+# Load-test output and recorded asset lists (loadtest/README.md)
+loadtest/results/
+loadtest/assets.json
+__pycache__/
