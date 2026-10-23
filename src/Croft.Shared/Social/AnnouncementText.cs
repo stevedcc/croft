@@ -55,26 +55,70 @@ public static partial class AnnouncementText
 
     public static string Compose(string body, string postUrl) => $"{body}\n\n{postUrl}";
 
-    /// <summary>The text used when the post has none of its own: the title, then a blank line and the subtitle when there is one.</summary>
-    public static string Default(string title, string? subtitle) =>
-        string.IsNullOrWhiteSpace(subtitle) ? title : $"{title}\n\n{subtitle}";
+    /// <summary>The most hashtags the default announcement appends.</summary>
+    public const int MaxHashtags = 3;
 
     /// <summary>
-    /// <see cref="Default"/>, shortened when the announcement would pass the network's limit: the subtitle is cut (grapheme by grapheme) and ends in
-    /// "…"; when even that does not fit, the subtitle goes and the title is cut the same way. Never fails and never cuts inside a grapheme cluster.
+    /// The hashtags the default text of a post gets on <paramref name="platform"/> as <c>#Name</c> strings: the category's first, then each tag's in the order given
+    /// (the order the post lists its tags in). Entries for the other network are skipped, duplicates that differ only in case are dropped keeping the first,
+    /// and at most <see cref="MaxHashtags"/> are taken.
     /// </summary>
-    public static string FitDefault(SocialPlatform platform, string title, string? subtitle, string postUrl)
+    public static IReadOnlyList<string> SelectHashtags(
+        SocialPlatform platform, IReadOnlyList<HashtagDto> category, IEnumerable<IReadOnlyList<HashtagDto>> tags) =>
+    [
+        .. category.Concat(tags.SelectMany(tag => tag))
+            .Where(hashtag => AppliesTo(hashtag.Networks, platform))
+            .Select(hashtag => hashtag.Name)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(MaxHashtags)
+            .Select(name => "#" + name)
+    ];
+
+    private static bool AppliesTo(HashtagNetworks networks, SocialPlatform platform) => networks switch
     {
-        var hasSubtitle = !string.IsNullOrWhiteSpace(subtitle);
-        var full = Default(title, subtitle);
+        HashtagNetworks.Both => true,
+        HashtagNetworks.MastodonOnly => platform == SocialPlatform.Mastodon,
+        HashtagNetworks.BlueskyOnly => platform == SocialPlatform.Bluesky,
+        _ => throw new ArgumentOutOfRangeException(nameof(networks)),
+    };
+
+    /// <summary>The text used when the post has none of its own: the title, then a blank line and the subtitle when there is one.</summary>
+    public static string Default(string title, string? subtitle) => Default(title, subtitle, []);
+
+    /// <summary><see cref="Default(string, string?)"/>, then a blank line and the hashtags joined by single spaces when there are any.</summary>
+    public static string Default(string title, string? subtitle, IReadOnlyList<string> hashtags)
+    {
+        var text = string.IsNullOrWhiteSpace(subtitle) ? title : $"{title}\n\n{subtitle}";
+        return hashtags.Count == 0 ? text : $"{text}\n\n{string.Join(' ', hashtags)}";
+    }
+
+    /// <summary><see cref="FitDefault(SocialPlatform, string, string?, IReadOnlyList{string}, string)"/> without hashtags.</summary>
+    public static string FitDefault(SocialPlatform platform, string title, string? subtitle, string postUrl) =>
+        FitDefault(platform, title, subtitle, [], postUrl);
+
+    /// <summary>
+    /// <see cref="Default(string, string?, IReadOnlyList{string})"/>, shortened when the announcement would pass the network's limit, in this order until it fits:
+    /// the whole text; the subtitle cut (grapheme by grapheme, ending in "…") with the hashtags kept; no subtitle and all hashtags; no subtitle and the hashtags
+    /// dropped from the end one at a time; no hashtags and the title cut the same way as the subtitle. Never fails and never cuts inside a grapheme cluster.
+    /// </summary>
+    public static string FitDefault(SocialPlatform platform, string title, string? subtitle, IReadOnlyList<string> hashtags, string postUrl)
+    {
+        var full = Default(title, subtitle, hashtags);
         if (Fits(platform, full, postUrl))
             return full;
 
-        if (hasSubtitle)
+        if (!string.IsNullOrWhiteSpace(subtitle))
         {
-            var cut = LongestPrefix(subtitle!, text => Fits(platform, Default(title, text + Ellipsis), postUrl));
+            var cut = LongestPrefix(subtitle, text => Fits(platform, Default(title, text + Ellipsis, hashtags), postUrl));
             if (cut.Length > 0)
-                return Default(title, cut + Ellipsis);
+                return Default(title, cut + Ellipsis, hashtags);
+        }
+
+        for (var kept = hashtags.Count; kept > 0; kept--)
+        {
+            var withoutSubtitle = Default(title, null, [.. hashtags.Take(kept)]);
+            if (Fits(platform, withoutSubtitle, postUrl))
+                return withoutSubtitle;
         }
 
         if (Fits(platform, title, postUrl))
