@@ -13,5 +13,6 @@ public class CategoryConfiguration : IEntityTypeConfiguration<Category>
         builder.Property(x => x.Name).HasMaxLength(128).IsRequired();
         builder.Property(x => x.Slug).HasMaxLength(128).IsRequired();
         builder.Property(x => x.Icon).HasMaxLength(64);
+        builder.Property(x => x.Hashtags).HasHashtagsColumn();
     }
 }

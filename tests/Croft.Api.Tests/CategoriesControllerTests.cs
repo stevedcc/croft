@@ -1,5 +1,6 @@
 using Croft.Api.Tests.Fixtures;
 using Croft.Shared.Contracts;
+using Croft.Shared.Contracts.Social;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
@@ -287,6 +288,77 @@ public class CategoriesControllerTests(PostgresDatabaseFixture fixture)
         problem!.Detail.Should().Be(TaxonomyNameMessage, "{0} has letters, but none an ASCII slug can carry", name);
         (await admin.GetFromJsonAsync<PagedResult<CategoryDto>>("/api/categories?page=1&pageSize=100"))!.TotalCount.Should().Be(before,
             "a refused name is not stored");
+    }
+
+    [Fact]
+    public async Task UpdateCategory_Hashtags_AreStoredInOrder_WithTheirNetworks_AndKeptByARenameWithoutThem_UntilCleared()
+    {
+        await using var factory = CreateFactoryAsync();
+        var admin = factory.CreateClient().WithRole("Admin");
+        var category = await CreateCategoryAsync(admin, $"Hashtag Keep {Guid.NewGuid():N}");
+
+        var put = await admin.PutAsJsonAsync($"/api/categories/{category.Id}", new UpdateCategoryRequest(category.Name, null,
+            [new HashtagDto("#Homelab", HashtagNetworks.Both), new HashtagDto("SelfHosted", HashtagNetworks.BlueskyOnly)]));
+        put.EnsureSuccessStatusCode();
+
+        (await GetCategoryAsync(admin, category.Id)).Hashtags.Should().Equal(
+            [new HashtagDto("Homelab", HashtagNetworks.Both), new HashtagDto("SelfHosted", HashtagNetworks.BlueskyOnly)],
+            "the leading # is stripped and the order is kept");
+
+        var renamed = $"Hashtag Renamed {Guid.NewGuid():N}";
+        (await admin.PutAsJsonAsync($"/api/categories/{category.Id}", new UpdateCategoryRequest(renamed, null))).EnsureSuccessStatusCode();
+        var afterRename = await GetCategoryAsync(admin, category.Id);
+        afterRename.Name.Should().Be(renamed);
+        afterRename.Hashtags.Select(h => h.Name).Should().Equal(["Homelab", "SelfHosted"], "a request without Hashtags leaves the list unchanged");
+
+        (await admin.PutAsJsonAsync($"/api/categories/{category.Id}", new UpdateCategoryRequest(renamed, null, []))).EnsureSuccessStatusCode();
+        (await GetCategoryAsync(admin, category.Id)).Hashtags.Should().BeEmpty("an empty list clears them");
+    }
+
+    [Fact]
+    public async Task UpdateCategory_HashtagsOnlyChange_ShowsInTheAnonymousCachedRead()
+    {
+        await using var factory = CreateFactoryAsync();
+        var admin = factory.CreateClient().WithRole("Admin");
+        var anonymous = factory.CreateClient();
+        var category = await CreateCategoryAsync(admin, $"Hashtag Cache {Guid.NewGuid():N}");
+        (await anonymous.GetFromJsonAsync<CategoryDto>($"/api/categories/{category.Slug}"))!.Hashtags.Should().BeEmpty();
+
+        (await admin.PutAsJsonAsync($"/api/categories/{category.Id}", new UpdateCategoryRequest(category.Name, null,
+            [new HashtagDto("Homelab", HashtagNetworks.Both)]))).EnsureSuccessStatusCode();
+
+        (await anonymous.GetFromJsonAsync<CategoryDto>($"/api/categories/{category.Slug}"))!.Hashtags.Should().ContainSingle()
+            .Which.Name.Should().Be("Homelab", "the cached read is invalidated by an update that changes only the hashtags");
+    }
+
+    [Theory]
+    [MemberData(nameof(BadHashtagLists))]
+    public async Task UpdateCategory_BadHashtags_Return400NamingTheFieldAndTheHashtag(HashtagDto[] hashtags, string named)
+    {
+        await using var factory = CreateFactoryAsync();
+        var admin = factory.CreateClient().WithRole("Admin");
+        var category = await CreateCategoryAsync(admin, $"Hashtag Bad {Guid.NewGuid():N}");
+
+        var update = await admin.PutAsJsonAsync($"/api/categories/{category.Id}", new UpdateCategoryRequest(category.Name, null, hashtags));
+
+        update.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var problem = await update.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem!.Detail.Should().Contain("Hashtags").And.Contain(named);
+        (await GetCategoryAsync(admin, category.Id)).Hashtags.Should().BeEmpty("a refused update stores nothing");
+    }
+
+    public static TheoryData<HashtagDto[], string> BadHashtagLists() => new()
+    {
+        { [new("#9", HashtagNetworks.Both)], "#9" },
+        { [new("two words", HashtagNetworks.Both)], "two words" },
+        { [new("Homelab", HashtagNetworks.Both), new("homelab", HashtagNetworks.BlueskyOnly)], "homelab" },
+        { [.. Enumerable.Range(0, 11).Select(i => new HashtagDto("Tag" + (char)('a' + i), HashtagNetworks.Both))], "Tagk" },
+    };
+
+    private static async Task<CategoryDto> GetCategoryAsync(HttpClient admin, Guid id)
+    {
+        var list = await admin.GetFromJsonAsync<List<CategoryDto>>("/api/categories");
+        return list!.Single(c => c.Id == id);
     }
 
     private BlogApiFactory CreateFactoryAsync()

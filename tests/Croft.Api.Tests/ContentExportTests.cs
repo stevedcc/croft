@@ -4,6 +4,7 @@ using System.Text.Json;
 using Croft.Api.Data;
 using Croft.Api.Services.ContentExport;
 using Croft.Api.Tests.Fixtures;
+using Croft.Shared.Contracts.Social;
 using Croft.Shared.Enums;
 using AwesomeAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -143,6 +144,23 @@ public sealed class ContentExportTests(PostgresDatabaseFixture fixture)
         raw.Should().NotContain("\r");
         raw.IndexOf("\"id\"", StringComparison.Ordinal).Should().BeLessThan(raw.IndexOf("\"slug\"", StringComparison.Ordinal),
             "properties come in a fixed order");
+    }
+
+    [Fact]
+    public async Task Export_WritesTheHashtagsOfCategoriesAndTags_AndNullWhenThereAreNone()
+    {
+        await using (var db = _database.CreateContext())
+        {
+            (await db.Categories.SingleAsync()).Hashtags = [new("Homelab", HashtagNetworks.Both), new("SelfHosted", HashtagNetworks.BlueskyOnly)];
+            await db.SaveChangesAsync();
+        }
+
+        var output = Path.Combine(NewParent(), "content");
+        await ExportAsync(output);
+
+        Deserialize<List<CategoryEntry>>(output, "categories.json").Should().ContainSingle().Which.Hashtags.Should().Equal(
+            [new HashtagDto("Homelab", HashtagNetworks.Both), new HashtagDto("SelfHosted", HashtagNetworks.BlueskyOnly)]);
+        Deserialize<List<TagEntry>>(output, "tags.json").Should().OnlyContain(tag => tag.Hashtags == null || tag.Hashtags.Count == 0);
     }
 
     [Fact]

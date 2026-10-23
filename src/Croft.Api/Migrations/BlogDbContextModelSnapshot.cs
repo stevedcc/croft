@@ -29,6 +29,9 @@ namespace Croft.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Hashtags")
+                        .HasColumnType("jsonb");
+
                     b.Property<string>("Icon")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
@@ -564,6 +567,9 @@ namespace Croft.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(true);
+
+                    b.Property<string>("Hashtags")
+                        .HasColumnType("jsonb");
 
                     b.Property<string>("Name")
                         .IsRequired()

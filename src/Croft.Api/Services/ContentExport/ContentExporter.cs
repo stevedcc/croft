@@ -84,10 +84,10 @@ public static class ContentExporter
 
         WriteText(Path.Combine(directory, ContentFormat.CategoriesFile), ContentFormat.Serialize(
             content.Categories.OrderBy(item => item.Slug, StringComparer.Ordinal)
-                .Select(item => new CategoryEntry(item.Id, item.Name, item.Slug, item.Icon)).ToList()));
+                .Select(item => new CategoryEntry(item.Id, item.Name, item.Slug, item.Icon, item.Hashtags.Count == 0 ? null : item.Hashtags)).ToList()));
         WriteText(Path.Combine(directory, ContentFormat.TagsFile), ContentFormat.Serialize(
             content.Tags.OrderBy(item => item.Slug, StringComparer.Ordinal)
-                .Select(item => new TagEntry(item.Id, item.Name, item.Slug, item.CountsTowardsRelated)).ToList()));
+                .Select(item => new TagEntry(item.Id, item.Name, item.Slug, item.CountsTowardsRelated, item.Hashtags.Count == 0 ? null : item.Hashtags)).ToList()));
         WriteText(Path.Combine(directory, ContentFormat.MediaFile), ContentFormat.Serialize(
             content.Media.OrderBy(item => Key(item.Id), StringComparer.Ordinal)
                 .Select(item => new MediaEntry(item.Id, item.FileName, item.OriginalName, item.ContentType, item.AltText,

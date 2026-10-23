@@ -275,6 +275,13 @@ entry and a marker in the same commit (AGENTS.md, "Workarounds").
 - **Fails without it:** `TagsControllerTests` (the false round trip); `ContentExportTests.Export_WritesEveryFieldOfThePublishedPost_WithRelationsByStableKey` (a stored `ReadingMinutes` of 0).
 - **Upgrade check:** newer EF versions may change sentinel handling.
 
+### W-101: hashtag lists as a nullable `jsonb` column through a value converter
+
+- **Library:** EF 10 maps a list of records to a column as a complex collection (`ComplexCollection(...).ToJson()`), but that column is `NOT NULL` with a `'{}'` default, which the expand-only migration rule and an array value both rule out; and EF never runs a value converter on a NULL column value, so a NULL would read as `null` instead of an empty list.
+- **Our code:** `HashtagsJson` (a value converter to `jsonb`, an empty list stored as NULL, property access mode "property") and the coalescing setters of `Category.Hashtags` and `Tag.Hashtags`.
+- **Fails without it:** `TagsControllerTests.UpdateTag_HashtagsOnlyChange_ShowsInTheAnonymousCachedRead` (a tag that never had hashtags reads back from a NULL column).
+- **Upgrade check:** re-try the complex collection on a newer EF; if it can be nullable, drop the converter.
+
 ### W-030: Timestamps truncated to microseconds
 
 - **Library:** Postgres timestamps have microsecond resolution; .NET ticks are 100 ns.

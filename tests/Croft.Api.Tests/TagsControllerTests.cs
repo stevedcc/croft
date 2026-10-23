@@ -1,5 +1,6 @@
 using Croft.Api.Tests.Fixtures;
 using Croft.Shared.Contracts;
+using Croft.Shared.Contracts.Social;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
@@ -315,6 +316,86 @@ public class TagsControllerTests(PostgresDatabaseFixture fixture)
         problem!.Detail.Should().Be(TaxonomyNameMessage, "{0} has letters, but none an ASCII slug can carry", name);
         (await admin.GetFromJsonAsync<PagedResult<TagDto>>("/api/tags?page=1&pageSize=100"))!.TotalCount.Should().Be(before,
             "a refused name is not stored");
+    }
+
+    [Fact]
+    public async Task UpdateTag_Hashtags_AreStoredInOrder_KeptByARenameAndTheRelatedSwitch_UntilCleared()
+    {
+        await using var factory = CreateFactoryAsync();
+        var admin = factory.CreateClient().WithRole("Admin");
+        var tag = await CreateTagAsync(admin, $"hashtag-keep-{Guid.NewGuid():N}");
+
+        var put = await admin.PutAsJsonAsync($"/api/tags/{tag.Id}", new UpdateTagRequest(tag.Name, null,
+            [new HashtagDto("#Homelab", HashtagNetworks.Both), new HashtagDto("SelfHosted", HashtagNetworks.MastodonOnly)]));
+        put.EnsureSuccessStatusCode();
+        (await GetTagAsync(admin, tag.Id)).Hashtags.Should().Equal(
+            [new HashtagDto("Homelab", HashtagNetworks.Both), new HashtagDto("SelfHosted", HashtagNetworks.MastodonOnly)],
+            "the leading # is stripped and the order is kept");
+
+        var renamed = $"hashtag-renamed-{Guid.NewGuid():N}";
+        (await admin.PutAsJsonAsync($"/api/tags/{tag.Id}", new UpdateTagRequest(renamed))).EnsureSuccessStatusCode();
+        (await GetTagAsync(admin, tag.Id)).Hashtags.Select(h => h.Name).Should().Equal(["Homelab", "SelfHosted"], "a rename without Hashtags keeps the list");
+
+        (await admin.PutAsJsonAsync($"/api/tags/{tag.Id}", new UpdateTagRequest(renamed, false))).EnsureSuccessStatusCode();
+        var afterSwitch = await GetTagAsync(admin, tag.Id);
+        afterSwitch.CountsTowardsRelated.Should().BeFalse();
+        afterSwitch.Hashtags.Select(h => h.Name).Should().Equal(["Homelab", "SelfHosted"], "the Related switch's save keeps the list");
+
+        (await admin.PutAsJsonAsync($"/api/tags/{tag.Id}", new UpdateTagRequest(renamed, null, []))).EnsureSuccessStatusCode();
+        (await GetTagAsync(admin, tag.Id)).Hashtags.Should().BeEmpty("an empty list clears them");
+    }
+
+    [Fact]
+    public async Task UpdateTag_HashtagsOnlyChange_ShowsInTheAnonymousCachedRead()
+    {
+        await using var factory = CreateFactoryAsync();
+        var admin = factory.CreateClient().WithRole("Admin");
+        var anonymous = factory.CreateClient();
+        var tag = await CreateTagAsync(admin, $"hashtag-cache-{Guid.NewGuid():N}");
+        (await anonymous.GetFromJsonAsync<TagDto>($"/api/tags/{tag.Slug}"))!.Hashtags.Should().BeEmpty();
+
+        (await admin.PutAsJsonAsync($"/api/tags/{tag.Id}", new UpdateTagRequest(tag.Name, null,
+            [new HashtagDto("Homelab", HashtagNetworks.Both)]))).EnsureSuccessStatusCode();
+
+        (await anonymous.GetFromJsonAsync<TagDto>($"/api/tags/{tag.Slug}"))!.Hashtags.Should().ContainSingle()
+            .Which.Name.Should().Be("Homelab", "the cached read is invalidated by an update that changes only the hashtags");
+    }
+
+    [Theory]
+    [MemberData(nameof(BadHashtagLists))]
+    public async Task UpdateTag_BadHashtags_Return400NamingTheFieldAndTheHashtag(HashtagDto[] hashtags, string named)
+    {
+        await using var factory = CreateFactoryAsync();
+        var admin = factory.CreateClient().WithRole("Admin");
+        var tag = await CreateTagAsync(admin, $"hashtag-bad-{Guid.NewGuid():N}");
+
+        var update = await admin.PutAsJsonAsync($"/api/tags/{tag.Id}", new UpdateTagRequest(tag.Name, null, hashtags));
+
+        update.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var problem = await update.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem!.Detail.Should().Contain("Hashtags").And.Contain(named);
+        (await GetTagAsync(admin, tag.Id)).Hashtags.Should().BeEmpty("a refused update stores nothing");
+    }
+
+    public static TheoryData<HashtagDto[], string> BadHashtagLists() => new()
+    {
+        { [new("#9", HashtagNetworks.Both)], "#9" },
+        { [new("two words", HashtagNetworks.Both)], "two words" },
+        { [new("Homelab", HashtagNetworks.Both), new("homelab", HashtagNetworks.BlueskyOnly)], "homelab" },
+        { [.. Enumerable.Range(0, 11).Select(i => new HashtagDto("Tag" + (char)('a' + i), HashtagNetworks.Both))], "Tagk" },
+    };
+
+    private static async Task<TagDto> CreateTagAsync(HttpClient admin, string name)
+    {
+        var create = await admin.PostAsJsonAsync("/api/tags", name);
+        create.EnsureSuccessStatusCode();
+        return (await create.Content.ReadFromJsonAsync<TagDto>())!;
+    }
+
+    private static async Task<TagDto> GetTagAsync(HttpClient admin, Guid id)
+    {
+        var list = await admin.GetFromJsonAsync<List<TagDto>>("/api/tags");
+        return list!.Single(t => t.Id == id);
     }
 
     private BlogApiFactory CreateFactoryAsync()

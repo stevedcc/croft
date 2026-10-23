@@ -2,7 +2,9 @@ using Croft.Api.Data;
 using Croft.Api.Errors;
 using Croft.Api.Models;
 using Croft.Shared.Contracts;
+using Croft.Shared.Contracts.Social;
 using Croft.Shared.Enums;
+using Croft.Shared.Social;
 using Microsoft.EntityFrameworkCore;
 using System.Text.RegularExpressions;
 
@@ -31,7 +33,8 @@ public partial class CategoryService(BlogDbContext db, ISlugService slugService,
                 c.Name,
                 c.Slug,
                 c.Icon,
-                c.Posts.Count(p => p.Status == PostStatus.Published)))
+                c.Posts.Count(p => p.Status == PostStatus.Published),
+                c.Hashtags))
             .ToListAsync(ct);
     }
 
@@ -51,7 +54,8 @@ public partial class CategoryService(BlogDbContext db, ISlugService slugService,
                 c.Name,
                 c.Slug,
                 c.Icon,
-                c.Posts.Count(p => p.Status == PostStatus.Published)))
+                c.Posts.Count(p => p.Status == PostStatus.Published),
+                c.Hashtags))
             .ToPagedResultAsync(page, pageSize, ct);
     }
 
@@ -81,7 +85,8 @@ public partial class CategoryService(BlogDbContext db, ISlugService slugService,
                     c.Name,
                     c.Slug,
                     c.Icon,
-                    c.Posts.Count(p => p.Status == PostStatus.Published)))
+                    c.Posts.Count(p => p.Status == PostStatus.Published),
+                c.Hashtags))
                 .ToListAsync(ct)
         ];
         // END WORKAROUND(W-050)
@@ -102,7 +107,8 @@ public partial class CategoryService(BlogDbContext db, ISlugService slugService,
                 c.Name,
                 c.Slug,
                 c.Icon,
-                c.Posts.Count(p => p.Status == PostStatus.Published)))
+                c.Posts.Count(p => p.Status == PostStatus.Published),
+                c.Hashtags))
             .FirstOrDefaultAsync(ct);
     }
 
@@ -124,6 +130,7 @@ public partial class CategoryService(BlogDbContext db, ISlugService slugService,
     public async Task<CategoryDto?> UpdateAsync(Guid id, UpdateCategoryRequest request, CancellationToken ct = default)
     {
         ValidateRequest(request.Name, request.Icon);
+        var hashtags = NormalizeHashtags(request.Hashtags);
 
         var category = await db.Categories.FirstOrDefaultAsync(c => c.Id == id, ct);
         if (category is null)
@@ -132,6 +139,9 @@ public partial class CategoryService(BlogDbContext db, ISlugService slugService,
         category.Name = request.Name;
         category.Slug = slugService.GenerateSlug(request.Name);
         category.Icon = request.Icon;
+        if (hashtags is not null)
+            category.Hashtags = hashtags;
+
         await cacheNotifier.SaveAndNotifyAsync(db, CacheGroup.All, ct);
         return await MapToDtoAsync(category, ct);
     }
@@ -165,6 +175,16 @@ public partial class CategoryService(BlogDbContext db, ISlugService slugService,
             throw new ValidationException("Icon must contain only letters and digits.");
     }
 
+    private static List<HashtagDto>? NormalizeHashtags(IReadOnlyList<HashtagDto>? hashtags)
+    {
+        if (hashtags is null)
+            return null;
+
+        return Hashtags.TryNormalize(hashtags, "Hashtags", out var normalized, out var error)
+            ? normalized
+            : throw new ValidationException(error!);
+    }
+
     [GeneratedRegex("^[A-Za-z0-9]+$")]
     private static partial Regex IconName();
 
@@ -173,6 +193,6 @@ public partial class CategoryService(BlogDbContext db, ISlugService slugService,
         var postCount = await db.Posts.CountAsync(
             p => p.CategoryId == category.Id && p.Status == PostStatus.Published, ct);
 
-        return new CategoryDto(category.Id, category.Name, category.Slug, category.Icon, postCount);
+        return new CategoryDto(category.Id, category.Name, category.Slug, category.Icon, postCount, category.Hashtags);
     }
 }

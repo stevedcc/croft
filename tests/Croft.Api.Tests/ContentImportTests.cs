@@ -4,6 +4,7 @@ using Croft.Api.Data;
 using Croft.Api.Models;
 using Croft.Api.Services.ContentExport;
 using Croft.Api.Tests.Fixtures;
+using Croft.Shared.Contracts.Social;
 using AwesomeAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -113,6 +114,48 @@ public sealed class ContentImportTests(PostgresDatabaseFixture fixture)
         var manifestA = JsonSerializer.Deserialize<ManifestFile>(await File.ReadAllTextAsync(Path.Combine(exportA, "manifest.json")), ContentFormat.Json)!;
         var manifestB = JsonSerializer.Deserialize<ManifestFile>(await File.ReadAllTextAsync(Path.Combine(exportB, "manifest.json")), ContentFormat.Json)!;
         (manifestB with { ExportedAt = manifestA.ExportedAt }).Should().Be(manifestA, "only exportedAt differs");
+    }
+
+    [Fact]
+    public async Task RoundTrip_KeepsTheHashtagsOfCategoriesAndTags_InOrder()
+    {
+        await using (var db = _source.CreateContext())
+        {
+            (await db.Categories.SingleAsync()).Hashtags = [new("Homelab", HashtagNetworks.Both), new("SelfHosted", HashtagNetworks.BlueskyOnly)];
+            (await db.Tags.SingleAsync(t => t.Slug == "dotnet")).Hashtags = [new("DotNet", HashtagNetworks.MastodonOnly)];
+            await db.SaveChangesAsync();
+        }
+
+        var target = await NewDatabaseAsync();
+        (await RunImportAsync(target, await ExportAsync(_source))).ExitCode.Should().Be(0);
+
+        await using var restored = target.CreateContext();
+        (await restored.Categories.AsNoTracking().SingleAsync()).Hashtags
+            .Should().Equal([new("Homelab", HashtagNetworks.Both), new("SelfHosted", HashtagNetworks.BlueskyOnly)]);
+        (await restored.Tags.AsNoTracking().SingleAsync(t => t.Slug == "dotnet")).Hashtags
+            .Should().Equal([new("DotNet", HashtagNetworks.MastodonOnly)]);
+        (await restored.Tags.AsNoTracking().SingleAsync(t => t.Slug == "ai-assisted")).Hashtags.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Import_OfAnArchiveWrittenBeforeHashtagsExisted_GivesEmptyLists()
+    {
+        var export = await ExportAsync(_source);
+        foreach (var file in new[] { "categories.json", "tags.json" })
+        {
+            var path = Path.Combine(export, file);
+            var json = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsArray();
+            foreach (var entry in json)
+                entry!.AsObject().Remove("hashtags");
+            await File.WriteAllTextAsync(path, json.ToJsonString());
+        }
+
+        var target = await NewDatabaseAsync();
+        (await RunImportAsync(target, export)).ExitCode.Should().Be(0);
+
+        await using var restored = target.CreateContext();
+        (await restored.Categories.AsNoTracking().SingleAsync()).Hashtags.Should().BeEmpty();
+        (await restored.Tags.AsNoTracking().ToListAsync()).Should().OnlyContain(t => t.Hashtags.Count == 0);
     }
 
     [Fact]

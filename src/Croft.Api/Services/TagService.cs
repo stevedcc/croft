@@ -2,7 +2,9 @@ using Croft.Api.Data;
 using Croft.Api.Errors;
 using Croft.Api.Models;
 using Croft.Shared.Contracts;
+using Croft.Shared.Contracts.Social;
 using Croft.Shared.Enums;
+using Croft.Shared.Social;
 using Microsoft.EntityFrameworkCore;
 
 namespace Croft.Api.Services;
@@ -28,7 +30,8 @@ public class TagService(BlogDbContext db, ISlugService slugService, IPublicReadC
                 t.Name,
                 t.Slug,
                 t.Posts.Count(p => p.Status == PostStatus.Published),
-                t.CountsTowardsRelated))
+                t.CountsTowardsRelated,
+                t.Hashtags))
             .ToListAsync(ct);
     }
 
@@ -50,7 +53,8 @@ public class TagService(BlogDbContext db, ISlugService slugService, IPublicReadC
                 t.Name,
                 t.Slug,
                 t.Posts.Count(p => p.Status == PostStatus.Published),
-                t.CountsTowardsRelated))
+                t.CountsTowardsRelated,
+                t.Hashtags))
             .ToPagedResultAsync(page, pageSize, ct);
     }
 
@@ -69,7 +73,8 @@ public class TagService(BlogDbContext db, ISlugService slugService, IPublicReadC
                 t.Name,
                 t.Slug,
                 t.Posts.Count(p => p.Status == PostStatus.Published),
-                t.CountsTowardsRelated))
+                t.CountsTowardsRelated,
+                t.Hashtags))
             .FirstOrDefaultAsync(ct);
     }
 
@@ -91,6 +96,13 @@ public class TagService(BlogDbContext db, ISlugService slugService, IPublicReadC
     public async Task<TagDto?> UpdateAsync(Guid id, UpdateTagRequest request, CancellationToken ct = default)
     {
         ValidateRequest(request.Name);
+        List<HashtagDto>? hashtags = null;
+        if (request.Hashtags is not null)
+        {
+            hashtags = Hashtags.TryNormalize(request.Hashtags, "Hashtags", out var normalized, out var error)
+                ? normalized
+                : throw new ValidationException(error!);
+        }
 
         var tag = await db.Tags.FirstOrDefaultAsync(t => t.Id == id, ct);
         if (tag is null)
@@ -102,6 +114,9 @@ public class TagService(BlogDbContext db, ISlugService slugService, IPublicReadC
         {
             tag.CountsTowardsRelated = countsTowardsRelated;
         }
+
+        if (hashtags is not null)
+            tag.Hashtags = hashtags;
 
         await cacheNotifier.SaveAndNotifyAsync(db, CacheGroup.All, ct);
         return await MapToDtoAsync(tag, ct);
@@ -127,7 +142,7 @@ public class TagService(BlogDbContext db, ISlugService slugService, IPublicReadC
         var postCount = await db.Posts.CountAsync(
             p => p.Tags.Any(t => t.Id == tag.Id) && p.Status == PostStatus.Published, ct);
 
-        return new TagDto(tag.Id, tag.Name, tag.Slug, postCount, tag.CountsTowardsRelated);
+        return new TagDto(tag.Id, tag.Name, tag.Slug, postCount, tag.CountsTowardsRelated, tag.Hashtags);
     }
 
     private void ValidateRequest(string name) => TaxonomyName.Validate(name, slugService);

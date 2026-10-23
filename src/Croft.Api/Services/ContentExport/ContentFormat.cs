@@ -2,6 +2,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Croft.Api.Models;
+using Croft.Shared.Contracts.Social;
 using Croft.Shared.Enums;
 
 namespace Croft.Api.Services.ContentExport;
@@ -138,9 +139,10 @@ public sealed record FeedbackEntry(
     DateTime CreatedAt,
     DateTime? ResolvedAt);
 
-public sealed record CategoryEntry(Guid Id, string Name, string Slug, string? Icon);
+/// <summary>Hashtags is absent (null) in an archive written before hashtags existed, and written as null when a category has none.</summary>
+public sealed record CategoryEntry(Guid Id, string Name, string Slug, string? Icon, IReadOnlyList<HashtagDto>? Hashtags = null);
 
-public sealed record TagEntry(Guid Id, string Name, string Slug, bool CountsTowardsRelated);
+public sealed record TagEntry(Guid Id, string Name, string Slug, bool CountsTowardsRelated, IReadOnlyList<HashtagDto>? Hashtags = null);
 
 public sealed record MediaEntry(
     Guid Id,

@@ -40,8 +40,8 @@ public static partial class ContentImporter
                 "The database already has content (posts, pages, categories, tags or media). The import only fills an empty database and never merges or overwrites; nothing was changed.");
         }
 
-        var categories = export.Categories.Select(item => new Category { Id = item.Id, Name = item.Name, Slug = item.Slug, Icon = item.Icon }).ToList();
-        var tags = export.Tags.Select(item => new Tag { Id = item.Id, Name = item.Name, Slug = item.Slug, CountsTowardsRelated = item.CountsTowardsRelated }).ToList();
+        var categories = export.Categories.Select(item => new Category { Id = item.Id, Name = item.Name, Slug = item.Slug, Icon = item.Icon, Hashtags = [.. item.Hashtags ?? []] }).ToList();
+        var tags = export.Tags.Select(item => new Tag { Id = item.Id, Name = item.Name, Slug = item.Slug, CountsTowardsRelated = item.CountsTowardsRelated, Hashtags = [.. item.Hashtags ?? []] }).ToList();
         // Media and posts point at each other (a post's banner, an asset's post), so the assets go in
         // first without their post and are linked once the posts exist.
         var media = export.Media.Select(item => new MediaAsset
