@@ -10,7 +10,7 @@ namespace Croft.Web.Tests.Components;
 /// <summary>A reply's initial comes from the first character of its author's name; a lone surrogate (broken text from a remote server) must not take the page down.</summary>
 public class DiscussionReplyInitialTests : BlogBunitContext
 {
-    private static DiscussionReplyDto Reply(string name) => new(SocialPlatform.Mastodon, "1", "nora@social.example", name, "https://social.example/@nora", "nora",
+    private static DiscussionReplyDto Reply(string name, string handle = "nora@social.example") => new(SocialPlatform.Mastodon, "1", handle, name, "https://social.example/@nora", "nora",
         null, new DateTimeOffset(2026, 10, 21, 9, 30, 0, TimeSpan.Zero), "https://social.example/@nora/1", "<p>Text.</p>", null, false, []);
 
     // The names are looked up by case: a lone surrogate does not survive xunit's theory-data serialisation (it turns into U+FFFD).
@@ -20,6 +20,8 @@ public class DiscussionReplyInitialTests : BlogBunitContext
         ["high surrogate then letters"] = ("\uD83Dabc", "?"),
         ["lone low surrogate"] = ("\uDE00x", "?"),
         ["a surrogate pair"] = ("\uD83D\uDE00 smile", "\uD83D\uDE00"),
+        ["blank name and handle"] = ("", "?"),
+        ["whitespace name and handle"] = ("   ", "?"),
         ["leading space and an accent"] = ("  \u00e9lan", "\u00c9"),
     };
 
@@ -30,9 +32,10 @@ public class DiscussionReplyInitialTests : BlogBunitContext
     public void ThePublicReply_ShowsTheInitial_AndNeverThrows(string caseName)
     {
         var (name, expected) = Cases[caseName];
+        var handle = caseName.EndsWith("name and handle", StringComparison.Ordinal) ? name : "nora@social.example";
         Services.AddSingleton<TimeProvider>(new FakeTimeProvider(new DateTimeOffset(2026, 10, 22, 12, 0, 0, TimeSpan.Zero)));
 
-        var cut = Render<DiscussionReply>(p => p.Add(x => x.Reply, Reply(name)));
+        var cut = Render<DiscussionReply>(p => p.Add(x => x.Reply, Reply(name, handle)));
 
         cut.Find(".discussion-reply__initial").TextContent.Should().Be(expected);
     }
@@ -42,7 +45,8 @@ public class DiscussionReplyInitialTests : BlogBunitContext
     public void TheAdminReply_ShowsTheInitial_AndNeverThrows(string caseName)
     {
         var (name, expected) = Cases[caseName];
-        var cut = Render<DiscussionAdminReply>(p => p.Add(x => x.Reply, Reply(name)));
+        var handle = caseName.EndsWith("name and handle", StringComparison.Ordinal) ? name : "nora@social.example";
+        var cut = Render<DiscussionAdminReply>(p => p.Add(x => x.Reply, Reply(name, handle)));
 
         cut.Find(".discussion-admin__initial").TextContent.Should().Be(expected);
     }

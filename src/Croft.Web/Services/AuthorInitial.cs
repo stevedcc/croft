@@ -9,6 +9,6 @@ public static class AuthorInitial
     public static string Of(string displayName, string handle)
     {
         var trimmed = (string.IsNullOrWhiteSpace(displayName) ? handle : displayName).TrimStart();
-        return Rune.TryGetRuneAt(trimmed, 0, out var first) ? first.ToString().ToUpperInvariant() : "?";
+        return trimmed.Length > 0 && Rune.TryGetRuneAt(trimmed, 0, out var first) ? first.ToString().ToUpperInvariant() : "?";
     }
 }

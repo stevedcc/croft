@@ -48,8 +48,20 @@ public class HeadRequestTests
             getCsp.Should().NotBeEmpty("the comparison covers a real policy on the pages");
         }
 
-        head.Headers.CacheControl.Should().Be(get.Headers.CacheControl);
         headBody.Should().BeEmpty("a HEAD answer has no body");
+    }
+
+    [Fact]
+    public async Task Head_OnTheFeed_CarriesTheSameCacheControlAsTheGet()
+    {
+        using var host = CacheHost.Create();
+        using var client = host.Client();
+
+        var (get, _) = await SendAsync(client, HttpMethod.Get, "/feed.xml");
+        var (head, _) = await SendAsync(client, HttpMethod.Head, "/feed.xml");
+
+        get.Headers.CacheControl.Should().NotBeNull("the feed sends a Cache-Control, so the comparison is not null against null");
+        head.Headers.CacheControl.Should().Be(get.Headers.CacheControl);
     }
 
     [Fact]

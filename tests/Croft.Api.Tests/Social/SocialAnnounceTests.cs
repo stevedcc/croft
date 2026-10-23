@@ -639,8 +639,22 @@ public class SocialAnnounceTests(PostgresDatabaseFixture fixture) : IClassFixtur
 
         await h.NewReplica().TickAsync();
 
-        h.Logs.Entries.Single(e => e.Message.Contains(withStatus.ToString(), StringComparison.Ordinal)).Message.Should().Contain("503");
+        h.Logs.Entries.Single(e => e.Message.Contains(withStatus.ToString(), StringComparison.Ordinal)).Message.Should().EndWith("attempt 1: Retry (HTTP 503).");
         h.Logs.Entries.Single(e => e.Message.Contains(withoutStatus.ToString(), StringComparison.Ordinal)).Message.Should().NotContain("HTTP");
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.ServiceUnavailable, "Retry (HTTP 503)")]
+    [InlineData(HttpStatusCode.BadRequest, "Failed (HTTP 400)")]
+    public async Task TheOutcomeLine_NamesTheStatusOfARealAnnouncersAnswer_SoARewordedReasonIsCaught(HttpStatusCode status, string expected)
+    {
+        await using var h = await AnnounceHarness.CreateAsync(fixture);
+        await h.SeedPostAsync(slug: "log-real", bluesky: false);
+        var mastodon = new MastodonAnnouncer(new StubClientFactory(StubHandler.Json("{}", status)), Options.Create(h.Settings), h.Time);
+
+        await h.NewReplica(null, mastodon).TickAsync();
+
+        h.Logs.Entries.Single(e => e.Message.StartsWith("Announcing post", StringComparison.Ordinal)).Message.Should().EndWith($"attempt 1: {expected}.");
     }
 
     [Fact]
