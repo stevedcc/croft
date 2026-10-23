@@ -155,6 +155,9 @@ internal sealed class SocialAnnounceReplica(SocialAnnounceHostedService service,
         await using var db = harness.Database.CreateContext();
         return await service.TickAsync(db, ct);
     }
+
+    /// <summary>A tick on a context the test made (to capture its SQL).</summary>
+    public Task<AnnounceTickResult> TickAsync(BlogDbContext db, CancellationToken ct = default) => service.TickAsync(db, ct);
 }
 
 /// <summary>A network stand-in: records what it was asked and answers with a function of it (by default: posted, with a new id).</summary>

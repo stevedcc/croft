@@ -188,12 +188,17 @@ public sealed partial class SocialAnnounceHostedService(
         return await gates.RunAsync(claim.Platform, () => announcer.SendAsync(message, ct), ct);
     }
 
-    private sealed record PostFields(Guid Id, string Slug, string Title, string? Subtitle, string? AnnouncementText, string? BannerPath);
+    private sealed record TagHashtags(string Name, List<HashtagDto> Hashtags);
+
+    private sealed record PostFields(
+        Guid Id, string Slug, string Title, string? Subtitle, string? AnnouncementText, string? BannerPath,
+        List<HashtagDto>? CategoryHashtags, List<TagHashtags> Tags);
 
     private static Task<PostFields?> LoadPostAsync(BlogDbContext db, Claim claim, CancellationToken ct) =>
         db.Posts.AsNoTracking()
             .Where(p => p.Id == claim.PostId)
-            .Select(p => new PostFields(p.Id, p.Slug, p.Title, p.Subtitle, p.AnnouncementText, p.BannerImage == null ? null : p.BannerImage.FilePath))
+            .Select(p => new PostFields(p.Id, p.Slug, p.Title, p.Subtitle, p.AnnouncementText, p.BannerImage == null ? null : p.BannerImage.FilePath,
+                p.Category == null ? null : p.Category.Hashtags, p.Tags.Select(t => new TagHashtags(t.Name, t.Hashtags)).ToList()))
             .SingleOrDefaultAsync(ct);
 
     /// <summary>The message as the post is now (an edit while pending is sent), or the reason a custom text cannot be sent.</summary>
@@ -204,7 +209,10 @@ public sealed partial class SocialAnnounceHostedService(
         string body;
         if (post.AnnouncementText is null)
         {
-            body = AnnouncementText.FitDefault(platform, post.Title, post.Subtitle, url);
+            // The tags in the order the post lists them (PostService sorts by name, ordinal ignoring case).
+            var hashtags = AnnouncementText.SelectHashtags(platform, post.CategoryHashtags ?? [],
+                post.Tags.OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase).Select(t => t.Hashtags));
+            body = AnnouncementText.FitDefault(platform, post.Title, post.Subtitle, hashtags, url);
         }
         else
         {
