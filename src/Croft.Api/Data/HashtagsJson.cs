@@ -1,4 +1,4 @@
-// WORKAROUND-FILE(W-101, EF Core): a nullable jsonb column for a list, since a complex collection is NOT NULL and a converter never sees NULL
+// WORKAROUND-FILE(W-102, EF Core): a nullable jsonb column for a list, since a complex collection is NOT NULL and a converter never sees NULL
 using System.Text.Json;
 using Croft.Shared.Contracts.Social;
 using Microsoft.EntityFrameworkCore;

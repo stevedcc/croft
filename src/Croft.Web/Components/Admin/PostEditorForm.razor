@@ -170,12 +170,12 @@
                     @if (Model.AnnounceMastodon)
                     {
                         <AnnouncementPreview Platform="SocialPlatform.Mastodon" Title="@Model.Title" Subtitle="@BlankToNull(Model.Subtitle)"
-                                             Text="@Model.AnnouncementText" PostUrl="@PreviewUrl" />
+                                             Text="@Model.AnnouncementText" PostUrl="@PreviewUrl" Hashtags="HashtagsFor(SocialPlatform.Mastodon)" />
                     }
                     @if (Model.AnnounceBluesky)
                     {
                         <AnnouncementPreview Platform="SocialPlatform.Bluesky" Title="@Model.Title" Subtitle="@BlankToNull(Model.Subtitle)"
-                                             Text="@Model.AnnouncementText" PostUrl="@PreviewUrl" />
+                                             Text="@Model.AnnouncementText" PostUrl="@PreviewUrl" Hashtags="HashtagsFor(SocialPlatform.Bluesky)" />
                     }
                 </div>
             </div>
@@ -304,6 +304,11 @@
         }
     }
 
+    /// <summary>What the sender will add on <paramref name="platform"/>: the category's hashtags, then the tags' in name order (as the post lists them).</summary>
+    private IReadOnlyList<string> HashtagsFor(SocialPlatform platform) =>
+        AnnouncementText.SelectHashtags(platform, Model.Category?.Hashtags ?? [],
+            Model.Tags.Order(StringComparer.OrdinalIgnoreCase).Select(name => Model.TagHashtags.GetValueOrDefault(name) ?? []));
+
     private async Task CategoryChangedAsync(CategoryDto? category)
     {
         Model.Category = category;
@@ -327,6 +332,12 @@
         }
 
         Model.Tags.Add(name);
+        var suggestion = TagSuggestions.FirstOrDefault(tag => string.Equals(tag.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (suggestion is not null)
+        {
+            Model.TagHashtags[name] = suggestion.Hashtags;
+        }
+
         _tagEntry = string.Empty;
         await OnModelChanged.InvokeAsync();
     }
@@ -334,6 +345,7 @@
     private async Task RemoveTagAsync(string name)
     {
         Model.Tags.Remove(name);
+        Model.TagHashtags.Remove(name);
         await OnModelChanged.InvokeAsync();
     }
 

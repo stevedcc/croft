@@ -26,8 +26,11 @@
     /// <summary>The post's address that ends the announcement.</summary>
     [Parameter, EditorRequired] public string PostUrl { get; set; } = string.Empty;
 
+    /// <summary>The <c>#Name</c> hashtags this network's sender will add to the default text (AnnouncementText.SelectHashtags); not used with a text of its own.</summary>
+    [Parameter] public IReadOnlyList<string> Hashtags { get; set; } = [];
+
     private string Composed => AnnouncementText.Compose(
-        string.IsNullOrWhiteSpace(Text) ? AnnouncementText.FitDefault(Platform, Title, Subtitle, PostUrl) : Text, PostUrl);
+        string.IsNullOrWhiteSpace(Text) ? AnnouncementText.FitDefault(Platform, Title, Subtitle, Hashtags, PostUrl) : Text, PostUrl);
 
     private int Length => AnnouncementText.Length(Platform, Composed);
 

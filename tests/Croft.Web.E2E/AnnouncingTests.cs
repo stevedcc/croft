@@ -145,6 +145,69 @@ public class AnnouncingTests : WebTest
             .ToHaveTextAsync("Bluesky: Failed: Bluesky refused the post (HTTP 400): InvalidRequest");
     }
 
+    // ---- hashtags of the category (brief 12e) ----
+
+    /// <summary>The length of a preview's text by the network's own rule: Mastodon counts every address as 23, Bluesky as written; both count graphemes.</summary>
+    private static int LengthByRule(string network, string text)
+    {
+        var length = new System.Globalization.StringInfo(text).LengthInTextElements;
+        if (network != "mastodon")
+            return length;
+
+        var address = System.Text.RegularExpressions.Regex.Match(text, @"https?://\S+");
+        return address.Success ? length - new System.Globalization.StringInfo(address.Value).LengthInTextElements + 23 : length;
+    }
+
+    [Test]
+    public async Task ACategorysHashtags_AppearInEachPreviewByNetwork_AndGoWhenNoCategoryIsPicked()
+    {
+        var runId = NewRunId();
+        var categoryName = $"E2E Tags {runId}";
+        using (var client = MockIdpApi.CreateClient())
+        {
+            var token = await MockIdpApi.GetAdminAccessTokenAsync(client);
+            using var created = await MockIdpApi.PostJsonAsync(client, ApiUrl, "/api/categories", System.Text.Json.JsonSerializer.Serialize(categoryName), token);
+            var id = created.RootElement.GetProperty("id").GetGuid();
+            using var update = new HttpRequestMessage(HttpMethod.Put, $"{ApiUrl}/api/categories/{id}")
+            {
+                Content = new StringContent(
+                    $$"""{"name":"{{categoryName}}","hashtags":[{"name":"Homelab","networks":0},{"name":"SelfHosted","networks":2}]}""",
+                    System.Text.Encoding.UTF8, "application/json"),
+            };
+            update.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            using var response = await client.SendAsync(update);
+            Assert.That((int)response.StatusCode, Is.EqualTo(200), "the category took its hashtags");
+        }
+
+        await LoginAsync("admin@example.com", "password");
+        await OpenNewPostEditorAsync();
+        await Page.GetByLabel("Title", new PageGetByLabelOptions { Exact = true }).FillAsync("Hashtag preview");
+        await Page.GetByLabel("Title", new PageGetByLabelOptions { Exact = true }).BlurAsync();
+        var address = $"{BaseUrl}/post/hashtag-preview";
+        var mastodon = Page.Locator("#announce-preview-mastodon .announce-preview__text");
+        var bluesky = Page.Locator("#announce-preview-bluesky .announce-preview__text");
+        await Expect(mastodon).ToHaveTextAsync($"Hashtag preview\n\n{address}");
+
+        var category = Page.GetByRole(AriaRole.Combobox, new PageGetByRoleOptions { Name = "Category" });
+        await category.ClickAsync();
+        await category.FillAsync(categoryName);
+        await Page.GetByRole(AriaRole.Option, new PageGetByRoleOptions { Name = categoryName }).ClickAsync();
+
+        await Expect(mastodon).ToHaveTextAsync($"Hashtag preview\n\n#Homelab\n\n{address}");
+        await Expect(bluesky).ToHaveTextAsync($"Hashtag preview\n\n#Homelab #SelfHosted\n\n{address}");
+        foreach (var network in new[] { "mastodon", "bluesky" })
+        {
+            var shown = (await Page.Locator($"#announce-preview-{network} .announce-preview__text").TextContentAsync())!;
+            var limit = network == "mastodon" ? 500 : 300;
+            await Expect(Count(Page, network)).ToHaveTextAsync($"{LengthByRule(network, shown)} / {limit}");
+        }
+
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Clear" }).ClickAsync();
+
+        await Expect(mastodon).ToHaveTextAsync($"Hashtag preview\n\n{address}");
+        await Expect(bluesky).ToHaveTextAsync($"Hashtag preview\n\n{address}");
+    }
+
     // ---- accessibility ----
 
     private static async Task AssertNoSeriousAxeViolationsAsync(IPage page)

@@ -1,4 +1,5 @@
 using Croft.Shared.Contracts;
+using Croft.Shared.Contracts.Social;
 using Croft.Shared.Enums;
 
 namespace Croft.Web.Components.Admin;
@@ -25,6 +26,9 @@ public sealed class PostEditModel
 
     /// <summary>Tag names; a name no existing tag carries creates a new tag on save.</summary>
     public List<string> Tags { get; set; } = [];
+
+    /// <summary>The hashtags of the tags in <see cref="Tags"/>, by tag name: loaded with the post or taken from the suggestion when the tag was added. Not part of the draft backup.</summary>
+    public Dictionary<string, IReadOnlyList<HashtagDto>> TagHashtags { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     public MediaAssetDto? Banner { get; set; }
 

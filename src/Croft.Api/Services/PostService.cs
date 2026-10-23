@@ -771,10 +771,13 @@ public partial class PostService(BlogDbContext db, ISlugService slugService, IFi
                     post.BannerImage.AltText),
             [.. post.Tags
                 .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
-                .Select(t => new TagDto(t.Id, t.Name, t.Slug, tagPostCounts.GetValueOrDefault(t.Id), t.CountsTowardsRelated))],
+                .Select(t => new TagDto(t.Id, t.Name, t.Slug, tagPostCounts.GetValueOrDefault(t.Id), t.CountsTowardsRelated,
+                    includeAuthorId ? t.Hashtags : null))],
             post.Category is null
                 ? null
-                : new CategoryDto(post.Category.Id, post.Category.Name, post.Category.Slug, post.Category.Icon, categoryPostCount),
+                : new CategoryDto(post.Category.Id, post.Category.Name, post.Category.Slug, post.Category.Icon, categoryPostCount,
+                    // Staff only, like the author's id: the editor's announcement previews need them, a reader does not (and the public read cache holds that variant).
+                    includeAuthorId ? post.Category.Hashtags : null),
             post.ReadingMinutes,
             post.Kind,
             post.NavigationPlacement,

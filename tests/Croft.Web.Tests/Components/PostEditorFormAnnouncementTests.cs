@@ -1,6 +1,9 @@
 using AwesomeAssertions;
 using Bunit;
 using Croft.Web.Components.Admin;
+using Croft.Shared.Contracts;
+using Croft.Shared.Contracts.Social;
+using Croft.Shared.Social;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Croft.Web.Tests.Components;
@@ -184,5 +187,54 @@ public class PostEditorFormAnnouncementTests : BlogBunitContext
         cut.Find("#announcement-text").Input("shorter");
 
         model.AnnouncementTextError.Should().BeNull();
+    }
+
+    private static readonly CategoryDto HomelabCategory = new(Guid.CreateVersion7(), "Homelab", "homelab", null, 1,
+        [new HashtagDto("Homelab", HashtagNetworks.Both), new HashtagDto("SelfHosted", HashtagNetworks.BlueskyOnly)]);
+
+    [Fact]
+    public void TheCategorysHashtags_ReachEachPreviewByItsNetwork_AndLeaveTheTextFieldsPlaceholderAlone()
+    {
+        var model = new PostEditModel { Title = "T", Category = HomelabCategory, CategoryId = HomelabCategory.Id };
+
+        var cut = Render(model);
+
+        cut.Find("#announce-preview-mastodon .announce-preview__text").TextContent.Should().Be($"T\n\n#Homelab\n\n{Url}");
+        cut.Find("#announce-preview-bluesky .announce-preview__text").TextContent.Should().Be($"T\n\n#Homelab #SelfHosted\n\n{Url}");
+        Count(cut, "mastodon").Should().Be($"{AnnouncementText.MastodonLength($"T\n\n#Homelab\n\n{Url}")} / 500");
+        Count(cut, "bluesky").Should().Be($"{AnnouncementText.BlueskyLength($"T\n\n#Homelab #SelfHosted\n\n{Url}")} / 300");
+        cut.Find("#announcement-text").GetAttribute("placeholder").Should().Be("T", "the placeholder stays the two-argument default");
+    }
+
+    [Fact]
+    public void TheTagsHashtags_FollowTheTagsInNameOrder_AfterTheCategorys()
+    {
+        var model = new PostEditModel { Title = "T", Category = HomelabCategory, Tags = ["Kubernetes", "dotnet"] };
+        model.TagHashtags["Kubernetes"] = [new HashtagDto("Kubernetes", HashtagNetworks.MastodonOnly)];
+        model.TagHashtags["dotnet"] = [new HashtagDto("DotNet", HashtagNetworks.Both)];
+
+        var cut = Render(model);
+
+        cut.Find("#announce-preview-mastodon .announce-preview__text").TextContent.Should().Be($"T\n\n#Homelab #DotNet #Kubernetes\n\n{Url}");
+        cut.Find("#announce-preview-bluesky .announce-preview__text").TextContent.Should().Be($"T\n\n#Homelab #SelfHosted #DotNet\n\n{Url}");
+    }
+
+    [Fact]
+    public void ATagAddedFromTheSuggestions_BringsItsHashtags_AndRemovingTheTagTakesThemAway()
+    {
+        var model = new PostEditModel { Title = "T" };
+        var cut = Render<PostEditorForm>(p => p
+            .Add(x => x.Model, model)
+            .Add(x => x.Slug, "a-post")
+            .Add(x => x.TagSuggestions, [new TagDto(Guid.CreateVersion7(), "dotnet", "dotnet", 1, true, [new HashtagDto("DotNet", HashtagNetworks.Both)])]));
+
+        cut.Find("#post-tag-entry").Input("dotnet");
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Add tag").Click();
+
+        cut.Find("#announce-preview-mastodon .announce-preview__text").TextContent.Should().Be($"T\n\n#DotNet\n\n{Url}");
+
+        cut.Find("button[aria-label='Remove tag dotnet']").Click();
+
+        cut.Find("#announce-preview-mastodon .announce-preview__text").TextContent.Should().Be($"T\n\n{Url}");
     }
 }

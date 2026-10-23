@@ -392,6 +392,12 @@
         _model.Category = post.Category;
         _model.CategoryId = post.Category?.Id;
         _model.Tags = [.. post.Tags.Select(tag => tag.Name)];
+        _model.TagHashtags.Clear();
+        foreach (var tag in post.Tags)
+        {
+            _model.TagHashtags[tag.Name] = tag.Hashtags;
+        }
+
         _model.Banner = post.BannerImage;
         _model.BannerImageId = post.BannerImage?.Id;
         _model.PublishedAtDate = post.PublishedAt?.Date;
