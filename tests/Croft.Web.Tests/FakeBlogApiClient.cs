@@ -483,7 +483,7 @@ internal sealed class FakeBlogApiClient : IBlogApiClient
         // Scheduled vs Published at the moment of the request); tests can dictate it.
         var post = PostsById[id] with
         {
-            PublishedAt = request.PublishedAt,
+            PublishedAt = request.PublishedAt ?? PostsById[id].PublishedAt ?? DateTime.UtcNow,
             Status = PublishStatus?.Invoke(id, request) ?? PostStatus.Published,
         };
         PostsById[id] = post;

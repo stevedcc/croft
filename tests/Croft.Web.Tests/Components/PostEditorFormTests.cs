@@ -200,6 +200,59 @@ public class PostEditorFormTests : BlogBunitContext
         schedule.HasAttribute("disabled").Should().BeFalse("the entered UTC moment is in the future");
     }
 
+    private static readonly DateTime StoredPublishedAt = new(2026, 10, 1, 9, 0, 0, DateTimeKind.Utc);
+
+    [Theory]
+    [InlineData(PostStatus.Draft, false)]
+    [InlineData(PostStatus.Scheduled, false)]
+    [InlineData(PostStatus.Published, true)]
+    public void PostEditorForm_SetDate_ShownOnlyForPublishedPosts(PostStatus status, bool shown)
+    {
+        Services.AddSingleton<TimeProvider>(ClockAt(12));
+        var cut = Render<PostEditorForm>(p => p
+            .Add(x => x.Model, Model(new DateTime(2026, 9, 15, 0, 0, 0, DateTimeKind.Utc), new TimeSpan(8, 0, 0)))
+            .Add(x => x.Status, status)
+            .Add(x => x.StoredPublishedAt, StoredPublishedAt));
+
+        cut.FindAll("button").Any(b => b.TextContent == "Set date").Should().Be(shown);
+    }
+
+    [Fact]
+    public void PostEditorForm_SetDate_EnabledForAPastMomentThatDiffersFromTheStoredOne_AndRaisesItsCallback()
+    {
+        Services.AddSingleton<TimeProvider>(ClockAt(12));
+        var calls = new List<string>();
+        var cut = Render<PostEditorForm>(p => p
+            .Add(x => x.Model, Model(new DateTime(2026, 9, 15, 0, 0, 0, DateTimeKind.Utc), new TimeSpan(8, 0, 0)))
+            .Add(x => x.Status, PostStatus.Published)
+            .Add(x => x.StoredPublishedAt, StoredPublishedAt)
+            .Add(x => x.OnSetDate, EventCallback.Factory.Create(this, () => calls.Add("setdate"))));
+
+        var button = cut.FindAll("button").Single(b => b.TextContent == "Set date");
+        button.HasAttribute("disabled").Should().BeFalse();
+        button.HasAttribute("aria-describedby").Should().BeFalse();
+        button.Click(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => calls.Should().Equal("setdate"));
+    }
+
+    [Theory]
+    [InlineData(2026, 10, 1, 9, 0, "the same moment as the stored one")]
+    [InlineData(2026, 12, 1, 9, 0, "a future moment (that is Schedule's job)")]
+    public void PostEditorForm_SetDate_DisabledWithItsHint(int year, int month, int day, int hour, int minute, string why)
+    {
+        Services.AddSingleton<TimeProvider>(ClockAt(12));
+        var cut = Render<PostEditorForm>(p => p
+            .Add(x => x.Model, Model(new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc), new TimeSpan(hour, minute, 0)))
+            .Add(x => x.Status, PostStatus.Published)
+            .Add(x => x.StoredPublishedAt, StoredPublishedAt));
+
+        var button = cut.FindAll("button").Single(b => b.TextContent == "Set date");
+        button.HasAttribute("disabled").Should().BeTrue(why);
+        cut.Find($"#{button.GetAttribute("aria-describedby")}").TextContent.Trim().Should()
+            .Be("Set date needs a past date and time that differs from the published one.");
+    }
+
     [Fact]
     public void PostEditorForm_ScheduleDisabledWithoutADate()
     {

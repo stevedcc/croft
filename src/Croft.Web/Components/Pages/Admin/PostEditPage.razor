@@ -26,8 +26,8 @@
 <PageHeader Title="@EditorTitle" />
 
 @* The post editor (spec §6.2): the form on the left, the Preview and Feedback tabs on the
-   right. Every action saves the form first; Publish now publishes at the clock's moment and
-   ignores the date field, Schedule publishes at the entered UTC moment. Errors from the API
+   right. Every action saves the form first; Publish now sends no date, Set date and Schedule
+   publish at the entered UTC moment. Errors from the API
    surface as the alert at the top with the problem detail text. The same component writes a
    page (/admin/pages/new, or any edit route of a page): page mode hides category, tags and
    banner and shows the navigation fields, and the Preview renders the page layout. *@
@@ -53,7 +53,7 @@
                         DraftKey="@DraftKey" SavedStamp="@_savedStamp"
                         OnTagSuggestionsRequested="LoadTagSuggestionsAsync" CategorySearch="SearchCategoriesAsync"
                         Status="_status" SavedAt="_savedAt" Announcement="@_announcement" Slug="@_post?.Slug" OnModelChanged="ModelChangedAsync"
-                        OnSave="SaveAsync" OnPublishNow="PublishNowAsync" OnSchedule="ScheduleAsync"
+                        OnSave="SaveAsync" OnPublishNow="PublishNowAsync" OnSchedule="ScheduleAsync" OnSetDate="SetDateAsync" StoredPublishedAt="@_post?.PublishedAt"
                         OnUnpublish="UnpublishAsync" OnUploadBanner="UploadBannerAsync"
                         OnChooseBannerFromLibrary="ChooseBannerAsync"
                         OnInsertImageRequested="InsertImageAsync"
@@ -415,10 +415,10 @@
 
     private async Task PublishNowAsync()
     {
-        // Publish now ignores the date field: the moment is the clock's (the TimeProvider rule).
+        // Publish now sends no date: the API decides "now" for an unpublished post and keeps a published post's date.
         if (await SaveCoreAsync())
         {
-            await PublishAsync(Time.GetUtcNow().UtcDateTime);
+            await PublishAsync(null);
         }
 
         NavigateIfNew();
@@ -432,6 +432,14 @@
         }
 
         NavigateIfNew();
+    }
+
+    private async Task SetDateAsync()
+    {
+        if (UtcDateTime.Combine(_model.PublishedAtDate, _model.PublishedAtTime) is { } moment && await SaveCoreAsync())
+        {
+            await PublishAsync(moment);
+        }
     }
 
     private async Task UnpublishAsync()
@@ -530,7 +538,7 @@
         }
     }
 
-    private async Task PublishAsync(DateTime publishedAt)
+    private async Task PublishAsync(DateTime? publishedAt)
     {
         try
         {
@@ -539,7 +547,7 @@
             _post = await Api.PublishPostAsync(_post!.Id, new PublishRequest(publishedAt));
             _status = _post.Status;
             _announcement = _status == PostStatus.Scheduled
-                ? $"Scheduled for {_post.PublishedAt ?? publishedAt:yyyy-MM-dd HH:mm} UTC"
+                ? $"Scheduled for {_post.PublishedAt:yyyy-MM-dd HH:mm} UTC"
                 : await PublishedTextAsync();
         }
         catch (HttpRequestException ex)

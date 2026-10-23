@@ -574,8 +574,13 @@ public partial class PostService(BlogDbContext db, ISlugService slugService, IFi
             return null;
 
         var now = time.GetUtcNow().UtcDateTime;
-        var scheduledAt = request.PublishedAt.HasValue ? normalizer.NormalizeToUtc(request.PublishedAt) : now;
         var wasPublished = post.Status == PostStatus.Published;
+
+        // Publishing a published post without a date is not a new publication: the date stays. An explicit past date
+        // sets it (back-dating); a future one schedules.
+        var scheduledAt = request.PublishedAt.HasValue ? normalizer.NormalizeToUtc(request.PublishedAt)
+            : wasPublished && post.PublishedAt is { } keptDate ? keptDate
+            : now;
 
         if (scheduledAt <= now)
         {
