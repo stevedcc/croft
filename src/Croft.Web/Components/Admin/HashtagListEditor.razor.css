@@ -1,0 +1,64 @@
+.hashtag-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.hashtag-editor legend {
+    padding: 0;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.hashtag-editor__rows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.hashtag-editor__fields {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.hashtag-editor__input {
+    flex: 1 1 8rem;
+    min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid var(--muted);
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.hashtag-editor__input:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+}
+
+.hashtag-editor__input[aria-invalid="true"] {
+    border-color: var(--primary);
+}
+
+.hashtag-editor__problem {
+    margin: 4px 0 0;
+    color: var(--text);
+    font-size: 12.5px;
+}
+
+.hashtag-editor__hint {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12.5px;
+}

@@ -1,0 +1,149 @@
+@using Croft.Shared.Contracts.Social
+@using Croft.Shared.Social
+
+@* The hashtags of a category or tag (brief 12e): one row per hashtag with its network, an Add button and, under a row that breaks the shared rules
+   (Croft.Shared.Social.Hashtags, the same ones the API enforces), the rule's message. The list reaches the parent through ValueChanged only while every
+   row is valid; ValidChanged tells the parent when that flips, so it can hold its Save back. A row left empty is ignored, not an error. Presentational. *@
+<fieldset class="hashtag-editor">
+    <legend>@Label</legend>
+    <ul class="hashtag-editor__rows">
+        @for (var i = 0; i < _rows.Count; i++)
+        {
+            var index = i;
+            var row = _rows[index];
+            var problem = _problems[index];
+            var problemId = $"{_id}-problem-{index}";
+            <li class="hashtag-editor__row">
+                <div class="hashtag-editor__fields">
+                    <input type="text" class="hashtag-editor__input" aria-label="Hashtag" autocomplete="off" spellcheck="false"
+                           aria-invalid="@(problem is null ? null : "true")" aria-describedby="@(problem is null ? null : problemId)"
+                           value="@row.Text" @oninput="e => TextChanged(row, e.Value?.ToString())" />
+                    <select class="hashtag-editor__input" aria-label="Networks" @onchange="e => NetworksChanged(row, e.Value?.ToString())">
+                        <option value="@nameof(HashtagNetworks.Both)" selected="@(row.Networks == HashtagNetworks.Both)">Both</option>
+                        <option value="@nameof(HashtagNetworks.MastodonOnly)" selected="@(row.Networks == HashtagNetworks.MastodonOnly)">Mastodon only</option>
+                        <option value="@nameof(HashtagNetworks.BlueskyOnly)" selected="@(row.Networks == HashtagNetworks.BlueskyOnly)">Bluesky only</option>
+                    </select>
+                    <MudButton Size="Size.Small" Color="Color.Error" aria-label="@RemoveLabel(row, index)"
+                               OnClick="() => RemoveAsync(row)">Remove</MudButton>
+                </div>
+                @if (problem is not null)
+                {
+                    <p class="hashtag-editor__problem" id="@problemId">@problem</p>
+                }
+            </li>
+        }
+    </ul>
+    <MudButton Size="Size.Small" Disabled="@(_rows.Count >= Hashtags.MaxPerItem)" OnClick="AddRow">Add hashtag</MudButton>
+    <p class="hashtag-editor__hint">Use established hashtags in CamelCase, e.g. #SelfHosted. Up to 3 per announcement: category first, then tags.</p>
+</fieldset>
+
+@code {
+    private readonly string _id = $"hashtag-editor-{Guid.NewGuid():N}";
+    private List<Row> _rows = [];
+    private IReadOnlyList<string?> _problems = [];
+    private IReadOnlyList<HashtagDto>? _seen;
+    private IReadOnlyList<HashtagDto>? _reported;
+    private bool _valid = true;
+
+    /// <summary>The saved list; a different list than the one shown or last reported replaces the rows.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<HashtagDto> Value { get; set; } = [];
+
+    /// <summary>The list as it would be saved (names without the #), raised only while every row is valid.</summary>
+    [Parameter] public EventCallback<IReadOnlyList<HashtagDto>> ValueChanged { get; set; }
+
+    /// <summary>Raised with false when a row breaks the rules and with true when they all hold again.</summary>
+    [Parameter] public EventCallback<bool> ValidChanged { get; set; }
+
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        // A re-render of the parent hands back the list already shown (the one it gave before, or the one reported to it): the rows keep what is typed.
+        if (ReferenceEquals(Value, _seen) || ReferenceEquals(Value, _reported))
+        {
+            return;
+        }
+
+        _seen = Value;
+        _rows = [.. Value.Select(h => new Row { Text = h.Name, Networks = h.Networks })];
+        Revalidate();
+    }
+
+    private static string RemoveLabel(Row row, int index)
+    {
+        var name = Hashtags.Normalize(row.Text);
+        return name.Length > 0 ? $"Remove #{name}" : $"Remove hashtag {index + 1}";
+    }
+
+    private Task AddRow()
+    {
+        _rows.Add(new Row());
+        Revalidate();
+        return Task.CompletedTask;
+    }
+
+    private Task TextChanged(Row row, string? text)
+    {
+        row.Text = text ?? string.Empty;
+        return ChangedAsync();
+    }
+
+    private Task NetworksChanged(Row row, string? value)
+    {
+        row.Networks = Enum.TryParse<HashtagNetworks>(value, out var networks) ? networks : HashtagNetworks.Both;
+        return ChangedAsync();
+    }
+
+    private Task RemoveAsync(Row row)
+    {
+        _rows.Remove(row);
+        return ChangedAsync();
+    }
+
+    private async Task ChangedAsync()
+    {
+        var wasValid = _valid;
+        Revalidate();
+        if (_valid != wasValid)
+        {
+            await ValidChanged.InvokeAsync(_valid);
+        }
+
+        if (!_valid)
+        {
+            return;
+        }
+
+        var list = _rows.Where(r => Hashtags.Normalize(r.Text).Length > 0)
+            .Select(r => new HashtagDto(Hashtags.Normalize(r.Text), r.Networks)).ToList();
+        if (_reported is null ? list.Count == Value.Count && list.SequenceEqual(Value) : list.SequenceEqual(_reported))
+        {
+            return;
+        }
+
+        _reported = list;
+        await ValueChanged.InvokeAsync(list);
+    }
+
+    /// <summary>The rules' message for each row (a blank row has none: it is simply not part of the list).</summary>
+    private void Revalidate()
+    {
+        var filled = _rows.Select((row, index) => (row, index)).Where(x => Hashtags.Normalize(x.row.Text).Length > 0).ToList();
+        var rowProblems = Hashtags.RowProblems([.. filled.Select(x => new HashtagDto(x.row.Text, x.row.Networks))]);
+        var problems = new string?[_rows.Count];
+        for (var i = 0; i < filled.Count; i++)
+        {
+            problems[filled[i].index] = rowProblems[i];
+        }
+
+        _problems = problems;
+        _valid = problems.All(p => p is null);
+    }
+
+    private sealed class Row
+    {
+        public string Text { get; set; } = string.Empty;
+
+        public HashtagNetworks Networks { get; set; } = HashtagNetworks.Both;
+    }
+}

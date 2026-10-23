@@ -45,6 +45,19 @@
     overflow-wrap: anywhere;
 }
 
+/* position: relative: the visually-hidden "Actions" heading is absolutely positioned; without a positioned ancestor
+   inside the region it escapes the region's clip and widens the page. */
+.admin-table__scroll {
+    position: relative;
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.admin-table__scroll:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
 .admin-table__count {
     width: 5rem;
 }

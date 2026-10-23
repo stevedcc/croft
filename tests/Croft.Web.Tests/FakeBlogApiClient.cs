@@ -114,6 +114,9 @@ internal sealed class FakeBlogApiClient : IBlogApiClient
     /// <summary>Every UpdateTagAsync call, in order: id and the request it carried.</summary>
     public List<(Guid Id, UpdateTagRequest Request)> TagUpdateRequests { get; } = [];
 
+    /// <summary>Every UpdateCategoryAsync call, in order: id and the request it carried.</summary>
+    public List<(Guid Id, UpdateCategoryRequest Request)> CategoryUpdateRequests { get; } = [];
+
     /// <summary>Every paging request the caller sent for categories, in order (page, pageSize, q).</summary>
     public List<(int Page, int PageSize, string? Q)> CategoryPageRequests { get; } = [];
 
@@ -522,6 +525,7 @@ internal sealed class FakeBlogApiClient : IBlogApiClient
         {
             Name = request.Name,
             CountsTowardsRelated = request.CountsTowardsRelated ?? Tags[index].CountsTowardsRelated,
+            Hashtags = request.Hashtags ?? Tags[index].Hashtags,
         };
         Tags[index] = tag;
         return Task.FromResult(tag);
@@ -547,13 +551,14 @@ internal sealed class FakeBlogApiClient : IBlogApiClient
     }
     public Task<CategoryDto> UpdateCategoryAsync(Guid id, UpdateCategoryRequest request, CancellationToken ct = default)
     {
+        CategoryUpdateRequests.Add((id, request));
         if (UpdateFailure is not null)
         {
             throw UpdateFailure;
         }
 
         var index = Categories.FindIndex(c => c.Id == id);
-        var category = Categories[index] with { Name = request.Name, Icon = request.Icon };
+        var category = Categories[index] with { Name = request.Name, Icon = request.Icon, Hashtags = request.Hashtags ?? Categories[index].Hashtags };
         Categories[index] = category;
         return Task.FromResult(category);
     }

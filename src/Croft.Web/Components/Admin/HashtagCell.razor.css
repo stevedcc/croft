@@ -1,0 +1,16 @@
+.hashtag-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
+}
+
+.hashtag-cell__text {
+    overflow-wrap: anywhere;
+}
+
+.hashtag-cell__actions {
+    display: flex;
+    gap: 8px;
+}

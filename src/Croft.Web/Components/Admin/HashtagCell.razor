@@ -1,0 +1,65 @@
+@using Croft.Shared.Contracts.Social
+
+@* The hashtags cell of a category or tag row on Tags & categories (brief 12e), shared by both tables: the saved hashtags as "#A #B" text and an
+   Edit button that opens the HashtagListEditor with Save and Cancel. Save is held back while a row breaks the rules. The page does the saving:
+   Save is called with the list and answers whether it worked; the editor closes only then, so a refused save keeps what the owner typed. *@
+<div class="hashtag-cell">
+    <span class="hashtag-cell__text">@Text</span>
+    @if (!_editing)
+    {
+        <MudButton Size="Size.Small" aria-label="@($"Edit hashtags for {Subject}")" OnClick="Start">Edit</MudButton>
+    }
+    else
+    {
+        <HashtagListEditor Label="@($"Hashtags for {Subject}")" Value="_draft" ValueChanged="DraftChanged" ValidChanged="v => _valid = v" />
+        <div class="hashtag-cell__actions">
+            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!_valid || _saving)" OnClick="SaveAsync">Save</MudButton>
+            <MudButton Size="Size.Small" Disabled="_saving" OnClick="Cancel">Cancel</MudButton>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _editing;
+    private bool _valid = true;
+    private bool _saving;
+    private IReadOnlyList<HashtagDto> _draft = [];
+
+    /// <summary>The name of the category or tag, for the buttons' accessible names.</summary>
+    [Parameter, EditorRequired] public string Subject { get; set; } = string.Empty;
+
+    /// <summary>The saved hashtags.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<HashtagDto> Hashtags { get; set; } = [];
+
+    /// <summary>Saves the list; true when it was saved.</summary>
+    [Parameter, EditorRequired] public Func<IReadOnlyList<HashtagDto>, Task<bool>> Save { get; set; } = _ => Task.FromResult(false);
+
+    private string Text => string.Join(' ', Hashtags.Select(h => "#" + h.Name));
+
+    private void Start()
+    {
+        _draft = Hashtags;
+        _valid = true;
+        _editing = true;
+    }
+
+    private void DraftChanged(IReadOnlyList<HashtagDto> value) => _draft = value;
+
+    private void Cancel() => _editing = false;
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            if (await Save(_draft))
+            {
+                _editing = false;
+            }
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

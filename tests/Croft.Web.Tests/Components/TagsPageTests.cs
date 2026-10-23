@@ -1,4 +1,5 @@
 using Croft.Shared.Contracts;
+using Croft.Shared.Contracts.Social;
 using Croft.Web.Components.Pages.Admin;
 using Croft.Web.Services;
 using Bunit;
@@ -332,5 +333,84 @@ public class TagsPageTests : BlogBunitContext
         reason.Should().NotBeNull("the id resolves to an element");
         reason!.TextContent.Trim().Should().Be("Used by 1 post, so it cannot be deleted.");
         reason.HasAttribute("hidden").Should().BeFalse("the reason is visible text");
+    }
+
+    private static void EditHashtags(IRenderedComponent<TagsPage> cut, string rowName, params (string Text, string Networks)[] hashtags)
+    {
+        cut.Find($"button[aria-label='Edit hashtags for {rowName}']").Click(new MouseEventArgs());
+        foreach (var (text, networks) in hashtags)
+        {
+            cut.FindAll("button").Single(b => b.TextContent.Contains("Add hashtag")).Click(new MouseEventArgs());
+            var inputs = cut.FindAll("input[aria-label='Hashtag']");
+            inputs[^1].Input(text);
+            cut.FindAll("select[aria-label='Networks']")[^1].Change(networks);
+        }
+    }
+
+    [Fact]
+    public async Task ATagRow_ShowsItsHashtagsAsText_AndSavingTheEditorSendsThemWithTheName()
+    {
+        var tag = Tag("k8s") with { Hashtags = [new("Kubernetes", HashtagNetworks.Both)] };
+        var fake = new FakeBlogApiClient { Tags = [tag] };
+        Services.AddSingleton<IBlogApiClient>(fake);
+        var cut = Render<TagsPage>();
+        await cut.WaitForAssertionAsync(() => cut.FindAll("tr.admin-table__row").Should().ContainSingle());
+        cut.Find(".hashtag-cell__text").TextContent.Should().Be("#Kubernetes");
+
+        EditHashtags(cut, "k8s", ("SelfHosted", nameof(HashtagNetworks.BlueskyOnly)));
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Save").Click(new MouseEventArgs());
+
+        await cut.WaitForAssertionAsync(() => cut.Find(".hashtag-cell__text").TextContent.Should().Be("#Kubernetes #SelfHosted"));
+        var (id, request) = fake.TagUpdateRequests.Should().ContainSingle().Subject;
+        id.Should().Be(tag.Id);
+        request.Name.Should().Be("k8s");
+        request.CountsTowardsRelated.Should().BeNull("a hashtag save leaves the Related switch alone");
+        request.Hashtags.Should().Equal([new HashtagDto("Kubernetes", HashtagNetworks.Both), new HashtagDto("SelfHosted", HashtagNetworks.BlueskyOnly)]);
+    }
+
+    [Fact]
+    public async Task ACategoryRow_SavesItsHashtagsWithNameAndIcon_AndRenamingSendsNoHashtags()
+    {
+        var category = Category("Homelab") with { Icon = "Terrain" };
+        var fake = new FakeBlogApiClient { Categories = [category] };
+        Services.AddSingleton<IBlogApiClient>(fake);
+        var cut = Render<TagsPage>();
+        await cut.WaitForAssertionAsync(() => cut.FindAll("tr.admin-table__row").Should().ContainSingle());
+
+        EditHashtags(cut, "Homelab", ("#Homelab", nameof(HashtagNetworks.Both)));
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Save").Click(new MouseEventArgs());
+
+        await cut.WaitForAssertionAsync(() => cut.Find(".hashtag-cell__text").TextContent.Should().Be("#Homelab"));
+        var request = fake.CategoryUpdateRequests.Should().ContainSingle().Subject.Request;
+        (request.Name, request.Icon).Should().Be(("Homelab", "Terrain"));
+        request.Hashtags.Should().Equal([new HashtagDto("Homelab", HashtagNetworks.Both)]);
+
+        cut.Find("button[aria-label='Rename Homelab']").Click(new MouseEventArgs());
+        var input = cut.Find("tr.admin-table__row input");
+        input.Input(new ChangeEventArgs { Value = "Homelab 2" });
+        input.Blur(new FocusEventArgs());
+
+        await cut.WaitForAssertionAsync(() => fake.CategoryUpdateRequests.Should().HaveCount(2));
+        fake.CategoryUpdateRequests[1].Request.Hashtags.Should().BeNull("a rename must not touch the hashtags");
+    }
+
+    [Fact]
+    public async Task SaveIsOffered_OnlyWhileTheHashtagsAreValid_AndCancelDiscardsTheDraft()
+    {
+        var fake = new FakeBlogApiClient { Tags = [Tag("k8s")] };
+        Services.AddSingleton<IBlogApiClient>(fake);
+        var cut = Render<TagsPage>();
+        await cut.WaitForAssertionAsync(() => cut.FindAll("tr.admin-table__row").Should().ContainSingle());
+
+        EditHashtags(cut, "k8s", ("two words", nameof(HashtagNetworks.Both)));
+
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Save").HasAttribute("disabled").Should().BeTrue("a hashtag breaks the rules");
+        cut.Find(".hashtag-editor__problem").TextContent.Should().Contain("two words");
+
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Cancel").Click(new MouseEventArgs());
+
+        fake.TagUpdateRequests.Should().BeEmpty();
+        cut.FindAll(".hashtag-editor").Should().BeEmpty("cancel closes the editor");
+        cut.Find(".hashtag-cell__text").TextContent.Should().BeEmpty();
     }
 }

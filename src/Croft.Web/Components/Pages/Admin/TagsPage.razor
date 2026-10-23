@@ -1,3 +1,4 @@
+@using Croft.Shared.Contracts.Social
 @page "/admin/tags"
 @attribute [Authorize(Roles = "Admin")]
 @inject IBlogApiClient Api
@@ -37,12 +38,15 @@
     }
     else
     {
+        @* Five columns (with Hashtags, and its editor open) do not fit a phone: the table scrolls sideways inside its own focusable, named region. *@
+        <div class="admin-table__scroll" role="region" aria-label="Categories table" tabindex="0">
         <table class="admin-table">
             <thead>
                 <tr>
                     <th>Icon</th>
                     <th>Name</th>
                     <th>Posts</th>
+                    <th>Hashtags</th>
                     <th><span class="admin-table__label">Actions</span></th>
                 </tr>
             </thead>
@@ -61,6 +65,10 @@
                         </td>
                         <td class="admin-table__count">@row.Category.PostCount</td>
                         <td>
+                            <HashtagCell Subject="@row.Category.Name" Hashtags="row.Category.Hashtags"
+                                         Save="hashtags => SaveCategoryHashtagsAsync(row, hashtags)" />
+                        </td>
+                        <td>
                             <MudTooltip Text="@DeleteTooltip("category")" Disabled="@(row.Category.PostCount == 0)">
                                 <span class="admin-table__actions">
                                     <MudButton Color="Color.Error" Disabled="@(row.Category.PostCount > 0)"
@@ -77,6 +85,7 @@
                 }
             </tbody>
         </table>
+        </div>
     }
     @if (_categoryTotalPages > 1)
     {
@@ -101,12 +110,14 @@
     }
     else
     {
+        <div class="admin-table__scroll" role="region" aria-label="Tags table" tabindex="0">
         <table class="admin-table">
             <thead>
                 <tr>
                     <th>Name</th>
                     <th>Posts</th>
                     <th>Related</th>
+                    <th>Hashtags</th>
                     <th><span class="admin-table__label">Actions</span></th>
                 </tr>
             </thead>
@@ -122,6 +133,10 @@
                             <MudSwitch T="bool" Value="row.CountsTowardsRelated" Size="Size.Small"
                                        ValueChanged="value => SaveTagRelatedAsync(row, value)"
                                        AriaLabel="@($"Counts towards related posts: {row.Tag.Name}")" />
+                        </td>
+                        <td>
+                            <HashtagCell Subject="@row.Tag.Name" Hashtags="row.Tag.Hashtags"
+                                         Save="hashtags => SaveTagHashtagsAsync(row, hashtags)" />
                         </td>
                         <td>
                             <MudTooltip Text="@DeleteTooltip("tag")" Disabled="@(row.Tag.PostCount == 0)">
@@ -140,6 +155,7 @@
                 }
             </tbody>
         </table>
+        </div>
     }
     @if (_tagTotalPages > 1)
     {
@@ -458,6 +474,44 @@
             ApiFailureLog.Failed(Logger, "saving the related setting", ex);
             _error = "Could not save the related setting.";
             row.CountsTowardsRelated = row.Tag.CountsTowardsRelated;
+        }
+    }
+
+    /// <summary>Saves a row's hashtags with its saved name and icon; true when the API took them (its message is shown otherwise).</summary>
+    private async Task<bool> SaveCategoryHashtagsAsync(CategoryRow row, IReadOnlyList<HashtagDto> hashtags)
+    {
+        _error = null;
+        try
+        {
+            row.Category = await Api.UpdateCategoryAsync(
+                row.Category.Id, new UpdateCategoryRequest(row.Category.Name, row.Category.Icon, hashtags));
+            StateHasChanged(); // the call came from the cell's own handler, which re-renders the cell but not this page
+            return true;
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "saving category hashtags", ex);
+            _error = ex.Message;
+            StateHasChanged();
+            return false;
+        }
+    }
+
+    private async Task<bool> SaveTagHashtagsAsync(TagRow row, IReadOnlyList<HashtagDto> hashtags)
+    {
+        _error = null;
+        try
+        {
+            row.Tag = await Api.UpdateTagAsync(row.Tag.Id, new UpdateTagRequest(row.Tag.Name, Hashtags: hashtags));
+            StateHasChanged();
+            return true;
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "saving tag hashtags", ex);
+            _error = ex.Message;
+            StateHasChanged();
+            return false;
         }
     }
 
