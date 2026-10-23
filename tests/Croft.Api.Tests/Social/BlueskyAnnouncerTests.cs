@@ -47,7 +47,7 @@ public class BlueskyAnnouncerTests
     }
 
     /// <summary>A PDS that answers the three calls like the real one; <paramref name="respond"/> overrides an answer by the XRPC method name.</summary>
-    private static (StubHandler Handler, List<Seen> Seen) Pds(Func<string, HttpResponseMessage?>? respond = null)
+    private static (StubHandler Handler, List<Seen> Seen) Pds(Func<string, HttpResponseMessage?>? respond = null, string sessionHandle = "handle.invalid")
     {
         List<Seen> seen = [];
         var handler = new StubHandler(request =>
@@ -56,7 +56,7 @@ public class BlueskyAnnouncerTests
             var method = request.RequestUri!.AbsolutePath.Split('/')[^1];
             return respond?.Invoke(method) ?? method switch
             {
-                "com.atproto.server.createSession" => Json($$"""{"accessJwt":"{{Jwt}}","refreshJwt":"test-refresh-5b","handle":"owner.example","did":"{{Did}}"}"""),
+                "com.atproto.server.createSession" => Json($$"""{"accessJwt":"{{Jwt}}","refreshJwt":"test-refresh-5b","handle":"{{sessionHandle}}","did":"{{Did}}"}"""),
                 "com.atproto.repo.uploadBlob" => Json("""{"blob":{"$type":"blob","ref":{"$link":"bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku"},"mimeType":"image/jpeg","size":12345}}"""),
                 "com.atproto.repo.createRecord" => Json(SocialFixtures.Read("bluesky-create-record.json")),
                 _ => new HttpResponseMessage(HttpStatusCode.NotFound),
@@ -75,6 +75,28 @@ public class BlueskyAnnouncerTests
         seen.Select(s => s.Request.RequestUri!.ToString()).Should().Equal(
             "https://pds.example/xrpc/com.atproto.server.createSession",
             "https://pds.example/xrpc/com.atproto.repo.createRecord");
+        outcome.Should().Be(new AnnounceOutcome.Posted(
+            $"at://{Did}/app.bsky.feed.post/3m5aaaaaaaaaa", $"https://bsky.app/profile/{Did}/post/3m5aaaaaaaaaa"));
+    }
+
+    [Fact]
+    public async Task Send_WithAHandleInTheSessionAnswer_LinksByHandle_AndKeepsTheDidUriAsTheRemoteId()
+    {
+        var (handler, _) = Pds(sessionHandle: "owner.example");
+
+        var outcome = await Announcer(handler).SendAsync(Message(), CancellationToken.None);
+
+        outcome.Should().Be(new AnnounceOutcome.Posted(
+            $"at://{Did}/app.bsky.feed.post/3m5aaaaaaaaaa", "https://bsky.app/profile/owner.example/post/3m5aaaaaaaaaa"));
+    }
+
+    [Fact]
+    public async Task Send_WithAnInvalidHandle_LinksByDid()
+    {
+        var (handler, _) = Pds(sessionHandle: "handle.invalid");
+
+        var outcome = await Announcer(handler).SendAsync(Message(), CancellationToken.None);
+
         outcome.Should().Be(new AnnounceOutcome.Posted(
             $"at://{Did}/app.bsky.feed.post/3m5aaaaaaaaaa", $"https://bsky.app/profile/{Did}/post/3m5aaaaaaaaaa"));
     }
@@ -348,11 +370,21 @@ public class BlueskyAnnouncerTests
         handler.Messages.Single().Headers.Authorization.Should().BeNull();
     }
 
+    /// <summary>The author feed as Bluesky answers for an account whose handle does not resolve (the DID form stays).</summary>
+    private static StubHandler FeedWithoutAHandle() => Feed(() => Json(SocialFixtures.Read("bluesky-author-feed.json").Replace("\"handle\": \"owner.example\"", "\"handle\": \"handle.invalid\"", StringComparison.Ordinal)));
+
     [Fact]
     public async Task Check_FindsAPostByItsCardUri()
     {
-        (await Announcer(Feed()).FindEarlierAsync(Message(), CancellationToken.None))
+        (await Announcer(FeedWithoutAHandle()).FindEarlierAsync(Message(), CancellationToken.None))
             .Should().Be(new AnnounceOutcome.Posted($"at://{Did}/app.bsky.feed.post/3m5aaaaaaaaaa", $"https://bsky.app/profile/{Did}/post/3m5aaaaaaaaaa"));
+    }
+
+    [Fact]
+    public async Task Check_UsesTheAuthorsHandleOfTheFeedItem_ForTheLink()
+    {
+        (await Announcer(Feed()).FindEarlierAsync(Message(), CancellationToken.None))
+            .Should().Be(new AnnounceOutcome.Posted($"at://{Did}/app.bsky.feed.post/3m5aaaaaaaaaa", "https://bsky.app/profile/owner.example/post/3m5aaaaaaaaaa"));
     }
 
     [Fact]
@@ -360,7 +392,7 @@ public class BlueskyAnnouncerTests
     {
         var message = Message() with { PostUrl = "https://blog.example/post/second-post" };
 
-        (await Announcer(Feed()).FindEarlierAsync(message, CancellationToken.None))
+        (await Announcer(FeedWithoutAHandle()).FindEarlierAsync(message, CancellationToken.None))
             .Should().Be(new AnnounceOutcome.Posted($"at://{Did}/app.bsky.feed.post/3m5bbbbbbbbbb", $"https://bsky.app/profile/{Did}/post/3m5bbbbbbbbbb"));
     }
 

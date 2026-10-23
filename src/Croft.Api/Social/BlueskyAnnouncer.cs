@@ -36,7 +36,7 @@ public sealed class BlueskyAnnouncer(IHttpClientFactory clients, IOptions<Social
             if (!sessionAnswer.IsSuccess)
                 return Refused("sign-in", sessionAnswer, password);
 
-            var (jwt, did) = ReadSession(sessionAnswer.Body);
+            var (jwt, did, handle) = ReadSession(sessionAnswer.Body);
             if (jwt is null || did is null)
                 return new AnnounceOutcome.Retry("Bluesky sent an unexpected answer", null);
 
@@ -67,7 +67,7 @@ public sealed class BlueskyAnnouncer(IHttpClientFactory clients, IOptions<Social
                 return Refused("post", createAnswer, password, jwt);
 
             // A success without a usable answer may still have posted: the retry's look for an earlier send settles it.
-            return ReadCreated(createAnswer.Body, did) ?? (AnnounceOutcome)new AnnounceOutcome.Retry("Bluesky sent an unexpected answer", null);
+            return ReadCreated(createAnswer.Body, did, handle) ?? (AnnounceOutcome)new AnnounceOutcome.Retry("Bluesky sent an unexpected answer", null);
         }
         catch (Exception ex) when (AnnounceErrors.IsExpected(ex, ct))
         {
@@ -143,18 +143,18 @@ public sealed class BlueskyAnnouncer(IHttpClientFactory clients, IOptions<Social
 
     private DateTime Now() => time.GetUtcNow().UtcDateTime;
 
-    private static (string? Jwt, string? Did) ReadSession(byte[] body)
+    private static (string? Jwt, string? Did, string? Handle) ReadSession(byte[] body)
     {
         try
         {
             using var document = SocialJson.Parse(Encoding.UTF8.GetString(body), "session");
             var jwt = document.RootElement.Str("accessJwt");
             var did = document.RootElement.Str("did");
-            return (string.IsNullOrEmpty(jwt) ? null : jwt, string.IsNullOrEmpty(did) ? null : did);
+            return (string.IsNullOrEmpty(jwt) ? null : jwt, string.IsNullOrEmpty(did) ? null : did, document.RootElement.Str("handle"));
         }
         catch (SocialParseException)
         {
-            return (null, null);
+            return (null, null, null);
         }
     }
 
@@ -170,12 +170,12 @@ public sealed class BlueskyAnnouncer(IHttpClientFactory clients, IOptions<Social
         }
     }
 
-    private static AnnounceOutcome.Posted? ReadCreated(byte[] body, string did)
+    private static AnnounceOutcome.Posted? ReadCreated(byte[] body, string did, string? handle)
     {
         try
         {
             using var document = SocialJson.Parse(Encoding.UTF8.GetString(body), "created record");
-            return document.RootElement.Str("uri") is { } uri && Link(uri, did) is { } url ? new AnnounceOutcome.Posted(uri, url) : null;
+            return document.RootElement.Str("uri") is { } uri && Link(uri, did, handle) is { } url ? new AnnounceOutcome.Posted(uri, url) : null;
         }
         catch (SocialParseException)
         {
@@ -183,14 +183,17 @@ public sealed class BlueskyAnnouncer(IHttpClientFactory clients, IOptions<Social
         }
     }
 
-    /// <summary>The bsky.app address of an <c>at://did/app.bsky.feed.post/rkey</c> URI (the author is the account whose repository holds it).</summary>
-    private static string? Link(string uri, string did)
+    /// <summary>The bsky.app address of an <c>at://did/app.bsky.feed.post/rkey</c> URI (the author is the account whose repository holds it). The profile
+    /// part is the account's <paramref name="handle"/> when Bluesky gave a valid one (readable, and what a person would paste), else the DID.</summary>
+    private static string? Link(string uri, string did, string? handle)
     {
         var parts = uri.Split('/');
         if (parts is not ["at:", "", var author, "app.bsky.feed.post", { Length: > 0 } rkey])
             return null;
 
-        return $"https://bsky.app/profile/{(author.Length > 0 ? author : did)}/post/{Uri.EscapeDataString(rkey)}";
+        var repository = author.Length > 0 ? author : did;
+        var profile = SocialLinkParser.IsUsableHandle(handle) && repository.StartsWith("did:", StringComparison.Ordinal) ? handle! : repository;
+        return $"https://bsky.app/profile/{profile}/post/{Uri.EscapeDataString(rkey)}";
     }
 
     /// <summary>The author-feed post whose card or link facet points at exactly the post's address.</summary>
@@ -214,7 +217,7 @@ public sealed class BlueskyAnnouncer(IHttpClientFactory clients, IOptions<Social
                 var record = post.Prop("record");
                 var carded = string.Equals(record.Prop("embed").Prop("external").Str("uri"), postUrl, StringComparison.Ordinal);
                 var linked = record.Prop("facets").Items().Any(facet => facet.Prop("features").Items().Any(feature => string.Equals(feature.Str("uri"), postUrl, StringComparison.Ordinal)));
-                if ((carded || linked) && post.Str("uri") is { } uri && Link(uri, string.Empty) is { } url)
+                if ((carded || linked) && post.Str("uri") is { } uri && Link(uri, string.Empty, post.Prop("author").Str("handle")) is { } url)
                     return new AnnounceOutcome.Posted(uri, url);
             }
         }
