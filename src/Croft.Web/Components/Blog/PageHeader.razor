@@ -1,0 +1,43 @@
+@namespace Croft.Web.Components
+@* The list-page header (spec §5.3): the category icon + name, "#tag", or "N results for 'q'", with
+   the count ("· 12 posts") in a paragraph after the heading, not inside it (review 2026-10-19 M-5:
+   the heading is the name alone). A small helper over the shared h1 styling — the pages pass the
+   copy verbatim; the card markup stays in the components. *@
+<header class="page-header">
+    @if (Level == 2)
+    {
+        <h2 class="page-header__title">@Heading</h2>
+    }
+    else
+    {
+        <h1 class="page-header__title">@Heading</h1>
+    }
+    @if (!string.IsNullOrEmpty(Meta))
+    {
+        <p class="page-header__meta">@Meta</p>
+    }
+</header>
+
+@code {
+    /// <summary>The heading level: 1 (the default, the page's title) or 2 (when another element,
+    /// such as the home page's masthead, carries the page's h1).</summary>
+    [Parameter] public int Level { get; set; } = 1;
+
+    /// <summary>Leading icon name (category pages); omitted when empty.</summary>
+    [Parameter] public string? Icon { get; set; }
+
+    /// <summary>The header text: the category name, "#tag", or "N results for 'q'".</summary>
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    /// <summary>Trailing count, e.g. "· 12 posts"; omitted when empty.</summary>
+    [Parameter] public string? Meta { get; set; }
+
+    private RenderFragment Heading => __builder =>
+    {
+        if (!string.IsNullOrEmpty(Icon))
+        {
+            <CategoryIcon Name="@Icon" Size="32" />
+        }
+        <span>@Title</span>
+    };
+}

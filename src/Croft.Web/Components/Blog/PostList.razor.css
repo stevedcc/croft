@@ -1,0 +1,13 @@
+/* The stacked card list. */
+.post-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.post-list__empty {
+    margin: 0;
+    color: var(--muted);
+    font-family: var(--font-ui);
+    font-size: 15px;
+}

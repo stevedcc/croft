@@ -1,0 +1,108 @@
+﻿@page "/"
+@attribute [ExcludeFromInteractiveRouting]
+@inject IBlogApiClient Api
+@inject NavigationManager Navigation
+@inject Branding Branding
+
+<BlogPageTitle />
+
+@* The site as a whole: described by its description (the tagline when none is configured), at
+   the site root. Page 2+ of the listing canonicalises to itself (?page=N), so each listing page
+   a crawler can reach is its own address; the values never depend on the listing load, so the
+   head is complete even while the list is still in flight. *@
+<SeoHead Title="@Branding.Name"
+         Description="@Description"
+         CanonicalPath="@CanonicalPath"
+         PageType="SeoPageType.Website" />
+
+@* Page 1 opens with the site masthead (the page's h1: the site's name), so "Latest Posts" is
+   an h2 beneath it; later pages, and a site with the masthead off, keep "Latest Posts" as the h1. *@
+@if (ShowMasthead)
+{
+    <Masthead Name="@Branding.Name" Description="@Description" />
+}
+
+<PageHeader Title="Latest Posts" Level="@(ShowMasthead ? 2 : 1)" />
+
+@* Static SSR awaits the load before it sends any HTML, so the data is set when this renders. *@
+@if (_result is not null)
+{
+    @* Home is the base path, so it passes no Path — its
+       pager links keep the plain ?page=N form, which at "/" resolves to the page itself. *@
+    <PostList Items="@_result.Items" ShowFeatured="true" Page="@_page" TotalPages="@TotalPages"
+              EmptyText="Nothing published yet." />
+}
+
+@code {
+    // Home (spec §5.2): page 1 = 1 Featured + 9 List, later pages = 10 List cards, ?page=N paging,
+    // "Nothing published yet." when there is nothing at all.
+    private const int PageSize = Croft.Shared.PublicPageSizes.PostList;
+
+    /// <summary>The home page's description: the site's description, falling back to the tagline
+    /// when none is configured.</summary>
+    private string Description =>
+        string.IsNullOrWhiteSpace(Branding.Description) ? Branding.Tagline : Branding.Description;
+
+    // WORKAROUND(W-023, Blazor): a pager click changes only the query string, and Blazor re-runs the parameter lifecycle only when a supplied parameter changes
+    // ?page=N as a supplied query parameter on purpose: a pager click changes only the query
+    // string, and Blazor re-runs this page's parameter lifecycle only when a parameter value
+    // changes — without this the list never reloaded (caught by the paging E2E).
+    [SupplyParameterFromQuery(Name = "page")]
+    public string? PageNumber { get; set; }
+    // END WORKAROUND(W-023)
+
+    private PagedResult<PostSummaryDto>? _result;
+    private int _page = 1;
+
+    /// <summary>The ?page=N the URI asks for, read from it once per parameter set (before the load guard, so the
+    /// head and the masthead follow a pager click at once).</summary>
+    private int _requestedPage = 1;
+    private string? _loadedKey;
+
+    private int TotalPages => _result is null
+        ? 1
+        : Math.Max(1, (int)Math.Ceiling((double)_result.TotalCount / PageSize));
+
+    /// <summary>The masthead is on the first page of the listing only (from the page the URI asks for, so it
+    /// follows a pager click at once) and only when the site has it switched on.</summary>
+    private bool ShowMasthead =>
+        Branding.Masthead && _requestedPage == 1;
+
+    /// <summary>The site root for page 1, the listing page itself for ?page=N beyond page 1
+    /// (an explicit ?page=1 still canonicalises to the root). Read from the URI once per
+    /// parameter set, like the load (PageQuery), so the head can never lag a pager click or be affected by
+    /// the load guard.</summary>
+    private string CanonicalPath
+    {
+        get
+        {
+            var page = _requestedPage;
+            return page > 1 ? $"/?page={page}" : "/";
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Loaded from OnParametersSet — not OnInitialized — because Blazor reuses the page
+        // instance when only the query string changes (?page=N links land here).
+        _requestedPage = PageQuery.ReadPageNumber(new Uri(Navigation.Uri).Query);
+        var page = _requestedPage;
+        var key = $"home|{PageNumber}";
+
+        if (key == _loadedKey)
+        {
+            return;
+        }
+
+        _loadedKey = key;
+        var result = await Api.GetPostsAsync(new PostListRequest(Page: page, PageSize: PageSize, PublicView: true));
+        if (key != _loadedKey)
+        {
+            // A superseded load completing late must not clobber the newer one's state.
+            return;
+        }
+
+        _result = result;
+        _page = page;
+    }
+}

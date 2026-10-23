@@ -1,0 +1,134 @@
+/* One reply (brief 12b). Nesting indents by a border-left rule per level; the API stops at three
+   levels, so the indentation has a natural cap. min-width: 0 and overflow-wrap keep a long handle or
+   URL from pushing the page wider than a 390px phone. */
+.discussion-reply {
+    min-width: 0;
+}
+
+/* The avatar beside the text: a 48px column, the text takes the rest (min-width: 0 so it can shrink). */
+.discussion-reply__card {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.discussion-reply__main {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.discussion-reply__avatar {
+    flex: none;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+/* The fallback: the initial in a neutral circle. */
+.discussion-reply__initial {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1;
+}
+
+/* Answers are indented already, so their avatars are a little smaller. */
+.discussion-reply__answers .discussion-reply__avatar {
+    width: 40px;
+    height: 40px;
+}
+
+.discussion-reply__answers .discussion-reply__initial {
+    font-size: 17px;
+}
+
+.discussion-reply__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 2px 12px;
+    margin-bottom: 4px;
+}
+
+.discussion-reply__who,
+.discussion-reply__where {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 8px;
+    min-width: 0;
+}
+
+.discussion-reply__name {
+    color: var(--text);
+    font-weight: 600;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.discussion-reply__name:hover {
+    color: var(--primary);
+    text-decoration: underline;
+}
+
+.discussion-reply__handle,
+.discussion-reply__platform,
+.discussion-reply time {
+    color: var(--muted);
+    font-size: 12.5px;
+    overflow-wrap: anywhere;
+}
+
+.discussion-reply__platform {
+    font-weight: 600;
+}
+
+.discussion-reply__warning > summary {
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.discussion-reply__content {
+    overflow-wrap: anywhere;
+}
+
+/* The replies' HTML is raw markup (MarkupString) without the scope attribute, hence ::deep. */
+.discussion-reply__content ::deep p {
+    margin: 0 0 .6em;
+}
+
+.discussion-reply__content ::deep > :last-child {
+    margin-bottom: 0;
+}
+
+.discussion-reply__content ::deep a {
+    color: var(--primary);
+    overflow-wrap: anywhere;
+}
+
+.discussion-reply__media,
+.discussion-reply__links {
+    margin: .4em 0 0;
+    color: var(--muted);
+    font-size: 12.5px;
+}
+
+.discussion-reply__media a,
+.discussion-reply__links a {
+    color: var(--primary);
+}
+
+.discussion-reply__answers {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin: 1rem 0 0;
+    padding: 0 0 0 .875rem;
+    list-style: none;
+    border-left: 2px solid color-mix(in srgb, var(--text) 14%, transparent);
+}

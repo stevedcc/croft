@@ -1,0 +1,34 @@
+﻿@page "/Error"
+@attribute [ExcludeFromInteractiveRouting]
+@layout ErrorLayout
+@using System.Diagnostics
+
+<BlogPageTitle Title="Error" />
+@* WORKAROUND(W-008, Blazor): HeadOutlet keeps one HeadContent provider per page, so the feed link sits beside RobotsNoIndex here *@
+<HeadContent><RobotsNoIndex /><FeedAlternateLink /></HeadContent>
+@* END WORKAROUND(W-008) *@
+
+@* The error page (the exception handler's endpoint), a static document with no MudBlazor (brief
+   13a): the shell's visual language, the same one NotFoundContent speaks. It keeps the request-id
+   display and the HttpContext lookup; the stock template's Development-mode paragraphs are gone
+   (brief 13g item 5, review M-6: developer documentation does not belong in front of readers). *@
+<h1 class="error__title">Something went wrong</h1>
+<p class="error__text">An error occurred while processing your request.</p>
+
+@if (ShowRequestId)
+{
+    <p>
+        <strong>Request ID:</strong> <code>@RequestId</code>
+    </p>
+}
+
+@code{
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+    private bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+
+    protected override void OnInitialized() =>
+        RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

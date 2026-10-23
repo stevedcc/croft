@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Local dev login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: sans-serif; margin: 2rem; }
+        label { display: block; margin-bottom: 1rem; }
+        input[type="text"] { width: 100%; max-width: 300px; padding: 0.5rem; }
+        button { padding: 0.5rem 1rem; }
+    </style>
+</head>
+<body>
+    <h1>Local dev login</h1>
+    <form method="post" id="login-form">
+        <label>
+            Username
+            <input class="u-full-width" required type="text" name="username" id="username"
+                   placeholder="admin@example.com" autofocus="on">
+        </label>
+        <textarea name="claims" id="claims" style="display:none"></textarea>
+        <input class="button-primary" type="submit" value="Sign-in">
+    </form>
+    <script>
+        // Dev-only identity setup: map local test usernames to OIDC claims.
+        const users = {
+            "admin@example.com": {
+                "sub": "admin-id",
+                "name": "Admin User",
+                "email": "admin@example.com",
+                "email_verified": true,
+                "groups": ["Admin"]
+            },
+            "editor@example.com": {
+                "sub": "editor-id",
+                "name": "Editor User",
+                "email": "editor@example.com",
+                "email_verified": true,
+                "groups": ["Editor"]
+            }
+        };
+
+        document.getElementById("login-form").addEventListener("submit", function () {
+            var username = document.getElementById("username").value;
+            var claims = users[username] || { "sub": username, "name": username };
+            document.getElementById("claims").value = JSON.stringify(claims);
+        });
+    </script>
+</body>
+</html>

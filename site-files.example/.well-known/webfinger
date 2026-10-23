@@ -1,0 +1,16 @@
+{
+  "subject": "acct:example-owner@example.com",
+  "aliases": [
+    "acct:example-owner@users.example.com"
+  ],
+  "links": [
+    {
+      "rel": "http://webfinger.net/rel/profile-page",
+      "href": "https://www.example.com/about"
+    },
+    {
+      "rel": "http://webfinger.net/rel/avatar",
+      "href": "https://www.example.com/branding/logo.svg"
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+/* The discussion under a post (brief 12b): the heading takes the rail panels' small UI-font look,
+   the count and the reply list sit below it. UI font throughout: replies are chat, not the article's
+   serif body. Colours are the site's tokens, so light and dark both follow the theme. */
+.discussion {
+    container-type: inline-size;
+    min-width: 0;
+    font-family: var(--font-ui);
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--text);
+}
+
+.discussion__heading {
+    margin: 0 0 4px;
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text);
+}
+
+.discussion__count,
+.discussion__empty {
+    margin: 0 0 1rem;
+    color: var(--muted);
+    font-size: 13.5px;
+}
+
+.discussion__list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* The reply actions under the count: the Bluesky link as an outlined button, the Mastodon form beside it
+   (below it on a phone). */
+.discussion__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px 24px;
+    margin: 0 0 1.5rem;
+}
+
+.discussion__reply-bluesky {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    box-sizing: border-box;
+    padding: 4px 16px;
+    border: 1px solid var(--primary);
+    border-radius: 6px;
+    color: var(--primary);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.discussion__reply-bluesky:hover {
+    background: var(--primary-container);
+}

@@ -1,0 +1,283 @@
+@page "/editor/posts/{slug}"
+@attribute [Authorize(Roles = "Editor,Admin")]
+@implements IAsyncDisposable
+@inject IBlogApiClient Api
+@inject IMarkdownRenderer Markdown
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject ILogger<DraftReviewPage> Logger
+
+<BlogPageTitle Title="@(_post?.Title ?? "Review Draft")" />
+@* WORKAROUND(W-008, Blazor): HeadOutlet keeps one HeadContent provider per page, so the feed link sits beside RobotsNoIndex here *@
+<HeadContent><RobotsNoIndex /><FeedAlternateLink /></HeadContent>
+@* END WORKAROUND(W-008) *@
+
+@* The draft review (spec §6.6): the draft rendered with the real post layout — PostHero with the
+   Draft ribbon, PostBody, PostRail — and the feedback notes in the right-hand column (or after the
+   text on narrow screens). Selecting text shows an "Add feedback" button; using it hands the
+   selection to the panel as the new note's quote. *@
+@if (_error is not null)
+{
+    <p class="draft-review__error" role="alert">@_error</p>
+}
+
+@if (_post is null || _rendered is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else
+{
+    <PostHero Post="@_post" DraftRibbon="true" />
+
+    @* The rail-less contents panel, the same one the post page shows: under the hero, pins to a
+       row while reading (its row reads the scroll-spy's current section). *@
+    <ContentsPanel Headings="@_rendered.Headings" Tags="@_post.Tags" Path="@_path" />
+
+    <div class="post-layout @(_rendered.Headings.Count >= 2 ? "post-layout--contents-panel" : string.Empty)">
+        <div class="draft-review__body" @ref="_bodyRegion">
+            <PostBody Markdown="@_rendered" />
+        </div>
+        <RelatedPosts Items="@_related" />
+        <PostRail Headings="@_rendered.Headings" Tags="@_post.Tags" Path="@_path">
+            <section class="post-rail__panel">
+                <h2 class="post-rail__heading">Feedback</h2>
+                <FeedbackPanel Items="@_feedback" CanAdd="true" OnAdd="AddFeedbackAsync" Quote="@_handOffQuote" />
+            </section>
+        </PostRail>
+    </div>
+
+    @if (_selectionText is { Length: > 0 })
+    {
+        @* preventDefault on mousedown keeps the selection (and its quote) alive until the click
+           hands it over — without it the button would clear the selection it is about to use.
+           Its position is written through the CSSOM from JS (OnAfterRender →
+           blogEditor.placeSelectionButton): the public/staff markup carries no style attribute. *@
+        <button type="button" class="draft-review__add-feedback"
+                @onmousedown:preventDefault="true" @onclick="HandOffSelectionAsync">Add feedback</button>
+    }
+}
+
+@code {
+    [Parameter] public string Slug { get; set; } = string.Empty;
+
+    /// <summary>post.js loads per page that renders a post body; this page drives its scroll-spy
+    /// and contents panel too, so it imports the module like the post page does.</summary>
+    private IJSObjectReference? _postModule;
+
+    // WORKAROUND(W-023, Blazor): OnInitialized runs twice on a full load (prerender, then the circuit); [PersistentState] skips the second fetch
+    /// <summary>The draft, its related posts and its feedback as the prerender loaded them, handed
+    /// to the circuit so a full page load fetches each once. Used only for the slug it was
+    /// loaded for, and only once: a later navigation loads fresh.</summary>
+    [PersistentState]
+    public LoadedDraft? Loaded { get; set; }
+    // END WORKAROUND(W-023)
+
+    /// <summary>What the prerender loaded for <paramref name="Slug"/>.</summary>
+    public sealed record LoadedDraft(
+        string Slug, PostDto Post, IReadOnlyList<PostSummaryDto> Related, IReadOnlyList<FeedbackDto> Feedback);
+
+    private PostDto? _post;
+    private RenderedMarkdown? _rendered;
+    private IReadOnlyList<PostSummaryDto> _related = [];
+    private IReadOnlyList<FeedbackDto> _feedback = [];
+    private string _path = string.Empty;
+    private string? _selectionText;
+    private string? _handOffQuote;
+    private int _selectionTop;
+    private int _selectionLeft;
+    private string? _error;
+    private string? _loadedKey;
+    private bool _watchStarted;
+    private bool _panelHandled;
+    private DotNetObjectReference<DraftReviewPage>? _selectionWatch;
+    private ElementReference _bodyRegion;
+
+    /// <summary>Like the post page: re-loaded on route changes, because Blazor reuses the page
+    /// instance when only the slug parameter changes.</summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        var key = Slug;
+        if (key == _loadedKey)
+        {
+            return;
+        }
+
+        _loadedKey = key;
+        _post = null;
+        _rendered = null;
+        _related = [];
+        _feedback = [];
+        _path = string.Empty;
+        _selectionText = null;
+        _handOffQuote = null;
+        _error = null;
+        _watchStarted = false;
+        _panelHandled = false;
+
+        try
+        {
+            if (Loaded is { } restored)
+            {
+                Loaded = null;
+                if (restored.Slug == Slug)
+                {
+                    _post = restored.Post;
+                    _rendered = Markdown.Render(restored.Post.MarkdownContent);
+                    _path = $"/editor/posts/{restored.Post.Slug}";
+                    _related = restored.Related;
+                    _feedback = restored.Feedback;
+                    return;
+                }
+            }
+
+            var post = await Api.GetPostAsync(Slug);
+            if (post is null)
+            {
+                // Real 404 (spec §5.5) — like every other page with a slug route.
+                Navigation.NotFound();
+                return;
+            }
+
+            _post = post;
+            _rendered = Markdown.Render(post.MarkdownContent);
+            _path = $"/editor/posts/{post.Slug}";
+            _related = await Api.GetRelatedPostsAsync(post.Slug, 3);
+            _feedback = await Api.GetFeedbackAsync(post.Id);
+            var loaded = new LoadedDraft(Slug, post, _related, _feedback);
+            if (PersistentStateBudget.Fits(loaded))
+            {
+                // A very long post would not fit the hand-over (see PersistentStateBudget): the
+                // circuit then fetches it again.
+                Loaded = loaded;
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            // A session ending (the sign-in redirect is under way) or any other failed call: the
+            // page says so instead of ending the circuit.
+            ApiFailureLog.Failed(Logger, "loading the draft", ex);
+            _error = ex.Message;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Keyed on the body being rendered, not firstRender: the first render can still be the
+        // loading state (the same shape as the post page's beacon).
+        if (_post is not null && !_watchStarted)
+        {
+            _watchStarted = true;
+            // A slug-to-slug reload starts a new watch here; the replaced one's reference is
+            // disposed with it (one live watch per page).
+            _selectionWatch?.Dispose();
+            _selectionWatch = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("blogEditor.watchSelection", _bodyRegion, _selectionWatch);
+        }
+
+        if (_post is not null && !_panelHandled)
+        {
+            // The scroll-spy marks the current section in both TOC instances and feeds the
+            // contents panel's pinned row; the panel's own states (pin, open, pull) live in the
+            // same module. Keyed on the post being loaded, like the watch above.
+            _panelHandled = true;
+            _postModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/post.js");
+            await JS.InvokeVoidAsync("blogPost.initScrollSpy");
+            await JS.InvokeVoidAsync("blogPost.initContentsPanel");
+        }
+
+        if (_selectionText is { Length: > 0 })
+        {
+            // The button is placed at the selection and clamped to the viewport through the CSSOM
+            // once it is rendered — its real size is only measurable then.
+            await JS.InvokeVoidAsync("blogEditor.placeSelectionButton", _selectionTop, _selectionLeft);
+        }
+    }
+
+    /// <summary>The end of a selection gesture in the body: show (or hide) the "Add feedback"
+    /// button at the selection (called from wwwroot/js/editor.js).</summary>
+    [JSInvokable]
+    public Task OnSelectionChanged(string text, int top, int left) =>
+        InvokeAsync(() =>
+        {
+            if (text.Length > 0)
+            {
+                _selectionText = text;
+                _selectionTop = top;
+                _selectionLeft = left;
+            }
+            else
+            {
+                _selectionText = null;
+            }
+
+            // JS-invoked, not a lifecycle event: nothing else renders the change.
+            StateHasChanged();
+        });
+
+    private async Task HandOffSelectionAsync()
+    {
+        if (_selectionText is not { Length: > 0 } text)
+        {
+            return;
+        }
+
+        _handOffQuote = text;
+        _selectionText = null;
+
+        // The DOM selection goes with the hand-off: left alive, the next keyup/mouseup reports it
+        // again and the button reappears for a quote that was already consumed.
+        await JS.InvokeVoidAsync("blogEditor.clearSelection");
+    }
+
+    private async Task AddFeedbackAsync(CreateFeedbackRequest request)
+    {
+        if (_post is null)
+        {
+            return;
+        }
+
+        _error = null;
+        try
+        {
+            await Api.CreateFeedbackAsync(_post.Id, request);
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "adding feedback", ex);
+            _error = ex.Message;
+            return;
+        }
+
+        // Clearing the hand-off lets the same selection fill the quote again later.
+        _handOffQuote = null;
+        _feedback = await Api.GetFeedbackAsync(_post.Id);
+    }
+
+    // WORKAROUND(W-042, Blazor): a prerendered instance is disposed where JS interop is forbidden; circuit shutdown cancels or throws
+    public async ValueTask DisposeAsync()
+    {
+        // No watch, no unwatch: the watch starts in OnAfterRenderAsync (interactive only), and a
+        // statically rendered instance (prerender — e.g. the NotFound path) is disposed in a
+        // phase where JS interop calls are forbidden and would fail the request.
+        if (_selectionWatch is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await JS.InvokeVoidAsync("blogEditor.unwatchSelection");
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit is gone; nothing to unwatch on a page that is going away with it.
+        }
+        catch (TaskCanceledException)
+        {
+            // The circuit is shutting down; the unwatch call is cancelled before it runs.
+        }
+
+        _selectionWatch.Dispose();
+    }
+    // END WORKAROUND(W-042)
+}

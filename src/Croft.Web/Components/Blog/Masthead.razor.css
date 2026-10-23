@@ -1,0 +1,74 @@
+/* The site masthead (brief 10b item 3): a slim strip above "Latest Posts" on the home page's
+   first page. Layers, bottom to top: the banner image tiled at 180px (the masthead's own
+   --masthead-banner, else --fallback-banner: the same tile as the cards' fallback), the
+   fallback wash (::before), a dark gradient for the text (::after, the Featured card's overlay
+   gradient) and the text. About 180px tall from 960px wide, about 120px below; the height is a
+   minimum, so text that wraps grows the strip and never truncates the name. */
+.masthead {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    box-sizing: border-box;
+    min-height: 120px;
+    margin: 0 0 1.25rem;
+    padding: 14px 18px;
+    overflow: hidden;
+    border-radius: 10px;
+    background-image: var(--masthead-banner, var(--fallback-banner));
+    background-position: 0 0;
+    background-size: 180px;
+    background-repeat: repeat;
+    box-shadow: 0 1px 3px rgba(60, 20, 30, .15);
+}
+
+.masthead::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--fallback-wash);
+}
+
+.masthead::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0, 0, 0, .75), rgba(0, 0, 0, 0) 65%);
+}
+
+.masthead__text {
+    position: relative;
+    z-index: 1;
+    min-width: 0;
+}
+
+.masthead__name {
+    margin: 0;
+    overflow-wrap: break-word;
+    font-family: var(--font-serif);
+    font-size: 1.75rem;
+    line-height: 1.2;
+    color: #FFFFFF;
+}
+
+.masthead__description {
+    margin: 4px 0 0;
+    overflow-wrap: break-word;
+    font-size: 1rem;
+    line-height: 1.4;
+    color: #FFFFFF;
+}
+
+@media (min-width: 960px) {
+    .masthead {
+        min-height: 180px;
+        padding: 20px 28px;
+    }
+
+    .masthead__name {
+        font-size: 2.25rem;
+    }
+
+    .masthead__description {
+        font-size: 1.125rem;
+    }
+}

@@ -1,0 +1,110 @@
+/* One reply in the Discussion tab (brief 12c). Answers indent one step per level (a class per depth: no inline
+   style); the API stops at three levels, the stylesheet at four. */
+.discussion-admin__reply {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--muted);
+    border-radius: 6px;
+    background: var(--surface);
+}
+
+.discussion-admin__reply--depth-1 { margin-left: 20px; }
+.discussion-admin__reply--depth-2 { margin-left: 40px; }
+.discussion-admin__reply--depth-3 { margin-left: 60px; }
+.discussion-admin__reply--depth-4 { margin-left: 80px; }
+
+.discussion-admin__main {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.discussion-admin__avatar {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.discussion-admin__initial {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text);
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.discussion-admin__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 10px;
+    margin-bottom: 4px;
+    overflow-wrap: anywhere;
+}
+
+.discussion-admin__name {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.discussion-admin__handle,
+.discussion-admin__platform,
+.discussion-admin__time {
+    color: var(--text);
+    font-size: 13px;
+}
+
+.discussion-admin__warning {
+    margin: 0 0 4px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.discussion-admin__content {
+    overflow-wrap: anywhere;
+}
+
+.discussion-admin__content ::deep p {
+    margin: 0 0 6px;
+}
+
+.discussion-admin__content ::deep a,
+.discussion-admin__view {
+    color: var(--primary);
+}
+
+.discussion-admin__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    margin-top: 6px;
+}
+
+/* The two moderation buttons: plain buttons on the shared tokens (MudBlazor's outlined error button failed the 4.5:1 contrast
+   rule in the dark theme, found by the axe scan of brief 12c item 5). */
+.discussion-admin__action {
+    padding: 4px 12px;
+    border: 1px solid var(--muted);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.discussion-admin__action:hover {
+    background: var(--primary-container);
+}
+
+.discussion-admin__action:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}

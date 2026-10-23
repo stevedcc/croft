@@ -1,0 +1,33 @@
+@namespace Croft.Web.Components
+@implements IAsyncDisposable
+@using Croft.Web.Services
+@inject IJSRuntime JS
+@* The article body (spec §7.3): the markdown rendered by IMarkdownRenderer inside
+   .markdown-body. The composing page parses once and shares its RenderedMarkdown
+   with the TOC, so this component takes that result rather than re-parsing. Highlight.js is
+   re-run after every render (spec §5.4 "re-run after each interactive render") and images get
+   their caption from the Markdown title (spec §5.4 content styling) — both in wwwroot/js/post.js. *@
+<div class="markdown-body" @ref="_body">
+    @((MarkupString)Markdown.Html)
+</div>
+
+@code {
+    /// <summary>The rendered markdown (HTML + headings) produced by IMarkdownRenderer.</summary>
+    [Parameter, EditorRequired] public RenderedMarkdown Markdown { get; set; } = default!;
+
+    private ElementReference _body;
+
+    /// <summary>post.js and its highlight.js imports load per page that renders a post body —
+    /// importing the module registers window.blogPost and the highlight theme; the list pages
+    /// never request them.</summary>
+    private IJSObjectReference? _postModule;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _postModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/post.js");
+        await JS.InvokeVoidAsync("blogPost.highlightAll", _body);
+        await JS.InvokeVoidAsync("blogPost.decorateImages", _body);
+    }
+
+    public ValueTask DisposeAsync() => JsModuleReference.DisposeAsync(_postModule);
+}

@@ -1,0 +1,7 @@
+# Example security.txt for the site-files.example/ folder. Real deployments replace
+# this with their own contact, expiry and canonical URL.
+
+Contact: mailto:security@example.com
+Expires: 2027-01-01T00:00:00Z
+Preferred-Languages: en
+Canonical: https://www.example.com/.well-known/security.txt

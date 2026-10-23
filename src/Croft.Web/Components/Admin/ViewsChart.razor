@@ -1,0 +1,56 @@
+@using System.Globalization
+
+@* The daily-views line chart (spec §6.3/§7.4): a MudChart line over the date + count series, with
+   the "No views yet." empty state when the series carries no views (Review Focus 5). *@
+@if (_hasViews)
+{
+    @* The picture is hidden from assistive technology; the same numbers are in the table below
+       (review 2026-10-19 M-11), which is hidden visually only. *@
+    <div aria-hidden="true">
+        <MudChart T="double" Class="views-chart" ChartType="ChartType.Line" ChartLabels="_labels"
+                  ChartSeries="_series" Height="280px" />
+    </div>
+    <table class="visually-hidden">
+        <caption>Views per day</caption>
+        <thead><tr><th scope="col">Date</th><th scope="col">Views</th></tr></thead>
+        <tbody>
+            @for (var i = 0; i < _labels.Length; i++)
+            {
+                <tr><th scope="row">@_labels[i]</th><td>@_counts[i]</td></tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <p class="views-chart__empty">No views yet.</p>
+}
+
+@code {
+    /// <summary>The daily view counts (date + count), oldest first.</summary>
+    [Parameter] public IReadOnlyList<DailyViewCount>? Daily { get; set; }
+
+    private static readonly CultureInfo EnGb = CultureInfo.GetCultureInfo("en-GB");
+
+    private bool _hasViews;
+    private string[] _labels = [];
+    private List<ChartSeries<double>> _series = [];
+    private long[] _counts = [];
+
+    protected override void OnParametersSet()
+    {
+        var daily = Daily ?? [];
+        _hasViews = daily.Any(d => d.Count > 0);
+        if (!_hasViews)
+        {
+            _labels = [];
+            _series = [];
+            _counts = [];
+            return;
+        }
+
+        _labels = [.. daily.Select(d => d.Date.ToString("d MMM", EnGb))];
+        _counts = [.. daily.Select(d => d.Count)];
+        _series = [new ChartSeries<double> { Name = "Views", Data = new ChartData<double>([.. daily.Select(d => (double)d.Count)]) }];
+    }
+}

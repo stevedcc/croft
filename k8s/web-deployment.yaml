@@ -1,0 +1,232 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blog-web
+  namespace: blog
+spec:
+  # Two of everything: losing one pod must not take the site down. Blazor Server circuits
+  # live in the pod's memory, so a browser should stay on one pod — that is the ingress's
+  # sticky cookie (see README.md), not a reason for a single replica; the editor's local
+  # draft backup covers the circuits a pod loss still drops.
+  replicas: 2
+  # RollingUpdate with one surge pod and none unavailable, so the site never has fewer
+  # than two ready pods. The Data Protection keys live in the Web database, so nothing
+  # this pod mounts is ReadWriteOnce and a rollout needs no particular node.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: blog-web
+  template:
+    metadata:
+      labels:
+        app: blog-web
+        # Stable across a site's renames (blue/green, croft-*): placement and the optional
+        # network-policy component (components/network-policies) select on these.
+        app.kubernetes.io/part-of: croft
+        app.kubernetes.io/component: web
+    spec:
+      # Spread the two pods over different nodes when possible; ScheduleAnyway so a
+      # single-node cluster can still place both pods.
+      # Prefer a node without any other Croft pod (Web or API): with four nodes the two Web and
+      # two API pods land one per node. A preference, never a requirement: a rollout's surge pod
+      # or a failed node's replacement still schedules, and a single-node cluster still works.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/part-of: croft
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: blog-web
+      # WORKAROUND(W-056, Kubernetes): endpoints drop a pod asynchronously, so terminationGracePeriodSeconds covers the preStop sleep plus in-flight work
+      # 40s = the 10s preStop plus 30s to finish in-flight circuits after SIGTERM.
+      terminationGracePeriodSeconds: 40
+      # END WORKAROUND(W-056)
+      # No pod here talks to the Kubernetes API: no service-account token in the filesystem.
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+        # The image's app user is uid/gid 1654; matching fsGroup keeps any volume this pod
+        # may carry (the single-instance overlay's key ring, k8s/README.md) writable by
+        # that user.
+        fsGroup: 1654
+      # WORKAROUND(W-055, Kubernetes): cluster default ndots=5 walks the search list for every lookup; ndots 2 resolves them in one query
+      # The pods call fully-qualified service names (the database, the API): with the cluster's
+      # default ndots=5 every lookup walks the search list first, and those wasted queries were
+      # part of the 2026-10-14 DNS stalls. ndots 2 resolves them in one query.
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "2"
+      # END WORKAROUND(W-055)
+      # Migrations run from the Web app's "migrate" entry (the image's dotnet Croft.Web.dll
+      # migrate) before the Web starts, exactly as the API's init container runs the API's: an
+      # initContainer must exit 0 before the pod's app container is created, so a failed
+      # migration never leaves a Web serving against an old schema. The entry wraps Migrate in a
+      # Postgres advisory lock, so several pods starting at once run the migration chain once
+      # (EF's own migration lock covers a single migration only); a queued init container waits
+      # and then finds nothing pending. The connection comes from the croft-web-db Secret
+      # (k8s/secrets.example.md). The base requires that Secret — the web container below
+      # reads the same connection — so the HA shape has it created; the no-WebDb shape is
+      # the single-instance overlay (k8s/README.md), which deletes this init container and
+      # the env and so needs no Secret at all (with no WebDb the entry is a successful
+      # no-op anyway, but there is then nothing to migrate).
+      initContainers:
+        - name: migrate
+          image: croft-web
+          imagePullPolicy: IfNotPresent
+          command: ["dotnet", "Croft.Web.dll"]
+          args: ["migrate"]
+          env:
+            - name: ConnectionStrings__WebDb
+              valueFrom:
+                secretKeyRef:
+                  name: croft-web-db
+                  key: connection-string
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      containers:
+        - name: web
+          image: croft-web
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            # The Web database holds the state every Web pod shares (token sessions, Data
+            # Protection keys): the same connection the migrate init container above used.
+            # The single-instance overlay (k8s/README.md) drops this entry, and with it the
+            # need for the Secret.
+            - name: ConnectionStrings__WebDb
+              valueFrom:
+                secretKeyRef:
+                  name: croft-web-db
+                  key: connection-string
+            # Telemetry: the resource's service.name and the pod identity every exported signal
+            # carries (k8s/README.md, "Telemetry"). OTEL_EXPORTER_OTLP_ENDPOINT is deliberately
+            # not set here — a site that runs a collector adds it.
+            - name: OTEL_SERVICE_NAME
+              value: "croft-web"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            # Order matters: $(VAR) expands only from env entries declared above it.
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "k8s.pod.name=$(POD_NAME),k8s.namespace.name=$(POD_NAMESPACE)"
+          envFrom:
+            - configMapRef:
+                name: blog-web-config
+            - secretRef:
+                name: blog-web-secrets
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            # The root filesystem is read-only; /tmp is the one writable path (the runtime's
+            # diagnostics sockets, ASP.NET's buffering of large request bodies).
+            - name: tmp
+              mountPath: /tmp
+            # The site's branding folder (if any), mounted read-only: /app/branding is the
+            # app's branding contract. The ConfigMap is optional so the base deploys alone
+            # with the built-in default branding.
+            - name: branding
+              mountPath: /app/branding
+              readOnly: true
+            # The site's well-known files (security.txt, WebFinger, ...), mounted read-only:
+            # /app/site-files is Blog:SiteFilesPath's default. Optional like branding, so the
+            # base deploys alone with no site files. A site that needs a file below a folder
+            # (.well-known/security.txt) projects it with `items` on the volume (k8s/README.md,
+            # "Site files"): ConfigMap keys cannot contain a slash.
+            - name: site-files
+              mountPath: /app/site-files
+              readOnly: true
+            # The optional certificate that encrypts the Data Protection key ring (README,
+            # "Encrypting the key ring"); the settings in blog-web-config point at its files.
+            - name: dataprotection-cert
+              mountPath: /etc/croft/dataprotection
+              readOnly: true
+          lifecycle:
+            # WORKAROUND(W-056, Kubernetes): sleep so the ingress drops this pod before the process stops
+            preStop:
+              exec:
+                # Sleep so the ingress drops this pod's endpoint before the process
+                # stops; without it a request can land on a pod that is already dying.
+                command: ["sleep", "10"]
+            # END WORKAROUND(W-056)
+          # Liveness is /health/live: the process serving requests and nothing else, so an
+          # API or database outage never restarts Web pods — a restart cannot fix a
+          # dependency, and a restart loop only deepens the outage. Readiness is
+          # /health/ready: the Web database and the API's /health, so a pod that cannot
+          # serve meaningfully takes no traffic but keeps running. timeoutSeconds: 5 covers
+          # the endpoint's bounded checks (2s each).
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: branding
+          configMap:
+            name: blog-branding
+            optional: true
+        - name: site-files
+          configMap:
+            name: blog-site-files
+            optional: true
+        - name: dataprotection-cert
+          secret:
+            secretName: croft-dataprotection-cert
+            # Optional: a site without the Secret still starts (with one Warning).
+            optional: true
+            # 0440: the key is readable by the pod's group (fsGroup) only.
+            defaultMode: 288

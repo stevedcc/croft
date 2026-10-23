@@ -1,0 +1,48 @@
+/* The shell grid itself lives in wwwroot/app.css (it styles <html> classes); this file only
+   pads the content area and styles the Blazor error UI. Keep the left padding — the theme
+   tests sample page background just inside main's left edge. */
+.shell > main {
+    padding: 24px 28px 48px;
+}
+
+/* The content wrapper caps every page at 80rem and centres it within main (brief 03f item 2).
+   It must stay inside main and keep position: static — main is the post/draft-review rail's
+   @container (container-type: inline-size in app.css) and the "Add feedback" button's containing
+   block, and neither may key on the wrapper. */
+.shell > main > .content {
+    max-width: 80rem;
+    margin-inline: auto;
+}
+
+@media (max-width: 959.98px) {
+    .shell > main {
+        padding: 16px 16px 40px;
+    }
+}
+
+#blazor-error-ui {
+    color-scheme: light only;
+    background: lightyellow;
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+    box-sizing: border-box;
+    display: none;
+    left: 0;
+    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+}
+
+    #blazor-error-ui .dismiss {
+        cursor: pointer;
+        position: absolute;
+        right: 0.75rem;
+        top: 0.5rem;
+        /* A button now (keyboard-focusable, named "Dismiss"): drawn like the span it replaced. */
+        padding: 0;
+        border: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+    }

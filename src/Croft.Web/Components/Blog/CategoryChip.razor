@@ -1,0 +1,15 @@
+@namespace Croft.Web.Components
+@* The green category chip (spec §7.3): category icon + name, linking to the category page. A post
+   with no category renders nothing — never an empty chip. *@
+@if (Category is not null)
+{
+    <a class="category-chip" href="@($"/category/{Category.Slug}")" title="@Category.Name">
+        <CategoryIcon Name="@Category.Icon" Size="14" />
+        <span class="category-chip__name">@Category.Name</span>
+    </a>
+}
+
+@code {
+    /// <summary>The post's category; when absent nothing renders at all.</summary>
+    [Parameter] public CategoryDto? Category { get; set; }
+}

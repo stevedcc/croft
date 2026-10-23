@@ -1,0 +1,15 @@
+@* The owner's profile identity links (brief 11a item 4): one rel="me" link per profile in the
+   owner's order (Mastodon verifies its profile links by this) and the fediverse:creator meta
+   when the branding sets a handle. Rendered from the document shell (App.razor), so every page
+   — static and interactive — carries them; with no profiles in the branding it renders
+   nothing. *@
+@inject Branding Branding
+
+@foreach (var profile in Branding.Profiles)
+{
+    <link rel="me" href="@profile.Url" />
+}
+@if (Branding.FediverseCreator is { Length: > 0 } fediverseCreator)
+{
+    <meta name="fediverse:creator" content="@fediverseCreator" />
+}

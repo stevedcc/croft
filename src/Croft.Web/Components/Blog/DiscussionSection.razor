@@ -1,0 +1,53 @@
+@namespace Croft.Web.Components
+@using Croft.Shared.Contracts.Social
+
+@* Brief 12b: the replies of the post's Mastodon and Bluesky announcements, one thread, under the
+   article. Static markup only (no script, no inline style, no cookie): the section works on the static
+   reading page. No linked announcement (also what the API returns with Social:Enabled off) renders
+   nothing at all; a linked post without replies renders the section and "No replies yet".
+   data-nosnippet keeps the replies out of search snippets. *@
+@if (Discussion is { } discussion && (discussion.MastodonUrl is not null || discussion.BlueskyUrl is not null))
+{
+    <section id="discussion" class="discussion" aria-labelledby="discussion-heading" data-nosnippet>
+        <h2 id="discussion-heading" class="discussion__heading">Discussion</h2>
+        @if (discussion.ReplyCount > 0)
+        {
+            <p class="discussion__count">@(discussion.ReplyCount == 1 ? "1 reply" : $"{discussion.ReplyCount} replies")</p>
+        }
+
+        @* The reply actions: Bluesky is a link to the post there, Mastodon a small form that asks for the
+           reader's server (no script, no cookie). Each shows only when that platform's post is linked. *@
+        <div class="discussion__actions">
+            @if (discussion.BlueskyUrl is { } blueskyUrl)
+            {
+                <a class="discussion__reply-bluesky" href="@blueskyUrl" rel="noopener">Reply on Bluesky</a>
+            }
+            @if (discussion.MastodonUrl is not null)
+            {
+                <MastodonReplyForm Slug="@Slug" />
+            }
+        </div>
+
+        @if (discussion.Replies.Count > 0)
+        {
+            <ol class="discussion__list">
+                @foreach (var reply in discussion.Replies)
+                {
+                    <DiscussionReply Reply="@reply" />
+                }
+            </ol>
+        }
+        else
+        {
+            <p class="discussion__empty">No replies yet</p>
+        }
+    </section>
+}
+
+@code {
+    /// <summary>The post's discussion; null (an unknown post) or without either link renders nothing.</summary>
+    [Parameter] public PostDiscussionDto? Discussion { get; set; }
+
+    /// <summary>The post's slug: the Mastodon reply form carries it (item 3).</summary>
+    [Parameter] public string Slug { get; set; } = string.Empty;
+}

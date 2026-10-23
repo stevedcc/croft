@@ -1,0 +1,42 @@
+@using Croft.Shared.Contracts
+@* The banner panel (spec §6.2/§7.4): the current banner's thumbnail and name, plus Upload,
+   Choose from library and Remove. The host page performs the upload and opens the library;
+   "Upload" is a label over a transparent file input, like the markdown editor's "Insert image". *@
+<div class="banner-picker">
+    <h2 class="banner-picker__title">Banner image</h2>
+    @if (Banner is not null)
+    {
+        <div class="banner-picker__current">
+            <img class="banner-picker__thumb" src="@Banner.Url" alt="@(Banner.AltText ?? Banner.OriginalName)" />
+            <p class="banner-picker__name">@Banner.OriginalName</p>
+        </div>
+    }
+    <div class="banner-picker__actions">
+        <span class="banner-picker__upload">
+            <label class="banner-picker__button" for="banner-upload">Upload</label>
+            <InputFile id="banner-upload" class="banner-picker__file" aria-label="Upload banner"
+                       accept="image/png,image/jpeg,image/gif,image/webp" OnChange="UploadAsync" />
+        </span>
+        <button type="button" class="banner-picker__button" @onclick="() => OnChooseFromLibrary.InvokeAsync()">Choose from library</button>
+        @if (Banner is not null)
+        {
+            <button type="button" class="banner-picker__button banner-picker__button--remove" @onclick="() => OnRemove.InvokeAsync()">Remove</button>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>The current banner asset, or null when the post has none.</summary>
+    [Parameter] public MediaAssetDto? Banner { get; set; }
+
+    /// <summary>Raised with the chosen file; the host uploads it and stores the returned asset.</summary>
+    [Parameter] public EventCallback<IBrowserFile> OnUpload { get; set; }
+
+    /// <summary>Raised by "Choose from library"; the host opens the media picker.</summary>
+    [Parameter] public EventCallback OnChooseFromLibrary { get; set; }
+
+    /// <summary>Raised by "Remove"; the host clears the banner.</summary>
+    [Parameter] public EventCallback OnRemove { get; set; }
+
+    private Task UploadAsync(InputFileChangeEventArgs e) => OnUpload.InvokeAsync(e.File);
+}

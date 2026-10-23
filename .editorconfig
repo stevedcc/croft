@@ -1,0 +1,51 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+
+[*.{json,yml,yaml,xml,csproj,props,razor.css,css,js}]
+indent_size = 2
+
+[*.{cs,razor}]
+# House style (see .claude/skills/writing-dotnet10-code). Warnings, and the build treats warnings as errors.
+csharp_style_namespace_declarations = file_scoped:warning
+dotnet_diagnostic.IDE0161.severity = warning
+csharp_style_prefer_primary_constructors = true:warning
+dotnet_diagnostic.IDE0290.severity = warning
+dotnet_style_prefer_collection_expression = when_types_loosely_match:warning
+dotnet_diagnostic.IDE0300.severity = warning
+dotnet_diagnostic.IDE0301.severity = warning
+dotnet_diagnostic.IDE0303.severity = warning
+dotnet_diagnostic.IDE0305.severity = warning
+dotnet_diagnostic.IDE0028.severity = warning
+csharp_style_implicit_object_creation_when_type_is_apparent = true:warning
+dotnet_diagnostic.IDE0090.severity = warning
+dotnet_style_prefer_is_null_check_over_reference_equality_method = true:warning
+dotnet_diagnostic.IDE0041.severity = warning
+csharp_style_prefer_null_check_over_type_check = true:warning
+dotnet_diagnostic.IDE0150.severity = warning
+csharp_prefer_simple_using_statement = true:warning
+dotnet_diagnostic.IDE0063.severity = warning
+dotnet_diagnostic.IDE0005.severity = warning
+
+[**/Migrations/*.cs]
+generated_code = true
+
+[*.cs]
+# Conventions, not problems: VB keyword clashes (Shared, Get, Set) don't matter in C#.
+dotnet_diagnostic.CA1716.severity = none
+# Concrete-type micro-optimisation; interfaces are deliberate here.
+dotnet_diagnostic.CA1859.severity = suggestion
+# XML docs are generated only to let IDE0005 run on build; documenting every public member is not required.
+dotnet_diagnostic.CS1591.severity = none
+
+[tests/**.cs]
+# Test names use Method_Condition_Result; literal arrays and culture-default string ops are fine in tests.
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.CA1310.severity = none
+dotnet_diagnostic.CA1305.severity = none

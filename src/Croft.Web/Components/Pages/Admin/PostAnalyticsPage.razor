@@ -1,0 +1,70 @@
+@page "/admin/posts/{id:guid}/analytics"
+@attribute [Authorize(Roles = "Admin")]
+@inject IBlogApiClient Api
+@inject TimeProvider Time
+@inject ILogger<PostAnalyticsPage> Logger
+
+<BlogPageTitle Title="Analytics" />
+@* WORKAROUND(W-008, Blazor): HeadOutlet keeps one HeadContent provider per page, so the feed link sits beside RobotsNoIndex here *@
+<HeadContent><RobotsNoIndex /><FeedAlternateLink /></HeadContent>
+@* END WORKAROUND(W-008) *@
+
+@* Post analytics (spec §6.3): the post title, total views and the daily line chart for the last
+   30 days. The API returns only the days with views; the page zero-fills the window. *@
+@if (_error is not null)
+{
+    <p class="analytics__error" role="alert">@_error</p>
+}
+else if (_summary is not null)
+{
+    <PageHeader Title="@_summary.Title" />
+    <p class="analytics__total">Total views: @_summary.TotalViews</p>
+    <ViewsChart Daily="_daily" />
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    // WORKAROUND(W-023, Blazor): OnInitialized runs twice on a full load (prerender, then the circuit); [PersistentState] skips the second fetch
+    /// <summary>The summary the prerender loaded, restored for the circuit so a full page load
+    /// fetches it once.</summary>
+    [PersistentState]
+    public AnalyticsSummaryDto? Summary { get; set; }
+    // END WORKAROUND(W-023)
+
+    private AnalyticsSummaryDto? _summary;
+    private IReadOnlyList<DailyViewCount> _daily = [];
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Summary ??= await Api.GetAnalyticsAsync(Id);
+            _summary = Summary;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            _error = "Post not found.";
+            return;
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "loading the analytics", ex);
+            _error = "Could not load the analytics.";
+            return;
+        }
+
+        _daily = LastThirtyDays(_summary.DailyViews);
+    }
+
+    /// <summary>The last 30 days as one series, zero-filled on the days without views.</summary>
+    private IReadOnlyList<DailyViewCount> LastThirtyDays(IReadOnlyList<DailyViewCount> daily)
+    {
+        var counts = daily.ToDictionary(d => DateOnly.FromDateTime(d.Date), d => d.Count);
+        var today = DateOnly.FromDateTime(Time.GetUtcNow().UtcDateTime);
+        return [.. Enumerable.Range(0, 30)
+            .Select(i => today.AddDays(i - 29))
+            .Select(day => new DailyViewCount(day.ToDateTime(TimeOnly.MinValue), counts.GetValueOrDefault(day)))];
+    }
+}

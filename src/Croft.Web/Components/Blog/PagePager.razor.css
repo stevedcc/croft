@@ -1,0 +1,31 @@
+/* The link-based pager, styled as a pager: crimson "you are here"
+   on the current page (spec §4.2's active styling). */
+.page-pager {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 8px 0 0;
+}
+
+.page-pager__link {
+    min-width: 2.25rem;
+    padding: 4px 10px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--primary);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    text-align: center;
+    text-decoration: none;
+}
+
+.page-pager__link:hover {
+    background: var(--primary-container);
+}
+
+.page-pager__link--current {
+    background: var(--primary-strong);
+    color: #FFFFFF;
+    font-weight: 600;
+}

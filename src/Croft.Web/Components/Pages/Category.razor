@@ -1,0 +1,116 @@
+@page "/category/{slug}"
+@attribute [ExcludeFromInteractiveRouting]
+@inject IBlogApiClient Api
+@inject NavigationManager Navigation
+@inject Branding Branding
+
+<BlogPageTitle Title="@(_category?.Name ?? Slug)" />
+
+@* A listing page like Home (og:type website, the site's Blog JSON-LD), but its description
+   names the category, which only the load knows — so the head waits for the category like
+   Post.razor's head waits for the post. Page 2+ of the listing canonicalises to itself
+   (?page=N), so each listing page a crawler can reach is its own address. *@
+@if (_category is not null)
+{
+    <SeoHead Title="@_category.Name"
+             Description="@($"Posts in {_category.Name} on {Branding.Name}")"
+             CanonicalPath="@CanonicalPath"
+             PageType="SeoPageType.Website" />
+}
+
+@* Static SSR awaits the load before it sends any HTML, so the data is set when this renders; a
+   missing item calls NotFound() and the not-found page replaces this one. *@
+@if (_category is not null && _result is not null)
+{
+    <PageHeader Icon="@_category.Icon" Title="@_category.Name" Meta="@($"· {PostCount.Text(_result.TotalCount)}")" />
+    @* Path is explicit: query-only pager hrefs would resolve against <base href="/">
+       and land on "/". *@
+    <PostList Items="@_result.Items" CardHeadingLevel="2" Page="@_page" TotalPages="@TotalPages" EmptyText="No posts yet"
+              Path="@($"/category/{Slug}")" />
+}
+
+@code {
+    // Category (spec §5.3): the icon + name header with "· N posts" under it, then List cards (no Featured),
+    // paged as on Home. A category with no published posts shows "No posts yet".
+    private const int PageSize = Croft.Shared.PublicPageSizes.PostList;
+
+    [Parameter] public string Slug { get; set; } = string.Empty;
+
+    // WORKAROUND(W-023, Blazor): a pager click changes only the query string, and Blazor re-runs the parameter lifecycle only when a supplied parameter changes
+    // ?page=N as a supplied query parameter on purpose: a pager click changes only the query
+    // string, and Blazor re-runs this page's parameter lifecycle only when a parameter value
+    // changes — without this the list never reloaded (caught by the paging E2E).
+    [SupplyParameterFromQuery(Name = "page")]
+    public string? PageNumber { get; set; }
+    // END WORKAROUND(W-023)
+
+    private CategoryDto? _category;
+    private PagedResult<PostSummaryDto>? _result;
+    private int _page = 1;
+
+    /// <summary>The ?page=N the URI asks for, read from it once per parameter set (before the load guard, so the
+    /// head and the masthead follow a pager click at once).</summary>
+    private int _requestedPage = 1;
+    private string? _loadedKey;
+
+    private int TotalPages => _result is null
+        ? 1
+        : Math.Max(1, (int)Math.Ceiling((double)_result.TotalCount / PageSize));
+
+    /// <summary>The category page itself for page 1, with ?page=N beyond page 1 (an explicit
+    /// ?page=1 still canonicalises to the plain category URL). Read from the URI the same way
+    /// the load is (PageQuery), so the head can never lag a pager click or be affected by
+    /// the load guard.</summary>
+    private string CanonicalPath
+    {
+        get
+        {
+            var page = _requestedPage;
+            return page > 1 ? $"/category/{Slug}?page={page}" : $"/category/{Slug}";
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Loaded from OnParametersSet — not OnInitialized — because Blazor reuses the page
+        // instance when only the route parameter or the query string changes.
+        _requestedPage = PageQuery.ReadPageNumber(new Uri(Navigation.Uri).Query);
+        var page = _requestedPage;
+        var key = $"{Slug}|{PageNumber}";
+
+        if (key == _loadedKey)
+        {
+            return;
+        }
+
+        _loadedKey = key;
+
+        // Unknown category slugs are a real 404 — response status
+        // 404 with the "This page has wandered off" copy. A category that exists but has no
+        // published posts is NOT unknown: it renders with the "No posts yet" empty state.
+        var category = await Api.GetCategoryBySlugAsync(Slug);
+        if (key != _loadedKey)
+        {
+            // A superseded load completing late must not clobber the newer one's state (or 404 it).
+            return;
+        }
+
+        if (category is null)
+        {
+            // WORKAROUND(W-024, Blazor): NavigateTo("/not-found") answers 200; NavigationManager.NotFound() makes the renderer set 404
+            Navigation.NotFound();
+            // END WORKAROUND(W-024)
+            return;
+        }
+
+        var result = await Api.GetPostsAsync(new PostListRequest(CategorySlug: Slug, Page: page, PageSize: PageSize, PublicView: true));
+        if (key != _loadedKey)
+        {
+            return;
+        }
+
+        _category = category;
+        _result = result;
+        _page = page;
+    }
+}

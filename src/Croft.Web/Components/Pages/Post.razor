@@ -1,0 +1,127 @@
+@page "/post/{slug}"
+@attribute [ExcludeFromInteractiveRouting]
+@using Croft.Shared.Enums
+@inject IBlogApiClient Api
+@inject IMarkdownRenderer Markdown
+@inject NavigationManager Navigation
+@inject ILogger<Post> Logger
+
+<BlogPageTitle Title="@(_post?.Title ?? "Post")" />
+@if (_post is not null)
+{
+    <SeoHead Title="@_post.Title"
+             Description="@SeoDescription.FromPost(_post.Excerpt, _post.Subtitle, _post.Summary)"
+             CanonicalPath="@_path"
+             Image="@_post.BannerImage?.Url"
+             PageType="SeoPageType.Article"
+             PublishedAt="@_post.PublishedAt"
+             ModifiedAt="@_post.UpdatedAt"
+             Tags="@([.. _post.Tags.Select(t => t.Name)])"
+             Section="@_post.Category?.Name"
+             SectionSlug="@_post.Category?.Slug"
+             AuthorName="@_post.AuthorName"
+             NoIndex="@(_post.Status != PostStatus.Published)" />
+}
+
+@* Static SSR awaits the load before it sends any HTML, so the data is set when this renders; a
+   missing item calls NotFound() and the not-found page replaces this one. *@
+@if (_post is not null && _rendered is not null)
+{
+    <PostHero Post="@_post" />
+
+    @* The rail-less contents panel sits directly under the hero: the "On this page" list and the
+       tags in one block that pins to a single row while reading (ContentsPanel + post.js). It
+       renders itself only for posts with at least two headings — for those the tags live in the
+       panel at rail-less widths, which the layout block below knows from its --contents-panel
+       modifier. *@
+    <ContentsPanel Headings="@_rendered.Headings" Tags="@_post.Tags" Path="@_path" />
+
+    @* The .post-layout block (Post.razor.css): text column plus the 220px rail when the
+       CONTENT area is at least 1000px wide (the @container query on main), otherwise the rail's
+       panels flow after the text. The rail's TOC instance and the panel's are driven by the same
+       headings. Related posts render as a card section in the text column below the body; the
+       layout's explicit placements (text column below the body, rail in its own column) keep
+       both where they belong no matter which of them renders. *@
+    <div class="post-layout @(_rendered.Headings.Count >= 2 ? "post-layout--contents-panel" : string.Empty)" data-post-id="@_post.Id">
+        <PostBody Markdown="@_rendered" />
+        @* The discussion: the replies of the post's Mastodon and Bluesky announcements, directly after the
+           body (brief 12b). Static markup; renders nothing without a linked announcement or a discussion. *@
+        <DiscussionSection Discussion="@_discussion" Slug="@_post.Slug" />
+        <RelatedPosts Items="@_related" />
+        <PostRail Headings="@_rendered.Headings" Tags="@_post.Tags" Path="@_path" />
+    </div>
+}
+
+@code {
+    [Parameter] public string Slug { get; set; } = string.Empty;
+
+    private PostDto? _post;
+    private RenderedMarkdown? _rendered;
+    private IReadOnlyList<PostSummaryDto> _related = Array.Empty<PostSummaryDto>();
+    private Croft.Shared.Contracts.Social.PostDiscussionDto? _discussion;
+    private string _path = string.Empty;
+    private string? _loadedKey;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Loaded from OnParametersSet — not OnInitialized — because Blazor reuses the page
+        // instance when only the route parameter changes (post→post navigation via Related),
+        // exactly like Home/Category/Tag/Search.
+        var key = Slug;
+
+        if (key == _loadedKey)
+        {
+            return;
+        }
+
+        _loadedKey = key;
+        _post = null;
+        _rendered = null;
+        _related = Array.Empty<PostSummaryDto>();
+        _discussion = null;
+        _path = string.Empty;
+
+        var post = await Api.GetPostAsync(Slug);
+        if (post is null || post.Kind == PostKind.Page)
+        {
+            // WORKAROUND(W-024, Blazor): NavigateTo("/not-found") answers 200; NavigationManager.NotFound() makes the renderer set 404
+            // Real 404 (spec §5.5): renders the not-found content with HTTP status 404.
+            // NavigateTo("/not-found") would redirect with 200. The /post/ route is posts-only —
+            // for editors too: a page does load here through GET /api/posts/{slug} (the editor's
+            // read), but its one canonical URL is /{slug}, so serving it as a post would make the
+            // same content indexable twice with conflicting canonicals and structured data.
+            Navigation.NotFound();
+            // END WORKAROUND(W-024)
+            return;
+        }
+
+        // Parsed once (spec §7.3): the same RenderedMarkdown feeds the body and
+        // the two TOCs — its Headings are the TOC's heading source.
+        _post = post;
+        _rendered = Markdown.Render(post.MarkdownContent);
+        _path = $"/post/{post.Slug}";
+
+        // Both reads are started before either is awaited: the discussion costs the page no extra round trip.
+        var related = Api.GetRelatedPostsAsync(post.Slug, Croft.Shared.PublicPageSizes.Related);
+        var discussion = LoadDiscussionAsync(post.Slug);
+        await Task.WhenAll(related, discussion);
+        _related = await related;
+        _discussion = await discussion;
+    }
+
+    // The discussion never breaks the post: when the API cannot answer (down, a timeout, an open circuit
+    // breaker, a 5xx) the post renders without the section and the failure is logged once. A null answer
+    // (an unknown or unpublished post) means no section either. Anything else (a bug) is not hidden.
+    private async Task<Croft.Shared.Contracts.Social.PostDiscussionDto?> LoadDiscussionAsync(string slug)
+    {
+        try
+        {
+            return await Api.GetDiscussionAsync(slug);
+        }
+        catch (Exception ex) when (ex is HttpRequestException || ApiUnavailableException.IsResilienceFailure(ex))
+        {
+            DiscussionLog.DiscussionUnavailable(Logger, slug, ex.GetType().Name);
+            return null;
+        }
+    }
+}

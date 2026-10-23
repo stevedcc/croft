@@ -1,0 +1,39 @@
+﻿@page "/not-found"
+@page "/{**path:nonfile}"
+@attribute [ExcludeFromInteractiveRouting]
+@layout MainLayout
+@inject NavigationManager Navigation
+
+<BlogPageTitle Title="Not found" />
+@* WORKAROUND(W-008, Blazor): HeadOutlet keeps one HeadContent provider per page, so the feed link sits beside RobotsNoIndex here *@
+<HeadContent><RobotsNoIndex /><FeedAlternateLink /></HeadContent>
+@* END WORKAROUND(W-008) *@
+
+@* Spec §5.5: the themed not-found page, a static document like the reading pages (brief 13a): an
+   anonymous visitor who follows a dead link must not open a circuit. Under a staff path an
+   interactive page that calls NotFound() still renders it in its circuit (the staff variant of
+   NotFoundContent). This page has two jobs:
+   - it is the Router's NotFoundPage, rendered when a matched page calls NavigationManager.NotFound()
+     (missing post, unknown category/tag slug);
+   - its catch-all route catches URLs no @page route matches, which never reach the Blazor Router at
+     all (the framework maps one endpoint per page), and turns them into a real 404 the same way.
+   The catch-all binds {**path}: Path is non-null exactly when the catch-all matched. Rendered as the
+   Router's NotFoundPage (or via /not-found) Path is null and no NotFound() call is made — /not-found
+   must keep answering 200 so a redirect to it is distinguishable from a real 404. *@
+<NotFoundContent />
+
+@code {
+    [Parameter] public string? Path { get; set; }
+
+    protected override void OnInitialized()
+    {
+        if (Path is not null)
+        {
+            // WORKAROUND(W-024, Blazor): NavigateTo("/not-found") answers 200; NavigationManager.NotFound() makes the renderer set 404
+            // Real 404 (spec §5.5): the Router renders this page's NotFoundContent and the endpoint
+            // renderer sets the HTTP status; never NavigateTo("/not-found"), which redirects with 200.
+            Navigation.NotFound();
+            // END WORKAROUND(W-024)
+        }
+    }
+}

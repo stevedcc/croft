@@ -1,0 +1,207 @@
+@using Croft.Shared.Contracts.Social
+@inject TimeProvider Time
+
+@* The Discussion tab of the post editor (brief 12c): each linked platform's fetch status, "Refresh now", and every
+   stored reply with Hide reply and Hide account. Presentational: the edit page loads the data, owns the dialogs and
+   the API calls, and passes in what to show. *@
+<div class="discussion-admin">
+    @if (Error is not null)
+    {
+        <p class="discussion-admin__error" role="alert">@Error</p>
+    }
+
+    @* The announcements of the post itself on both networks (brief 12d), above the replies to them. *@
+    @if (Announcements is not null)
+    {
+        <section class="discussion-admin__announcements" aria-labelledby="discussion-announcements-heading">
+            <h3 id="discussion-announcements-heading" class="discussion-admin__heading">Announcements</h3>
+            <ul class="discussion-admin__announcement-list">
+                @foreach (var platform in new[] { SocialPlatform.Mastodon, SocialPlatform.Bluesky })
+                {
+                    var name = PlatformName(platform);
+                    var ready = platform == SocialPlatform.Mastodon ? Announcements.MastodonReady : Announcements.BlueskyReady;
+                    var row = Announcements.Items.FirstOrDefault(item => item.Platform == platform);
+                    var linked = platform == SocialPlatform.Mastodon ? MastodonLinked : BlueskyLinked;
+                    <li class="discussion-admin__announcement" id="@("announcement-" + name.ToLowerInvariant())" @key="platform">
+                        <span class="discussion-admin__announcement-text">@name: @Describe(row, ready, linked)</span>
+                        @if (row is { State: AnnouncementState.Posted, RemoteUrl: { } remote } && SafeLink(remote) is { } href)
+                        {
+                            <a href="@href" target="_blank" rel="noopener noreferrer">View on @name</a>
+                        }
+
+                        @if (ButtonText(row, ready, linked) is { } label)
+                        {
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Disabled="Announcing"
+                                       aria-label="@($"{label} on {name}")" OnClick="() => OnAnnounce.InvokeAsync(platform)">@label</MudButton>
+                        }
+                    </li>
+                }
+            </ul>
+        </section>
+    }
+
+    @if (Data is null)
+    {
+        @if (Error is null)
+        {
+            <p class="discussion-admin__loading">Loading the discussion…</p>
+        }
+    }
+    else
+    {
+        var now = Time.GetUtcNow();
+        <div class="discussion-admin__status">
+            @if (Data.Threads.Count == 0)
+            {
+                <p>No Mastodon or Bluesky post is linked. Add one under Discussion in the form.</p>
+            }
+            else
+            {
+                @foreach (var thread in Data.Threads)
+                {
+                    <div class="discussion-admin__thread" @key="thread.Platform">
+                        <p>@PlatformName(thread.Platform): @Fetched(thread, now)</p>
+                        @if (thread.LastError is { } error)
+                        {
+                            <p>Last attempt failed@(thread.LastAttemptAt is { } attempt ? " " + RelativeTime.Format(attempt, now) : string.Empty): @error</p>
+                        }
+
+                        @if (thread.NextDueAt is { } next)
+                        {
+                            <p>Next fetch @RelativeTime.FormatUntil(next, now)</p>
+                        }
+
+                        @if (thread.Stale)
+                        {
+                            <p>Not shown to readers: no successful fetch for 48 hours.</p>
+                        }
+                    </div>
+                }
+            }
+        </div>
+
+        <div class="discussion-admin__refresh">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="Refreshing" OnClick="() => OnRefresh.InvokeAsync()">Refresh now</MudButton>
+            @if (Notice is not null)
+            {
+                <p class="discussion-admin__notice" role="status">@Notice</p>
+            }
+        </div>
+
+        @if (Data.Discussion.Replies.Count == 0)
+        {
+            <p class="discussion-admin__empty">No replies yet.</p>
+        }
+        else
+        {
+            <ul class="discussion-admin__replies">
+                @foreach (var (reply, depth) in Flatten(Data.Discussion.Replies, 0))
+                {
+                    <DiscussionAdminReply @key="@(reply.Platform + reply.ExternalId)" Reply="reply" Depth="depth"
+                                          OnHideReply="OnHideReply" OnHideAccount="OnHideAccount" />
+                }
+            </ul>
+        }
+    }
+</div>
+
+@code {
+    /// <summary>The admin read; null until it has loaded.</summary>
+    [Parameter] public PostDiscussionAdminDto? Data { get; set; }
+
+    /// <summary>The tab's own error line (a failed load, refresh or hide).</summary>
+    [Parameter] public string? Error { get; set; }
+
+    /// <summary>The tab's status line after "Refresh now" ("Refresh queued. ...").</summary>
+    [Parameter] public string? Notice { get; set; }
+
+    /// <summary>True while the refresh call runs (the button is disabled).</summary>
+    [Parameter] public bool Refreshing { get; set; }
+
+    /// <summary>The post's announcements on the two networks (brief 12d); null until they have loaded.</summary>
+    [Parameter] public PostAnnouncementsDto? Announcements { get; set; }
+
+    /// <summary>The post is published: only then can it be announced by a click.</summary>
+    [Parameter] public bool PostPublished { get; set; }
+
+    /// <summary>The post already has a link for the network (entered by hand, or a posted announcement): the API refuses to announce it again.</summary>
+    [Parameter] public bool MastodonLinked { get; set; }
+
+    [Parameter] public bool BlueskyLinked { get; set; }
+
+    /// <summary>True while an "Announce now" / "Retry" call runs (the buttons are disabled).</summary>
+    [Parameter] public bool Announcing { get; set; }
+
+    [Parameter] public EventCallback<SocialPlatform> OnAnnounce { get; set; }
+
+    [Parameter] public EventCallback OnRefresh { get; set; }
+
+    [Parameter] public EventCallback<DiscussionReplyDto> OnHideReply { get; set; }
+
+    [Parameter] public EventCallback<DiscussionReplyDto> OnHideAccount { get; set; }
+
+    /// <summary>What one network's line says: not set up, not announced, pending (the attempt and the next try), posted, failed or cancelled.</summary>
+    private static string Describe(AnnouncementStatusDto? row, bool ready, bool linked)
+    {
+        if (row is null)
+        {
+            return !ready ? "Not set up on this site" : linked ? "Linked by hand" : "Not announced";
+        }
+
+        return row.State switch
+        {
+            AnnouncementState.Pending => "Pending"
+                + (row.Attempts > 0 ? $", attempt {row.Attempts}" : string.Empty)
+                + (row.NextAttemptAt is { } next ? $", next try {Utc(next):HH:mm}" : string.Empty),
+            AnnouncementState.Posted => "Posted" + (row.PostedAt is { } at ? $" {Utc(at).ToString("dd MMM HH:mm", System.Globalization.CultureInfo.InvariantCulture)}" : string.Empty),
+            AnnouncementState.Failed => $"Failed: {row.LastError}",
+            AnnouncementState.Cancelled => "Cancelled when unpublished",
+            _ => string.Empty,
+        };
+    }
+
+    /// <summary>"Announce now" for a published post that has no row, or a cancelled one; "Retry" for a failed one. Never for a network that is not set up, a pending or posted row, or a post that already has a link.</summary>
+    private string? ButtonText(AnnouncementStatusDto? row, bool ready, bool linked)
+    {
+        if (!ready || !PostPublished || linked)
+        {
+            return null;
+        }
+
+        return row?.State switch
+        {
+            null or AnnouncementState.Cancelled => "Announce now",
+            AnnouncementState.Failed => "Retry",
+            _ => null,
+        };
+    }
+
+    /// <summary>An address from the API is linked only when it is a web address (never a script or another scheme).</summary>
+    private static string? SafeLink(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme is "https" or "http" ? uri.AbsoluteUri : null;
+
+    private static DateTime Utc(DateTime time) => time.Kind == DateTimeKind.Local ? time.ToUniversalTime() : time;
+
+    private static string PlatformName(SocialPlatform platform) => platform == SocialPlatform.Bluesky ? "Bluesky" : "Mastodon";
+
+    private static string Fetched(DiscussionThreadStatusDto thread, DateTimeOffset now)
+    {
+        var stored = $"{thread.StoredReplies} {(thread.StoredReplies == 1 ? "reply" : "replies")} stored";
+        return thread.LastSuccessAt is { } at
+            ? $"last fetched {RelativeTime.Format(at, now)} ({stored})"
+            : $"not fetched yet ({stored})";
+    }
+
+    /// <summary>The replies in the API's order with each answer right after its parent, and how deep each one is.</summary>
+    private static IEnumerable<(DiscussionReplyDto Reply, int Depth)> Flatten(IReadOnlyList<DiscussionReplyDto> replies, int depth)
+    {
+        foreach (var reply in replies)
+        {
+            yield return (reply, depth);
+            foreach (var answer in Flatten(reply.Replies, depth + 1))
+            {
+                yield return answer;
+            }
+        }
+    }
+}

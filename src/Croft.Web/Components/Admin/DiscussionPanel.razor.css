@@ -1,0 +1,85 @@
+/* The Discussion tab (brief 12c). Plain stacked sections; surfaces use the shared tokens. min-width: 0 and
+   overflow-wrap keep a long handle or URL from widening the tab on a 390px phone. */
+.discussion-admin {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+    padding-top: 16px;
+    font-family: var(--font-ui);
+}
+
+.discussion-admin__error {
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--primary);
+    border-radius: 6px;
+    color: var(--text);
+}
+
+.discussion-admin__status,
+.discussion-admin__thread {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.discussion-admin__status {
+    gap: 12px;
+}
+
+.discussion-admin__status p,
+.discussion-admin__empty,
+.discussion-admin__loading,
+.discussion-admin__notice {
+    margin: 0;
+}
+
+.discussion-admin__refresh {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.discussion-admin__replies {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* The Announcements block (brief 12d): one line per network, its action beside it. */
+.discussion-admin__announcements {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.discussion-admin__heading {
+    margin: 0;
+    font-size: 1.125rem;
+}
+
+.discussion-admin__announcement-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.discussion-admin__announcement {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+    min-width: 0;
+}
+
+.discussion-admin__announcement-text {
+    overflow-wrap: anywhere;
+}

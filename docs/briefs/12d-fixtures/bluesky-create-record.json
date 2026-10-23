@@ -1,0 +1,9 @@
+{
+ "uri": "at://did:plc:ownerowner00000000000000/app.bsky.feed.post/3m5aaaaaaaaaa",
+ "cid": "bafyreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+ "commit": {
+  "cid": "bafyreib2rxk3rybk3aobmv5cjuql3bm2twh4jo5uxgf5kpqcsgz7soitae",
+  "rev": "3m5aaaaaaaaab"
+ },
+ "validationStatus": "valid"
+}

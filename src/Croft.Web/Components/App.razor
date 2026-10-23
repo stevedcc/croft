@@ -1,0 +1,93 @@
+﻿@inject Branding Branding
+@inject Croft.Web.Services.StaticAssetIntegrity Integrity
+@inject Croft.Web.Theme.ThemeStylesheet Theme
+@using Croft.Web.Security.Csp
+<!DOCTYPE html>
+<html lang="en" data-render="@(PageRenderMode is null ? "static" : "interactive")">
+
+<head>
+    @* The theme bootstrap runs before first paint, so it stays inline; its text lives in one
+       place (ThemeBootstrapScript.Text) shared with the CSP hash that allows it. *@
+    <script>@((MarkupString)ThemeBootstrapScript.Text)</script>
+    <meta charset="utf-8" />
+    @* WORKAROUND(W-017, Safari): viewport-fit=cover is what makes env(safe-area-inset-bottom) non-zero for the phone drawer *@
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    @* END WORKAROUND(W-017) *@
+    <base href="/" />
+    <link rel="preload" href="@Assets["fonts/CroftSerif-Regular.woff2"]" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="@Assets["fonts/CroftSerif-Italic.woff2"]" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="@Assets["fonts/CroftSerif-Bold.woff2"]" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="@Assets["fonts/CroftSans-Regular.woff2"]" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="@Assets["fonts/CroftSans-SemiBold.woff2"]" as="font" type="font/woff2" crossorigin />
+    @if (PageRenderMode is not null)
+    {
+        @* MudBlazor serves the interactive documents only; a reading page uses none of it. *@
+        <link href="@Assets["_content/MudBlazor/MudBlazor.min.css"]" rel="stylesheet" />
+    }
+    @* theme.css is generated from the site's branding folder; app.css keeps everything except
+       colour values. Linked before app.css so the tokens exist when its rules use them. *@
+    <link rel="stylesheet" href="/branding/theme.css?v=@Theme.Version" />
+    <link rel="stylesheet" href="@Assets["app.css"]" />
+    <link rel="stylesheet" href="@Assets["Croft.Web.styles.css"]" />
+    <link rel="icon" type="image/svg+xml" href="@(Branding.FileUrl("logo.svg"))" />
+    <link rel="icon" type="image/x-icon" href="@(Branding.FileUrl("favicon.ico"))" />
+    <link rel="apple-touch-icon" href="@(Branding.FileUrl("apple-touch-icon.png"))" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    @* Brief 11a item 4: the owner's profile identity links (rel="me") and the
+       fediverse:creator meta, from the branding. The shell renders for every page — static and
+       interactive — so no page needs to add them itself. *@
+    <ProfileLinks />
+    <HeadOutlet />
+</head>
+
+<body>
+    <CascadingAuthenticationState>
+        <Routes @rendermode="PageRenderMode" />
+    </CascadingAuthenticationState>
+    @if (PageRenderMode is not null)
+    {
+        @* The reconnect overlay and the editor's scripts belong to the interactive documents: a
+           reading page has no circuit to reconnect and no editor. Links that cross into the staff
+           area load a fresh document (AdminArea), so these are present whenever they are needed. *@
+        @* WORKAROUND(W-002, Blazor): copy of the .NET 10 template reconnect modal; its presence stops blazor.web.js building the inline-style default *@
+        @* The reconnect overlay is the site's own markup: with #components-reconnect-modal in the
+           document, blazor.web.js only toggles the components-reconnect-* classes on it and never
+           builds its shadow-DOM default display — whose inline <style> element the enforced CSP
+           refuses (style-src-elem) on every circuit drop. This one is styled by its own stylesheet
+           (Layout/ReconnectModal.razor.css, in the Croft.Web.styles.css bundle) and its module
+           script drives the open/close and the Retry/Resume buttons. *@
+        <ReconnectModal />
+        @* END WORKAROUND(W-002) *@
+    }
+    <script src="@Assets["_framework/blazor.web.js"]" integrity="@Integrity.Of(Assets["_framework/blazor.web.js"])"></script>
+    @if (PageRenderMode is not null)
+    {
+        <script src="@Assets["_content/MudBlazor/MudBlazor.min.js"]" integrity="@Integrity.Of(Assets["_content/MudBlazor/MudBlazor.min.js"])"></script>
+        <script src="@Assets["js/editor.js"]" integrity="@Integrity.Of(Assets["js/editor.js"])"></script>
+        @* js/draft-backup.js watches the editor's inputs and keeps the local draft backup (D3's
+           guaranteed layer). It is loaded on every interactive document, not only the editor,
+           so a circuit that dies mid-typing still has the module listening. *@
+        <script src="@Assets["js/draft-backup.js"]" integrity="@Integrity.Of(Assets["js/draft-backup.js"])"></script>
+    }
+    <script src="@Assets["js/analytics.js"]" integrity="@Integrity.Of(Assets["js/analytics.js"])"></script>
+    @* The reading pages are static SSR: this module starts their JavaScript (shell, theme switch,
+       post scripts) on load and after every enhanced navigation. It does nothing on interactive
+       pages. *@
+    <script type="module" src="@Assets["js/static-glue.js"]" integrity="@Integrity.Of(Assets["js/static-glue.js"])"></script>
+    @* js/post.js (highlight.js + the highlight theme) is not loaded here: static-glue.js imports it on
+       a static page that renders a post body, PostBody on an interactive one, so the list pages
+       never pay for it. *@
+</body>
+
+</html>
+
+@code {
+    // The reading pages (Home, Post, Category, Tag, Categories, StaticPage, Search) carry
+    // [ExcludeFromInteractiveRouting]: they render as static SSR, so a reader costs no Blazor
+    // circuit. The not-found and error pages are static too (brief 13a: an anonymous visitor never opens a circuit). Every other page (admin, editor; /login and /logout are redirects, not documents) keeps the
+    // interactive server render mode.
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+
+    private IComponentRenderMode? PageRenderMode =>
+        HttpContext.AcceptsInteractiveRouting() ? InteractiveServer : null;
+}

@@ -1,0 +1,29 @@
+@* The icon picker dialog (spec §6.5/§7.4): a MudDialog over IconPicker. Saving closes with the
+   chosen icon name — null for "Default (folder)" — and Cancel discards the selection. *@
+<MudDialog>
+    <TitleContent>Choose icon</TitleContent>
+    <DialogContent>
+        <div class="icon-picker-dialog">
+            <IconPicker @bind-Value="_value" />
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Save">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance? MudDialog { get; set; }
+
+    /// <summary>The icon selected when the dialog opens; null leaves "Default (folder)" chosen.</summary>
+    [Parameter] public string? Value { get; set; }
+
+    private string? _value;
+
+    protected override void OnInitialized() => _value = Value;
+
+    private void Save() => MudDialog?.Close(DialogResult.Ok(_value));
+
+    private void Cancel() => MudDialog?.Cancel();
+}

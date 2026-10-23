@@ -1,0 +1,65 @@
+@* The site footer (brief 10f item 2): the owner's profile icons (brief 11a item 5) as the
+   first group, then the owner's footer pages as links, in order, then "Running on Croft
+   vX.Y.Z" — groups divided by the same separator. Static markup only — no MudBlazor, no
+   script, no inline style — so it renders the same on the static reading pages and the
+   interactive ones. With no profiles, no footer pages and ShowPoweredBy off, no footer element
+   is rendered at all. MainLayout renders it once, so the document has one contentinfo
+   landmark. *@
+@inject Branding Branding
+
+@if (Branding.Profiles.Count > 0 || Pages.Count > 0 || Branding.ShowPoweredBy)
+{
+    <footer class="site-footer" role="contentinfo">
+        @if (Branding.Profiles.Count > 0)
+        {
+            <span class="site-footer__profiles">
+                @foreach (var profile in Branding.Profiles)
+                {
+                    <a class="site-footer__profile" href="@profile.Url" rel="me noopener" aria-label="@profile.DisplayName" title="@profile.DisplayName">
+                        <ProfileIcon Service="@profile.Service" />
+                    </a>
+                }
+            </span>
+        }
+        @for (var i = 0; i < Pages.Count; i++)
+        {
+            var entry = Pages[i];
+            if (i > 0 || Branding.Profiles.Count > 0)
+            {
+                @Separator
+            }
+            <a href="@($"/{entry.Slug}")" @attributes='AdminArea.LinkAttributes(InAdminArea, $"/{entry.Slug}")'>@entry.Title</a>
+        }
+        @if (Branding.ShowPoweredBy)
+        {
+            if (Pages.Count > 0 || Branding.Profiles.Count > 0)
+            {
+                @Separator
+            }
+            <span class="site-footer__powered">Running on
+                @if (Branding.PoweredByUrl.Length > 0)
+                {
+                    <a href="@Branding.PoweredByUrl">Croft</a>
+                }
+                else
+                {
+                    <text>Croft</text>
+                }
+                v@(AppVersion.Current)</span>
+        }
+    </footer>
+}
+
+@code {
+    // A no-break space before the dot and a plain space after it, so a wrapped line ends with
+    // the dot and never starts with one; the text reads "Impressum · Privacy" without CSS.
+    private static readonly MarkupString Separator =
+        new("\u00A0<span class=\"site-footer__sep\" aria-hidden=\"true\">·</span> ");
+
+    /// <summary>The footer pages (published, placed in the footer), in their order.</summary>
+    [Parameter] public IReadOnlyList<PageNavItemDto> Pages { get; set; } = [];
+
+    /// <summary>Whether this renders on a staff page: a link to the other side of that boundary
+    /// must load a fresh document (see <see cref="AdminArea"/>).</summary>
+    [CascadingParameter(Name = "InAdminArea")] public bool InAdminArea { get; set; }
+}

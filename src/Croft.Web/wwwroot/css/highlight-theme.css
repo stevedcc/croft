@@ -1,0 +1,75 @@
+/* highlight.js theme built from the colour tokens (spec §5.4). Code blocks are dark in both
+   schemes — --code-bg/--code-text are theme-stable — so the syntax accents use the dark scheme's
+   token values from spec §3.1: primary #E88AA6 (keywords, tags), secondary #7FB88F (strings),
+   on-secondary-container #A9D6B5 (numbers, literals), and the neutral tones mix the two
+   code tokens themselves. */
+:root {
+    --syntax-comment: color-mix(in srgb, var(--code-text) 55%, var(--code-bg));
+    --syntax-keyword: #E88AA6;
+    --syntax-string: #7FB88F;
+    --syntax-number: #A9D6B5;
+}
+
+code.hljs {
+    background: var(--code-bg);
+    color: var(--code-text);
+}
+
+.hljs-comment,
+.hljs-quote {
+    color: var(--syntax-comment);
+    font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-selector-pseudo,
+.hljs-name,
+.hljs-tag,
+.hljs-literal,
+.hljs-doctag,
+.hljs-type,
+.hljs-built_in,
+.hljs-meta {
+    color: var(--syntax-keyword);
+}
+
+.hljs-string,
+.hljs-regexp,
+.hljs-attr,
+.hljs-attribute,
+.hljs-addition,
+.hljs-selector-class,
+.hljs-selector-attr {
+    color: var(--syntax-string);
+}
+
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-link,
+.hljs-selector-id {
+    color: var(--syntax-number);
+}
+
+.hljs-title,
+.hljs-title.class_,
+.hljs-title.function_,
+.hljs-section {
+    color: var(--code-text);
+    font-weight: 600;
+}
+
+.hljs-deletion {
+    color: var(--syntax-keyword);
+}
+
+.hljs-emphasis {
+    font-style: italic;
+}
+
+.hljs-strong {
+    font-weight: 600;
+}

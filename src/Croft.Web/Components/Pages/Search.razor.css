@@ -1,0 +1,226 @@
+/* The search field (spec §5.3): an outlined field with a floating label and a search button at
+   its end. The reading pages load no MudBlazor stylesheet, so the field is drawn here, in the
+   page's own classes, from the site's tokens (theme.css). Everything is one component: the
+   label floats on :focus-within (focused) and on :has(input:not(:placeholder-shown)) (holding
+   text; the placeholder is a single space, so :placeholder-shown is false once anything is
+   typed) — CSS cannot toggle classes, so no class says "filled". */
+
+/* Three tones the site's tokens do not carry (the field's hairline, its icon and the icon's
+   hover wash) as theme-keyed custom properties — the same shape as app.css's --scrim: light,
+   explicit dark, system dark. The hairline is the field's only visible boundary, so it must
+   reach 3:1 against the page (WCAG 1.4.11; brief 13g item 3): rgb(118 118 118) is 4.34:1 on the
+   default light background #F8FAFC (4.54:1 on white), and white at 40% over the default dark
+   background #0F172A composites to rgb(111 116 127), 3.80:1 (the old 30% was 2.67:1). */
+.search-field {
+    --field-line: rgb(118 118 118);
+    --field-icon: rgb(0 0 0 / .5372549);
+    --field-icon-wash: rgb(0 0 0 / .0588235);
+}
+
+:root[data-theme=dark] .search-field {
+    --field-line: rgb(255 255 255 / .4);
+    --field-icon: rgb(173 173 177);
+    --field-icon-wash: rgb(173 173 177 / .0588235);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme=light]) .search-field {
+        --field-line: rgb(255 255 255 / .4);
+        --field-icon: rgb(173 173 177);
+        --field-icon-wash: rgb(173 173 177 / .0588235);
+    }
+}
+
+.search-field {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    max-width: 100%;
+    margin: 8px 0 16px;
+    user-select: none;
+}
+
+.search-field__box {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    padding-right: 14px;
+    color: var(--text);
+    color-scheme: light dark;
+    cursor: text;
+    font-family: var(--font-serif);
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.1876em;
+    letter-spacing: .00938em;
+}
+
+.search-field__input {
+    position: relative;
+    display: block;
+    box-sizing: content-box;
+    width: 100%;
+    min-width: 0;
+    height: 1lh;
+    margin: 0;
+    padding: 18.5px 0 18.5px 14px;
+    border: 0;
+    background: none;
+    color: currentcolor;
+    font: inherit;
+    outline: 0;
+}
+
+/* WORKAROUND(W-003, Browsers): type=search brings a native clear button and decorations in WebKit and Blink, hidden here */
+/* type=search brings its own clear button and rounded search styling; the field never had a
+   clear button and must not grow one now (ruling R15: what the user sees and does is unchanged).
+   The Escape key's native "clear the search field" is stopped the same way, in js/shell.js. */
+.search-field__input::-webkit-search-cancel-button,
+.search-field__input::-webkit-search-decoration,
+.search-field__input::-webkit-search-results-button,
+.search-field__input::-webkit-search-results-decoration {
+    display: none;
+    -webkit-appearance: none;
+}
+/* END WORKAROUND(W-003) */
+
+.search-field__adornment {
+    display: flex;
+    align-items: center;
+    max-height: 2em;
+    height: .01em;
+    margin-left: 8px;
+    white-space: nowrap;
+}
+
+.search-field__button {
+    position: relative;
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    margin: 0 -12px 0 0;
+    padding: 12px;
+    border: 0;
+    border-radius: 50%;
+    background-color: transparent;
+    color: var(--field-icon);
+    cursor: pointer;
+    font-size: 1.5rem;
+    overflow: hidden;
+    text-align: center;
+    transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+    vertical-align: middle;
+    appearance: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.search-field__button:focus-visible,
+.search-field__button:active {
+    background-color: var(--field-icon-wash);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .search-field__button:hover {
+        background-color: var(--field-icon-wash);
+    }
+}
+
+.search-field__icon {
+    display: inline-block;
+    flex-shrink: 0;
+    width: 1em;
+    height: 1em;
+    fill: currentcolor;
+    transition: fill 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+}
+
+.search-field__border {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    display: flex;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--field-line);
+    border-radius: 4px;
+    pointer-events: none;
+    text-align: start;
+    transition: border-width, border-color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* The notch the label floats into: collapsed while the label sits in the field, opened to the
+   label's width when it floats. */
+.search-field__border legend {
+    position: relative;
+    float: none;
+    visibility: hidden;
+    width: 0;
+    height: 0;
+    margin: 0 11px;
+    padding: 0;
+    font-size: .75rem;
+    font-weight: inherit;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .search-field__box:not(:focus-within):hover .search-field__border {
+        border-color: var(--field-icon);
+    }
+}
+
+.search-field__box:focus-within > .search-field__border {
+    border-width: 2px;
+    border-color: var(--primary);
+}
+
+.search-field__box:focus-within > .search-field__border legend,
+.search-field__box:has(input:not(:placeholder-shown)) > .search-field__border legend {
+    width: auto;
+    padding: 0 5px;
+}
+
+.search-field__label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 0;
+    display: block;
+    max-width: calc(100% - 14px);
+    padding: 0 5px;
+    overflow: hidden;
+    color: var(--muted);
+    font-family: var(--font-serif);
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.15rem;
+    letter-spacing: .00938em;
+    pointer-events: none;
+    text-overflow: ellipsis;
+    transform: translate(14px, 20px) scale(1);
+    transform-origin: left top;
+    white-space: nowrap;
+    transition: color 200ms cubic-bezier(0, 0, 0.2, 1), transform 200ms cubic-bezier(0, 0, 0.2, 1), max-width 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.search-field__box:focus-within ~ .search-field__label,
+.search-field__box:has(input:not(:placeholder-shown)) ~ .search-field__label {
+    max-width: calc(133.333% - 18.6667px);
+    transform: translate(14px, -6px) scale(.75);
+}
+
+.search-field__box:focus-within ~ .search-field__label {
+    color: var(--primary);
+}
+
+.search-field__box:has(input:not(:placeholder-shown)) ~ .search-field__label {
+    color: var(--text);
+}

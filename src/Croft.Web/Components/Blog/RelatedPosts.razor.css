@@ -1,0 +1,76 @@
+/* Related posts after the post body (brief 07d item 3): up to 3 cards — a 16:9 thumbnail above
+   the title — in the text column. The root is the container for the card grid: three equal
+   columns with a 1.5rem gap at ≥600px of section width (the container query measures this
+   element's own width — the text column's), one column below. The heading keeps the rail's
+   panel-heading look (PostRail.razor.css's .post-rail__heading). */
+.related-posts {
+    container-type: inline-size;
+    min-width: 0;
+    font-family: var(--font-ui);
+}
+
+.related-posts__heading {
+    margin: 0 0 8px;
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text);
+}
+
+.related-posts__list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+@container (min-width: 600px) {
+    .related-posts__list {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+.related-posts__item {
+    min-width: 0;
+}
+
+.related-posts__link {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    color: var(--text);
+    text-decoration: none;
+}
+
+/* The thumbnail is full card width at 16:9 with the shared 6px radius (the cards' image area). */
+.related-posts__thumb {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    border-radius: 6px;
+}
+
+/* The title is the UI font at 15px, clamped to two lines with an ellipsis. */
+.related-posts__title {
+    /* WORKAROUND(W-057, Browsers): multi-line clamping uses the prefixed -webkit-box model */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    /* END WORKAROUND(W-057) */
+    overflow: hidden;
+    min-width: 0;
+    font-family: var(--font-ui);
+    font-size: 15px;
+    line-height: 1.35;
+}
+
+.related-posts__link:hover .related-posts__title {
+    color: var(--primary);
+    text-decoration: underline;
+}

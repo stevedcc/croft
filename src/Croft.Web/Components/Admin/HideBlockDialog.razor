@@ -1,0 +1,29 @@
+@* The confirm dialog of "Hide reply" and "Hide account" (brief 12c): says what is hidden and takes an
+   optional note for the block. Closes with the note (empty when none) on Hide, cancelled otherwise. *@
+<MudDialog>
+    <TitleContent>@Title</TitleContent>
+    <DialogContent>
+        <p class="hide-dialog__text">@Text</p>
+        <MudTextField @bind-Value="_note" Label="Note" HelperText="Optional. Only staff see it, on the Hidden replies page."
+                      Variant="Variant.Outlined" Lines="2" MaxLength="2000" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="Confirm">Hide</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance? MudDialog { get; set; }
+
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    /// <summary>What hiding does, in one or two sentences.</summary>
+    [Parameter, EditorRequired] public string Text { get; set; } = string.Empty;
+
+    private string? _note;
+
+    private void Confirm() => MudDialog?.Close(DialogResult.Ok(_note ?? string.Empty));
+
+    private void Cancel() => MudDialog?.Cancel();
+}

@@ -1,0 +1,15 @@
+{
+  "interactiveLogin": true,
+  "httpServer": "NettyWrapper",
+  "loginPagePath": "/app/login.html",
+  "staticAssetsPath": "/app",
+  "tokenCallbacks": [
+    {
+      "issuerId": "default",
+      "tokenExpiry": 70,
+      "requestMappings": [
+        { "requestParam": "client_id", "match": "blog-web" }
+      ]
+    }
+  ]
+}

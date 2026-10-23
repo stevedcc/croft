@@ -1,0 +1,52 @@
+/* The page surface's reading column (brief 07g item 3): the same geometry block as the post
+   page's text column (Post.razor.css), rail track included — the post page centres a
+   text-plus-rail grid where the content area is at least 1000px wide, and this surface keeps the
+   rail's 13.75rem track empty so its body column lands on exactly the same left/right edges as a
+   post's (the E2E suite compares them ±1px). The measure is declared in the READING font so its
+   "ch" is the body text's "0" width, exactly like Post.razor.css. Change both files together.
+
+   .page-surface__layout { display: grid; grid-template-columns: minmax(0, <measure>); gap: 3rem; }
+   @container (min-width: 1000px) {
+       .page-surface__layout { grid-template-columns: minmax(0, <measure>) 13.75rem; justify-content: center; }
+   }
+
+   <measure> is clamp(68ch, calc(68ch + (100vw - 1440px) * 0.42), 88ch) in Croft Serif at the
+   body text's size (1.125rem, 1.0625rem below 960px). The container is main (.shell > main,
+   container-type: inline-size), so the query measures the content area. */
+.page-surface__layout {
+    display: grid;
+    grid-template-columns: minmax(0, clamp(68ch, calc(68ch + (100vw - 1440px) * 0.42), 88ch));
+    gap: 3rem;
+    font-family: var(--font-serif);
+    font-size: 1.125rem;
+    margin-top: 2.5rem;
+    padding-bottom: 4rem;
+}
+
+/* The measure must track the body text's size, which app.css drops to 1.0625rem on phones. */
+@media (max-width: 959.98px) {
+    .page-surface__layout {
+        font-size: 1.0625rem;
+    }
+}
+
+@container (min-width: 1000px) {
+    .page-surface__layout {
+        grid-template-columns: minmax(0, clamp(68ch, calc(68ch + (100vw - 1440px) * 0.42), 88ch)) 13.75rem;
+        justify-content: center;
+    }
+}
+
+/* The plain title header above the body, in the same column. */
+.page-surface__header {
+    margin-bottom: 2.5rem;
+}
+
+.page-surface__title {
+    margin: 0 0 .5rem;
+}
+
+.page-surface__subtitle {
+    margin: 0 0 .75rem;
+    font-size: 1.25rem;
+}

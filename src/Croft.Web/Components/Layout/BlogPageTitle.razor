@@ -1,0 +1,15 @@
+@* Every page's browser title in one place: "<page title> · <blog name>", or just the blog name
+   when the page has no title of its own (the home page). Pages pass their title text; the name is
+   always read from the site's Branding, never hard-coded. *@
+@inject Branding Branding
+
+<PageTitle>@FullTitle</PageTitle>
+
+@code {
+    /// <summary>The page's own title text. Omit it (or pass null/empty) for the name-only form.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    private string FullTitle => string.IsNullOrEmpty(Title)
+        ? Branding.Name
+        : $"{Title} · {Branding.Name}";
+}

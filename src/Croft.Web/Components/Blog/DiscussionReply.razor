@@ -1,0 +1,84 @@
+@namespace Croft.Web.Components
+@using System.Globalization
+@using Croft.Shared.Contracts.Social
+@inject TimeProvider Time
+
+@* One reply of the discussion and, recursively, its answers (the API nests them to depth 3). *@
+@{
+    var platform = Reply.Platform == SocialPlatform.Bluesky ? "Bluesky" : "Mastodon";
+}
+<li class="discussion-reply">
+    <article class="discussion-reply__card">
+        @* Decorative: the name is next to it, so no alt text; the hash is the API's, served by the Web's own
+           proxy (img-src 'self'). No avatar: the initial in a neutral circle, hidden from assistive technology. *@
+        @if (Reply.AvatarHash is { } hash)
+        {
+            <img class="discussion-reply__avatar" src="@($"/social/avatar/{hash}.webp")" width="48" height="48" alt="" loading="lazy" decoding="async">
+        }
+        else
+        {
+            <span class="discussion-reply__avatar discussion-reply__initial" aria-hidden="true">@Initial</span>
+        }
+        <div class="discussion-reply__main">
+        <header class="discussion-reply__header">
+            <div class="discussion-reply__who">
+                <a class="discussion-reply__name" href="@Reply.AuthorUrl" rel="@Rel">@Reply.AuthorDisplayName</a>
+                <span class="discussion-reply__handle">@("@" + Reply.AuthorHandle)</span>
+            </div>
+            <div class="discussion-reply__where">
+                <span class="discussion-reply__platform">@platform</span>
+                <time datetime="@Reply.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture)"
+                      title="@(Reply.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) + " UTC")">@RelativeTime.Format(Reply.CreatedAt, Time.GetUtcNow())</time>
+            </div>
+        </header>
+        @if (Reply.ContentWarning is { } warning)
+        {
+            <details class="discussion-reply__warning">
+                <summary>CW: @warning</summary>
+                @Body
+            </details>
+        }
+        else
+        {
+            @Body
+        }
+        @if (Reply.HasMedia)
+        {
+            <p class="discussion-reply__media">Has media: <a href="@Reply.Permalink" rel="@Rel">view on @platform</a></p>
+        }
+        <p class="discussion-reply__links"><a class="discussion-reply__view" href="@Reply.Permalink" rel="@Rel">View on @platform</a></p>
+        </div>
+    </article>
+    @if (Reply.Replies.Count > 0)
+    {
+        <ol class="discussion-reply__answers">
+            @foreach (var answer in Reply.Replies)
+            {
+                <DiscussionReply Reply="@answer" />
+            }
+        </ol>
+    }
+</li>
+
+@code {
+    /// <summary>The first letter of the display name (of the handle when the name is empty), upper-cased.</summary>
+    private string Initial
+    {
+        get
+        {
+            var source = string.IsNullOrWhiteSpace(Reply.AuthorDisplayName) ? Reply.AuthorHandle : Reply.AuthorDisplayName;
+            var trimmed = source.TrimStart();
+            return trimmed.Length == 0 ? "?" : char.ConvertFromUtf32(char.ConvertToUtf32(trimmed, 0)).ToUpperInvariant();
+        }
+    }
+
+    private const string Rel = "nofollow ugc noopener";
+
+    /// <summary>The reply and its answers.</summary>
+    [Parameter, EditorRequired] public DiscussionReplyDto Reply { get; set; } = default!;
+
+    // ContentHtml is rendered as it is: the API sanitised it at ingest (brief 12a: only p, br and a
+    // with http/https and rel="nofollow ugc noopener"). That is the one sanitiser, tested there; the
+    // Content-Security-Policy is the second layer. It is deliberately not sanitised again here.
+    private RenderFragment Body => @<div class="discussion-reply__content">@((MarkupString)Reply.ContentHtml)</div>;
+}

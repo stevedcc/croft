@@ -1,0 +1,15 @@
+@using Croft.Shared.Enums
+@* The status badge (spec §3.1/§7.4): Published uses the green container, Scheduled the amber
+   container and Draft neutral grey. *@
+<span class="status-badge status-badge--@StatusClass">@Status</span>
+
+@code {
+    [Parameter] public PostStatus Status { get; set; }
+
+    private string StatusClass => Status switch
+    {
+        PostStatus.Published => "published",
+        PostStatus.Scheduled => "scheduled",
+        _ => "draft",
+    };
+}

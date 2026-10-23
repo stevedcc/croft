@@ -1,0 +1,168 @@
+/* The post page's layout block (scoped CSS cannot reach child component roots, so the rules
+   that cross into PostRail/TableOfContents go through ::deep):
+
+   .post-layout { display: grid; grid-template-columns: minmax(0, <measure>); gap: 3rem; }
+   @container (min-width: 1000px) {
+       .post-layout { grid-template-columns: minmax(0, <measure>) 13.75rem; justify-content: center; }
+       .post-rail { grid-column: 2; grid-row: 1 }  .discussion, .related-posts { grid-column: 1 }
+       .post-rail__group { position: sticky; top: 24px; max-height: calc(100vh - 48px); … }   <- Tags + TOC
+   }
+   @container (max-width: 999.98px) {
+       .post-rail { display: contents; } .post-rail .toc { display: none; }
+       .post-rail__group { order: 1 } .related-posts { order: 2 } .post-rail__extra { order: 3 }
+       .post-layout--contents-panel .post-rail__group { display: none }  <- tags live in the panel
+       .post-layout--contents-panel .markdown-body h2..h6 { scroll-margin-top: 48px }
+                                                                     <- land below the pinned row
+   }
+
+   <measure> is the reading measure in the READING font (brief 03l item 2): "ch" is the width of
+   "0" in the element's own font, so the grid is declared in Croft Serif at the body text's
+   size (1.125rem, 1.0625rem below 960px — exactly .markdown-body's font in app.css) and
+   clamp(68ch, calc(68ch + (100vw - 1440px) * 0.42), 88ch) means ~68 characters of body text per
+   line at ≤1440px growing to ~88 at ≥1920px. The px ramp is brief 03f's trick (calc() cannot
+   divide a length by a length): the 20ch of growth is ~200px at the 1920px body size (19.45px;
+   Croft Serif's "0" advances ~0.5em), i.e. ~0.42px per viewport-px over the 1440→1920px
+   span; the clamp caps it at 88ch so the value is exact from 1920px up. The rail keeps its own
+   explicit UI fonts and shell body size (PostRail.razor.css) and its width is in rem (220px ÷
+   16px) so it scales with the fluid root type.
+
+   The container is main (.shell > main, container-type: inline-size), so the query measures the
+   content area — viewport minus the sidebar minus main's padding (spec §5.4).
+
+   The text-plus-rail block is centred under the hero whenever the content area is at least
+   1000px wide and the block is narrower than the hero: equal space either side (brief 03l item
+   2, replacing 03f's 80rem gate). Below 1000px the block keeps its current position and the
+   single text column keeps filling the width on phones.
+
+   The same geometry block is duplicated in DraftReviewPage.razor.css (the review page renders the
+   post layout too). It stays duplicated: spec §7.1 rule 2 puts each component's styles in its own
+   scoped .razor.css and only the tokens/fonts/shell grid in app.css, and CSS isolation cannot
+   share one scoped source between two pages (ruling R5-3-e). Change both files together. */
+.post-layout {
+    display: grid;
+    grid-template-columns: minmax(0, clamp(68ch, calc(68ch + (100vw - 1440px) * 0.42), 88ch));
+    gap: 3rem;
+    font-family: var(--font-serif);
+    font-size: 1.125rem;
+}
+
+/* The measure must track the body text's size, which app.css drops to 1.0625rem on phones. */
+@media (max-width: 959.98px) {
+    .post-layout {
+        font-size: 1.0625rem;
+    }
+}
+
+@container (min-width: 1000px) {
+    .post-layout {
+        grid-template-columns: minmax(0, clamp(68ch, calc(68ch + (100vw - 1440px) * 0.42), 88ch)) 13.75rem;
+        justify-content: center;
+    }
+
+    /* The Related card section sits in the text column below the body and the rail is its own
+       column (brief 07d item 3). The rail is placed explicitly (column 2, row 1) and the section is
+       pinned to column 1, so the body takes the text column's first row and the section always
+       follows it — with the DOM order body, Related, rail, plain auto-placement would send Related
+       to the rail's column instead. */
+    .post-layout ::deep .post-rail {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .post-layout ::deep .related-posts {
+        grid-column: 1;
+    }
+
+    /* The discussion (brief 12b) sits in the text column between the body and Related. Neither has a
+       grid-row: auto-placement stacks them in DOM order below the body in column 1, and Related moves
+       up a row by itself when a post has no discussion (an explicit row would leave an empty track
+       that the grid gap would double). */
+    .post-layout ::deep .discussion {
+        grid-column: 1;
+    }
+
+    /* The rail's top group — Tags, then "On this page" — stays in view while the post scrolls:
+       sticky 24px below the viewport top (the window scrolls; no top bar exists at these
+       widths) and capped at the viewport height minus the two 24px margins. When the group is
+       taller than the cap the TOC is the part that scrolls inside it (Tags stay at the top):
+       the Tags panel keeps its height and the TOC flexes into the remaining box with its own
+       scrollbar. overflow: hidden makes the cap absolute. */
+    .post-layout ::deep .post-rail__group {
+        position: sticky;
+        top: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 1.75rem;
+        min-width: 0;
+        max-height: calc(100vh - 48px);
+        overflow: hidden;
+    }
+
+    .post-layout ::deep .post-rail__group > .post-rail__panel {
+        flex: 0 0 auto;
+    }
+
+    .post-layout ::deep .post-rail__group .toc {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+    }
+}
+
+@container (max-width: 999.98px) {
+    .post-layout ::deep .post-rail {
+        display: contents;
+    }
+
+    .post-layout ::deep .post-rail .toc {
+        display: none;
+    }
+
+    /* The rail's children become items of .post-layout's grid when the rail dissolves, and the
+       Related section is one already. The wide DOM order — caller panels, then the Tags+TOC
+       group, then Related's own section — is not the narrow visual order (Tags, Related, then
+       the caller's panels), so the groups take explicit grid order here. */
+    .post-layout ::deep .post-rail__group {
+        order: 1;
+    }
+
+    .post-layout ::deep .related-posts {
+        order: 2;
+    }
+
+    .post-layout ::deep .post-rail__extra {
+        order: 3;
+    }
+
+    /* The contents panel carries the tags in its right-hand column at these widths, so the rail's
+       Tags+TOC group does not render after the text for those posts. Posts without a panel (fewer
+       than two headings) keep it there as their Tags panel. */
+    .post-layout--contents-panel ::deep .post-rail__group {
+        display: none;
+    }
+
+    /* Headings scrolled to (TOC entries, fragments) must land below the pinned row, never under
+       it: scroll-margin-top equals the row's height (ContentsPanel.razor.css). Only posts with
+       the panel carry the offset — without one there is no row — and rail widths see neither. */
+    .post-layout--contents-panel ::deep .markdown-body :is(h2, h3, h4, h5, h6) {
+        scroll-margin-top: 48px;
+    }
+}
+
+/* Page spacing only — the geometry block above is not affected. */
+.post-layout {
+    margin-top: 2.5rem;
+    padding-bottom: 4rem;
+}
+
+/* With the contents panel, the panel's own margin-bottom carries the gap below it (the same
+   2.5rem, now the block's padding — which never collapses). Adjacent siblings' vertical margins
+   collapse (to their maximum, or the positive-plus-negative sum), so a margin-top here would
+   silently replace the panel's shrinking margin-bottom and break the panel's
+   "height + margin-bottom = footprint" rule (ContentsPanel.razor.css, post.js): every state
+   change would shift the page and scroll anchoring would drag the scroll position with it.
+   Posts without a panel keep the margin above. Change this file and DraftReviewPage's together. */
+.post-layout--contents-panel {
+    margin-top: 0;
+    padding-top: 2.5rem;
+}

@@ -1,0 +1,28 @@
+.topbar {
+    align-items: center;
+    gap: 10px;
+    height: 56px;
+    padding: 0 10px;
+    background: var(--sidebar);
+    color: var(--sidebar-text);
+    border-bottom: 1px solid var(--primary-container);
+}
+
+.menu-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--sidebar-text);
+    cursor: pointer;
+}
+
+.menu-button:hover {
+    background: var(--primary-container);
+}

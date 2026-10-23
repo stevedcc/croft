@@ -1,0 +1,8 @@
+# Example humans.txt for the site-files.example/ folder. The site is run by humans
+# (so far); we are one of them.
+
+/* TEAM */
+Site owner: Example Owner
+Site: https://www.example.com/
+Twitter: @example_owner
+Location: Earth

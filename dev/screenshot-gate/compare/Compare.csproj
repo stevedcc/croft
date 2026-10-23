@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- The screenshot gate's comparison step (item 7, ruling R17): decodes both sides' PNGs
+       with the E2E project's PngPixelDecoder (the same source file, compiled in) and counts
+       differing pixels per (surface, width, theme), writing crops for any difference. It runs
+       on the reviewed checkout only, so the link resolves from the repository; the
+       PngPixelDecoderPath property is the escape hatch for running it from elsewhere. -->
+  <PropertyGroup>
+    <PngPixelDecoderPath Condition="'$(PngPixelDecoderPath)' == ''">$(MSBuildThisFileDirectory)../../../tests/Croft.Web.E2E/PngPixelDecoder.cs</PngPixelDecoderPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(PngPixelDecoderPath)" Link="PngPixelDecoder.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.0" />
+    <PackageReference Include="NUnit" Version="4.3.2" />
+    <PackageReference Include="NUnit3TestAdapter" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="NUnit.Framework" />
+  </ItemGroup>
+
+</Project>

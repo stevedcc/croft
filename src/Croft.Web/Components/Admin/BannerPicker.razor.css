@@ -1,0 +1,89 @@
+/* The banner panel (spec §6.2): thumbnail, name and the three controls. Crimson marks the
+   interactive controls (act); surfaces use the shared tokens (spec §3.1). */
+.banner-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-family: var(--font-ui);
+}
+
+.banner-picker__title {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.banner-picker__current {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.banner-picker__thumb {
+    width: 120px;
+    height: 68px;
+    border-radius: 6px;
+    object-fit: cover;
+}
+
+.banner-picker__name {
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.banner-picker__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.banner-picker__button {
+    padding: 4px 10px;
+    border: 1px solid var(--muted);
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 12.5px;
+    line-height: 1.5;
+    cursor: pointer;
+}
+
+.banner-picker__button:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.banner-picker__button:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+}
+
+/* The transparent file input stretched over the "Upload" label: the native picker opens on
+   click and on keyboard activation. */
+.banner-picker__upload {
+    position: relative;
+    display: inline-flex;
+}
+
+/* The input inside is transparent, so its own focus ring cannot be seen: the wrapper, which is
+   the same box as the visible label, draws the ring the sibling buttons draw (review 2026-10-19 I-1). */
+.banner-picker__upload:focus-within {
+    border-radius: 6px;
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+}
+
+.banner-picker__file {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}

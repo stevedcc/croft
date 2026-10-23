@@ -1,0 +1,29 @@
+@* The media picker (spec §6.4/§7.4): a MudDialog over MediaGrid in Pick mode. Picking a tile
+   raises OnPicked and closes the dialog with the asset so the caller can insert it. *@
+<MudDialog>
+    <TitleContent>Media library</TitleContent>
+    <DialogContent>
+        <MediaGrid Mode="MediaGridMode.Pick" PostId="PostId" OnPicked="PickedAsync" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance? MudDialog { get; set; }
+
+    /// <summary>Set to pick from "this post's images"; omitted shows the global images.</summary>
+    [Parameter] public Guid? PostId { get; set; }
+
+    /// <summary>Raised when the user picks a tile.</summary>
+    [Parameter] public EventCallback<MediaAssetDto> OnPicked { get; set; }
+
+    private async Task PickedAsync(MediaAssetDto asset)
+    {
+        await OnPicked.InvokeAsync(asset);
+        MudDialog?.Close(DialogResult.Ok(asset));
+    }
+
+    private void Cancel() => MudDialog?.Cancel();
+}

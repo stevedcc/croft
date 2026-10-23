@@ -1,0 +1,63 @@
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 6px;
+    border-radius: 10px;
+    color: inherit;
+    text-decoration: none;
+}
+
+.brand:hover {
+    background: var(--primary-container);
+}
+
+.brand-logo {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    border-radius: 7px;
+}
+
+.brand-copy {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.brand-name {
+    font-family: var(--font-serif);
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.brand-tagline {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 12.5px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.compact .brand-logo {
+    width: 26px;
+    height: 26px;
+}
+
+/* 960-1279px rail: just the logo, and in the drawer the name and tagline beside it. The logo is
+   pinned left (8px insets its 32px box over the 20px icons' centred column, centre on centre)
+   instead of centred: centring the row would slide it left by half the copy's width in the rail
+   and right by half of it in the drawer. */
+@media (min-width: 960px) and (max-width: 1279.98px) {
+    .brand {
+        justify-content: flex-start;
+        padding: 6px 0 6px 8px;
+    }
+}

@@ -1,0 +1,26 @@
+@namespace Croft.Web.Components
+
+@* "Reply on Mastodon" (brief 12b): a plain GET form to our own origin (form-action 'self'), no script.
+   The reader names their server; /discussion/mastodon/reply validates it and offers a link to it. The
+   input is a text field with autocomplete on, so the browser remembers the server; Croft sets no cookie.
+   A host name is not a URL, so none of the url/off autocomplete tokens fits. *@
+<form class="mastodon-reply" method="get" action="/discussion/mastodon/reply">
+    <input type="hidden" name="post" value="@Slug" />
+    <fieldset class="mastodon-reply__fieldset">
+        <legend class="mastodon-reply__legend">Reply on Mastodon</legend>
+        <label class="mastodon-reply__label" for="mastodon-server">Your Mastodon server</label>
+        <span class="mastodon-reply__row">
+            <input id="mastodon-server" class="mastodon-reply__input" type="text" name="server" value="@Server"
+                   placeholder="mastodon.example" required autocomplete="on" inputmode="url" spellcheck="false" autocapitalize="none" />
+            <button class="mastodon-reply__button" type="submit">Reply</button>
+        </span>
+    </fieldset>
+</form>
+
+@code {
+    /// <summary>The post's slug: the endpoint reads the post by it.</summary>
+    [Parameter, EditorRequired] public string Slug { get; set; } = string.Empty;
+
+    /// <summary>What the reader typed before (put back when it was refused); Blazor encodes it.</summary>
+    [Parameter] public string? Server { get; set; }
+}

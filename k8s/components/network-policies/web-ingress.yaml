@@ -1,0 +1,27 @@
+# Assumes the ingress controller is Traefik in kube-system (the K3s default). With another controller, patch the
+# Traefik "from" item (/spec/ingress/0/from/0) from a site overlay; see kustomization.yaml and k8s/README.md.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: croft-web-ingress
+  namespace: blog
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: croft
+      app.kubernetes.io/component: web
+  policyTypes: [Ingress]
+  ingress:
+    # WORKAROUND(W-081, Kubernetes): one from item means AND (namespace and pod selector); two items would mean OR
+    - from:
+        # One list item: the ingress controller's pods IN kube-system. (Two items would mean
+        # "anything in kube-system, or any pod with that name in this namespace".)
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+    # END WORKAROUND(W-081)
+      ports:
+        - port: 8080

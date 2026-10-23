@@ -1,0 +1,17 @@
+.skip-link {
+    position: fixed;
+    top: -56px;
+    left: 12px;
+    z-index: 1500;
+    padding: 10px 16px;
+    background: var(--primary-strong);
+    color: #FFFFFF;
+    font-family: var(--font-ui);
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: 0 0 8px 8px;
+}
+
+.skip-link:focus {
+    top: 0;
+}

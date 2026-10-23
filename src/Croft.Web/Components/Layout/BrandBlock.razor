@@ -1,0 +1,24 @@
+@* Logo + blog name + tagline from the site's Branding (spec §7.2, service component). The name and
+   tagline carry .label so the rail shows just the logo; Compact is the rail/top-bar variant. *@
+@inject Branding Branding
+
+<a class="brand @(Compact ? "compact" : string.Empty)" href="/" title="@Branding.Name"
+   @attributes='AdminArea.LinkAttributes(InAdminArea, "/")'>
+    <img class="brand-logo" src="@(Branding.FileUrl("logo.svg"))" alt="" />
+    <span class="brand-copy">
+        <span class="brand-name label">@Branding.Name</span>
+        @if (!Compact)
+        {
+            <span class="brand-tagline label">@Branding.Tagline</span>
+        }
+    </span>
+</a>
+
+@code {
+    /// <summary>Rail/top-bar variant: logo and name only.</summary>
+    [Parameter] public bool Compact { get; set; }
+
+    /// <summary>Whether this renders on a staff page: the brand link leads to the public home
+    /// page and must load a fresh document from there (see <see cref="AdminArea"/>).</summary>
+    [CascadingParameter(Name = "InAdminArea")] public bool InAdminArea { get; set; }
+}

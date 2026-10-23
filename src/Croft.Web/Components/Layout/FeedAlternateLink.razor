@@ -1,0 +1,18 @@
+@* The feed discovery link every page's head carries: readers and crawlers find the Atom feed
+   from the page they are on. The href is absolute, built from Blog:BaseUrl like every canonical
+   URL — never the request's host. The element is bare on purpose (like RobotsNoIndex): Blazor's
+   HeadOutlet renders the content of exactly one HeadContent per page, so each head-emitting
+   surface carries this inside its own HeadContent — SeoHead does, and so does every page that
+   wraps RobotsNoIndex in its own HeadContent. *@
+@using Microsoft.Extensions.Options
+@using Croft.Web.Options
+@inject IOptions<BlogOptions> Options
+@inject Branding Branding
+
+<link rel="alternate" type="application/atom+xml" title="@Branding.Name" href="@Href" />
+
+@code {
+    /// <summary>The feed's absolute URL — trimmed, because local dev configures Blog:BaseUrl
+    /// with a trailing slash and the path adds its own.</summary>
+    private string Href => $"{Options.Value.BaseUrl.TrimEnd('/')}/feed.xml";
+}

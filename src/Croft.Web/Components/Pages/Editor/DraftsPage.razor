@@ -1,0 +1,82 @@
+@page "/editor"
+@attribute [Authorize(Roles = "Editor,Admin")]
+@using Croft.Shared.Enums
+@inject IBlogApiClient Api
+@inject ILogger<DraftsPage> Logger
+
+<BlogPageTitle Title="Drafts" />
+@* WORKAROUND(W-008, Blazor): HeadOutlet keeps one HeadContent provider per page, so the feed link sits beside RobotsNoIndex here *@
+<HeadContent><RobotsNoIndex /><FeedAlternateLink /></HeadContent>
+@* END WORKAROUND(W-008) *@
+<PageHeader Title="Drafts" />
+
+@* The Editor role's list (spec §6.6): drafts and scheduled posts in the same read-only grid,
+   actions: Review. No API view spans both statuses, so the page composes two status listings and
+   merges them here — drafts first, each in the API's order — and pages the merged rows as one
+   list inside the grid's server callback. *@
+@if (_error is not null)
+{
+    <p class="drafts__error" role="alert">@_error</p>
+}
+
+<PostsGrid ServerData="LoadAsync" ReadOnly="true" ShowEmptyState="@(_error is null)" />
+
+@code {
+    private string? _error;
+    private int _loadKey;
+
+    /// <summary>The grid's server page loader: one fetch per status, merged and paged here. The
+    /// keyed guard assigns the error banner only while the captured load key still matches, so a
+    /// superseded load completing late cannot paint it — and a load that succeeds clears it.</summary>
+    private async Task<GridData<PostSummaryDto>> LoadAsync(GridState<PostSummaryDto> state, CancellationToken ct)
+    {
+        var key = ++_loadKey;
+        // Each status must contribute every row up to the requested merged page boundary, or a
+        // page could skip rows (ten drafts push the first scheduled row to merged row eleven).
+        var fetch = (state.Page + 1) * state.PageSize;
+        var data = new GridData<PostSummaryDto> { Items = [], TotalItems = 0 };
+        try
+        {
+            var drafts = await Api.GetPostsAsync(
+                new PostListRequest(Status: PostStatus.Draft, Page: 1, PageSize: fetch), ct);
+            var scheduled = await Api.GetPostsAsync(
+                new PostListRequest(Status: PostStatus.Scheduled, Page: 1, PageSize: fetch), ct);
+            var merged = drafts.Items.Concat(scheduled.Items)
+                .Skip(state.Page * state.PageSize)
+                .Take(state.PageSize);
+            data = new GridData<PostSummaryDto>
+            {
+                Items = [.. merged],
+                TotalItems = drafts.TotalCount + scheduled.TotalCount,
+            };
+            if (key == _loadKey)
+            {
+                _error = null;
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "loading the drafts", ex);
+            if (key == _loadKey)
+            {
+                _error = ex.Message;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The grid cancels a load's token when a newer one supersedes it.
+        }
+
+        if (key == _loadKey)
+        {
+            // WORKAROUND(W-040, MudBlazor): MudDataGrid can complete ServerData outside the dispatcher, so the page marshals StateHasChanged
+            // The grid renders the rows from the return value; the page's own load state (the
+            // error banner) needs this render to show it. InvokeAsync because the grid can
+            // complete this loader from outside the dispatcher.
+            await InvokeAsync(StateHasChanged);
+            // END WORKAROUND(W-040)
+        }
+
+        return data;
+    }
+}

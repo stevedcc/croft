@@ -1,0 +1,39 @@
+@using Croft.Shared.Contracts.Social
+@using Croft.Shared.Social
+
+@* One network's preview of the announcement (brief 12d): the composed text as plain text (its line breaks come from the
+   stylesheet) and its count against the network's limit, counted the way the network counts (Croft.Shared.Social). Presentational. *@
+<div class="announce-preview" id="@("announce-preview-" + Platform.ToString().ToLowerInvariant())">
+    <p class="announce-preview__title">@Platform</p>
+    <p class="announce-preview__text">@Composed</p>
+    <p class="@CountClass">@Length / @Limit</p>
+    @if (Over)
+    {
+        <p class="announce-preview__warning">Too long for @Platform: shorten the announcement text.</p>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public SocialPlatform Platform { get; set; }
+
+    [Parameter] public string Title { get; set; } = string.Empty;
+
+    [Parameter] public string? Subtitle { get; set; }
+
+    /// <summary>The announcement's own text; blank = the default (title and subtitle, shortened to fit).</summary>
+    [Parameter] public string? Text { get; set; }
+
+    /// <summary>The post's address that ends the announcement.</summary>
+    [Parameter, EditorRequired] public string PostUrl { get; set; } = string.Empty;
+
+    private string Composed => AnnouncementText.Compose(
+        string.IsNullOrWhiteSpace(Text) ? AnnouncementText.FitDefault(Platform, Title, Subtitle, PostUrl) : Text, PostUrl);
+
+    private int Length => AnnouncementText.Length(Platform, Composed);
+
+    private int Limit => AnnouncementText.Limit(Platform);
+
+    private bool Over => Length > Limit;
+
+    private string CountClass => Over ? "announce-preview__count announce-preview__count--over" : "announce-preview__count";
+}

@@ -1,0 +1,47 @@
+@namespace Croft.Web.Components
+@* The pager: real page links so paging works with JavaScript disabled; the
+   current page carries aria-current="page". A one-page pager renders nothing. The pager is
+   purely presentational — no service injection. A caller that is not at the
+   base path passes its own Path (query-only hrefs would resolve against <base href="/"> and land
+   on "/"), and any extra query state (the search page's ?q=) comes via QueryString. *@
+@if (TotalPages > 1)
+{
+    <nav class="page-pager" aria-label="Pagination">
+        @for (var n = 1; n <= TotalPages; n++)
+        {
+            <a class="page-pager__link@(n == Page ? " page-pager__link--current" : "")" href="@Href(n)"
+               aria-current="@(n == Page ? "page" : null)">@n</a>
+        }
+    </nav>
+}
+
+@code {
+    /// <summary>Current page number.</summary>
+    [Parameter] public int Page { get; set; } = 1;
+
+    /// <summary>Total number of pages.</summary>
+    [Parameter] public int TotalPages { get; set; } = 1;
+
+    /// <summary>
+    /// The page's own path, e.g. "/search" or "/category/foo" (trailing "?"/"&amp;" tolerated, and
+    /// a query already on the path is joined with "&amp;"); empty means the base path (Home).
+    /// </summary>
+    [Parameter] public string Path { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The page's own query parameters without the page number, e.g. "q=hello" (a leading "?" or
+    /// "&amp;" is accepted and dropped); empty means no extra query parameters.
+    /// </summary>
+    [Parameter] public string QueryString { get; set; } = string.Empty;
+
+    private string Href(int n)
+    {
+        // {Path}?{QueryString}&page=N. With Path and QueryString empty the href is exactly
+        // ?page=N (and Home's own form at the base path).
+        var path = (Path ?? string.Empty).Trim().TrimEnd('?', '&');
+        var query = (QueryString ?? string.Empty).Trim().TrimStart('?', '&');
+        var tail = query.Length == 0 ? string.Empty : query + "&";
+        var separator = path.Contains('?') ? "&" : "?";
+        return $"{path}{separator}{tail}page={n}";
+    }
+}

@@ -1,0 +1,111 @@
+.admin-table__section {
+    margin-top: 2rem;
+}
+
+.admin-table__section h2 {
+    margin: 0 0 .75rem;
+    font-family: var(--font-ui);
+    font-size: 1.25rem;
+}
+
+.admin-table__error {
+    margin: 1rem 0 0;
+    color: var(--primary);
+    font-family: var(--font-ui);
+}
+
+.admin-table__empty {
+    margin: .5rem 0 0;
+    color: var(--muted);
+    font-family: var(--font-ui);
+}
+
+.admin-table {
+    width: 100%;
+    margin-top: 1rem;
+    border-collapse: collapse;
+    font-family: var(--font-ui);
+}
+
+.admin-table th {
+    padding: .5rem .75rem;
+    border-bottom: 2px solid var(--primary-container);
+    text-align: left;
+    font-size: .85rem;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.admin-table td {
+    padding: .5rem .75rem;
+    border-bottom: 1px solid var(--primary-container);
+    vertical-align: middle;
+    /* The admin pattern for narrow pages (BannerPicker, MediaGrid, PostEditorForm): long
+       names wrap instead of widening the table past the page at 390px. */
+    overflow-wrap: anywhere;
+}
+
+.admin-table__count {
+    width: 5rem;
+}
+
+.admin-table__switch {
+    width: 4.5rem;
+}
+
+.admin-table__search {
+    max-width: 22rem;
+    margin-top: .5rem;
+}
+
+.admin-table__pager {
+    margin-top: .75rem;
+}
+
+.admin-table__name {
+    margin-right: .5rem;
+}
+
+/* The Actions heading is visual noise in a row of buttons; kept for screen readers. */
+.admin-table__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.admin-table__icon {
+    display: inline-flex;
+    padding: .35rem;
+    border: 1px solid var(--primary-container);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+}
+
+.admin-table__icon:hover {
+    background: var(--primary-container);
+}
+
+.admin-table__icon:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* Hover target for the tooltip on the Delete button: the padding keeps the pointer on this
+   wrapper while the disabled button inside swallows the mouse events. */
+.admin-table__actions {
+    display: inline-flex;
+    padding: 4px;
+}
+
+/* The visible reason beside a disabled Delete (the button's aria-describedby points at it). */
+.admin-table__reason {
+    display: block;
+    margin-top: .25rem;
+    color: var(--muted);
+    font-size: .8rem;
+}

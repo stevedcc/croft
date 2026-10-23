@@ -1,0 +1,312 @@
+@* One page's SEO head in one place: description, canonical, Open Graph, Twitter Card and
+   JSON-LD (BlogPosting for articles, a WebPage for the root-level static pages, the site's Blog
+   for listing pages), all built from the
+   configured Blog:BaseUrl — never the request's host, so proxies and alternate ports cannot
+   change the advertised origin. Pages pass their own values; the site's words are always read
+   from its Branding and the base URL from BlogOptions. The description fallback for posts
+   (Excerpt → Subtitle →
+   summary start) lives in SeoDescription beside this component, so the feed can describe
+   posts the same way. *@
+@using System.Globalization
+@using System.Text.Json
+@using Microsoft.Extensions.Options
+@using Croft.Web.Options
+@inject IOptions<BlogOptions> Options
+@inject Branding Branding
+
+<HeadContent>
+    @if (NoIndex)
+    {
+        <RobotsNoIndex />
+    }
+    @* WORKAROUND(W-008, Blazor): this HeadContent is the only one on its page, so it carries the feed link (HeadOutlet keeps a single provider) *@
+    <FeedAlternateLink />
+    @* END WORKAROUND(W-008) *@
+    @if (HasDescription)
+    {
+        <meta name="description" content="@Description" />
+    }
+    <link rel="canonical" href="@CanonicalUrl" />
+    <meta property="og:type" content="@TypeToken" />
+    <meta property="og:title" content="@Title" />
+    @if (HasDescription)
+    {
+        <meta property="og:description" content="@Description" />
+    }
+    <meta property="og:url" content="@CanonicalUrl" />
+    <meta property="og:site_name" content="@Branding.Name" />
+    <meta property="og:locale" content="en_GB" />
+    @if (ImageUrl is not null)
+    {
+        <meta property="og:image" content="@ImageUrl" />
+    }
+    @if (PageType == SeoPageType.Article)
+    {
+        @if (PublishedAt is { } publishedAt)
+        {
+            <meta property="article:published_time" content="@FormatDate(publishedAt)" />
+        }
+        @if (ModifiedAt is { } modifiedAt)
+        {
+            <meta property="article:modified_time" content="@FormatDate(modifiedAt)" />
+        }
+        @foreach (var tag in Tags ?? [])
+        {
+            <meta property="article:tag" content="@tag" />
+        }
+        @if (!string.IsNullOrEmpty(Section))
+        {
+            <meta property="article:section" content="@Section" />
+        }
+    }
+    <meta name="twitter:card" content="@(ImageUrl is null ? "summary" : "summary_large_image")" />
+    @if (PageType == SeoPageType.Article)
+    {
+        <script type="application/ld+json">@((MarkupString)ArticleJsonLd)</script>
+        @* Brief 10d item 2: a second JSON-LD block on post pages only, with every URL built
+           from Blog:BaseUrl (never the request's host, so proxies and alternate ports can't
+           change the advertised breadcrumb). *@
+        <script type="application/ld+json">@((MarkupString)BreadcrumbListJsonLd)</script>
+    }
+    else if (PageType == SeoPageType.Page)
+    {
+        <script type="application/ld+json">@((MarkupString)WebPageJsonLd)</script>
+    }
+    else
+    {
+        <script type="application/ld+json">@((MarkupString)WebsiteJsonLd)</script>
+    }
+</HeadContent>
+
+@code {
+    /// <summary>The page's own title, as search results and link previews should show it.</summary>
+    [Parameter] public string Title { get; set; } = string.Empty;
+
+    /// <summary>The page's description. Omit or pass empty to leave description tags out.</summary>
+    [Parameter] public string? Description { get; set; }
+
+    /// <summary>The page's path from the site root, starting with "/" (e.g. "/post/my-slug").</summary>
+    [Parameter] public string CanonicalPath { get; set; } = string.Empty;
+
+    /// <summary>The page's image as a site-relative URL (e.g. the banner's "/api/media/{id}");
+    /// null/empty means no image tags and a "summary" Twitter card.</summary>
+    [Parameter] public string? Image { get; set; }
+
+    [Parameter] public SeoPageType PageType { get; set; }
+
+    [Parameter] public DateTime? PublishedAt { get; set; }
+
+    [Parameter] public DateTime? ModifiedAt { get; set; }
+
+    /// <summary>Article pages only: one tag name per <c>article:tag</c>.</summary>
+    [Parameter] public IReadOnlyList<string>? Tags { get; set; }
+
+    /// <summary>Article pages only: the category as <c>article:section</c>.</summary>
+    [Parameter] public string? Section { get; set; }
+
+    /// <summary>Article pages only: the category's slug, used to build the BreadcrumbList
+    /// JSON-LD's category URL. <c>null</c>/empty means the post has no category — the breadcrumb
+    /// then drops the category entry and becomes Home → Post.</summary>
+    [Parameter] public string? SectionSlug { get; set; }
+
+    /// <summary>Article pages only: the JSON-LD author (Person).</summary>
+    [Parameter] public string? AuthorName { get; set; }
+
+    /// <summary>Non-published content (drafts, scheduled) must stay out of search indexes.</summary>
+    [Parameter] public bool NoIndex { get; set; }
+
+    private bool HasDescription => !string.IsNullOrEmpty(Description);
+
+    private string CanonicalUrl => $"{Origin}{CanonicalPath}";
+
+    private string? ImageUrl => string.IsNullOrEmpty(Image) ? null : $"{Origin}{Image}";
+
+    private string TypeToken => PageType == SeoPageType.Article ? "article" : "website";
+
+    private string Origin => Options.Value.BaseUrl.TrimEnd('/');
+
+    /// <summary>Serialised with System.Text.Json's default encoder, which escapes HTML-sensitive
+    /// characters (<c>&lt;</c>, <c>&gt;</c>, <c>&amp;</c>) as Unicode escapes — a title containing
+    /// quotes or a closing script tag cannot break out of the script element.</summary>
+    private string ArticleJsonLd
+    {
+        get
+        {
+            var payload = new Dictionary<string, object?>
+            {
+                ["@context"] = "https://schema.org",
+                ["@type"] = "BlogPosting",
+                ["headline"] = Title,
+                ["mainEntityOfPage"] = CanonicalUrl,
+                ["publisher"] = new Dictionary<string, object?>
+                {
+                    ["@type"] = "Organization",
+                    ["name"] = string.IsNullOrWhiteSpace(Branding.Author) ? Branding.Name : Branding.Author,
+                    // Brief 10d item 3: the publisher carries its site root as url and its
+                    // served logo as a Logo-typed ImageObject — both built from BaseUrl /
+                    // Branding.FileUrl, so no new data is needed.
+                    ["url"] = $"{Origin}/",
+                    ["logo"] = new Dictionary<string, object?>
+                    {
+                        ["@type"] = "ImageObject",
+                        ["url"] = $"{Origin}{Branding.FileUrl("logo.svg")}",
+                    },
+                },
+            };
+
+            if (HasDescription)
+                payload["description"] = Description;
+
+            if (PublishedAt is { } publishedAt)
+                payload["datePublished"] = FormatDate(publishedAt);
+
+            if (ModifiedAt is { } modifiedAt)
+                payload["dateModified"] = FormatDate(modifiedAt);
+
+            if (!string.IsNullOrEmpty(AuthorName))
+            {
+                var author = new Dictionary<string, object?>
+                {
+                    ["@type"] = "Person",
+                    ["name"] = AuthorName,
+                    // Brief 10d item 3: the author's url is the site root, derived from
+                    // Blog:BaseUrl. No separate author-profile URL is available — falling back
+                    // to the site root keeps the author field a fully-formed schema.org Person
+                    // without inventing new data.
+                    ["url"] = $"{Origin}/",
+                };
+
+                // Brief 11a item 4: the author's verified profiles as sameAs, in the owner's
+                // order; omitted entirely when the branding has none.
+                if (Branding.Profiles.Count > 0)
+                {
+                    author["sameAs"] = Branding.Profiles.Select(profile => profile.Url).ToArray();
+                }
+
+                payload["author"] = author;
+            }
+
+            if (ImageUrl is { } imageUrl)
+                payload["image"] = imageUrl;
+
+            // Tag names joined with ", " in the order SeoHead already received them (Item 1);
+            // omitted (not empty string) when there are no tags.
+            if (Tags is { Count: > 0 })
+                payload["keywords"] = string.Join(", ", Tags);
+
+            // The category's name; omitted when the post has no category.
+            if (!string.IsNullOrEmpty(Section))
+                payload["articleSection"] = Section;
+
+            return JsonSerializer.Serialize(payload);
+        }
+    }
+
+    /// <summary>Brief 10d item 2: a post page's breadcrumb (Home → Category? → Post), built
+    /// from <see cref="BlogOptions.BaseUrl"/> so the advertised URLs never depend on the
+    /// request's host. The category entry is included only when the post has a category
+    /// (<see cref="SectionSlug"/> and <see cref="Section"/> are both set); without one, the
+    /// breadcrumb is Home → Post.</summary>
+    private string BreadcrumbListJsonLd
+    {
+        get
+        {
+            var origin = Origin;
+            var items = new List<Dictionary<string, object?>>
+            {
+                new()
+                {
+                    ["@type"] = "ListItem",
+                    ["position"] = 1,
+                    ["name"] = Branding.Name,
+                    ["item"] = $"{origin}/",
+                },
+            };
+            var nextPosition = 2;
+
+            if (!string.IsNullOrEmpty(SectionSlug) && !string.IsNullOrEmpty(Section))
+            {
+                items.Add(new()
+                {
+                    ["@type"] = "ListItem",
+                    ["position"] = nextPosition++,
+                    ["name"] = Section,
+                    ["item"] = $"{origin}/category/{SectionSlug}",
+                });
+            }
+
+            items.Add(new()
+            {
+                ["@type"] = "ListItem",
+                ["position"] = nextPosition,
+                ["name"] = Title,
+                ["item"] = CanonicalUrl,
+            });
+
+            return JsonSerializer.Serialize(new Dictionary<string, object?>
+            {
+                ["@context"] = "https://schema.org",
+                ["@type"] = "BreadcrumbList",
+                ["itemListElement"] = items,
+            });
+        }
+    }
+
+    /// <summary>The site itself as a schema.org Blog, emitted on Website-type (listing) pages.
+    /// The entity is site-level in every field, so it is identical on every page that emits it:
+    /// named from the site's Branding like og:site_name, described by its configured tagline, at the
+    /// site root rather than the page's canonical; the page's own description still reaches
+    /// meta/og:description through the <see cref="Description"/> parameter. Serialised with the
+    /// same default encoder as <see cref="ArticleJsonLd"/>.</summary>
+    private string WebsiteJsonLd
+    {
+        get
+        {
+            var payload = new Dictionary<string, object?>
+            {
+                ["@context"] = "https://schema.org",
+                ["@type"] = "Blog",
+                ["name"] = Branding.Name,
+                ["url"] = $"{Origin}/",
+            };
+
+            if (!string.IsNullOrWhiteSpace(Branding.Tagline))
+                payload["description"] = Branding.Tagline;
+
+            return JsonSerializer.Serialize(payload);
+        }
+    }
+
+    /// <summary>A root-level static page as a schema.org WebPage (brief 07g item 3): the page's
+    /// own name, canonical URL and dates — datePublished is the publication and dateModified the
+    /// content edit (ContentEditedAt), never the row's UpdatedAt. Serialised with the same
+    /// default encoder as <see cref="ArticleJsonLd"/>.</summary>
+    private string WebPageJsonLd
+    {
+        get
+        {
+            var payload = new Dictionary<string, object?>
+            {
+                ["@context"] = "https://schema.org",
+                ["@type"] = "WebPage",
+                ["name"] = Title,
+                ["url"] = CanonicalUrl,
+            };
+
+            if (HasDescription)
+                payload["description"] = Description;
+
+            if (PublishedAt is { } publishedAt)
+                payload["datePublished"] = FormatDate(publishedAt);
+
+            if (ModifiedAt is { } modifiedAt)
+                payload["dateModified"] = FormatDate(modifiedAt);
+
+            return JsonSerializer.Serialize(payload);
+        }
+    }
+
+    private static string FormatDate(DateTime date) =>
+        (date.Kind == DateTimeKind.Utc ? date : date.ToUniversalTime())
+        .ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
+}

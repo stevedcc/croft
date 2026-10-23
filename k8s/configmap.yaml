@@ -1,0 +1,99 @@
+# Non-secret configuration, split per app. Secret values never live in this repository;
+# see k8s/secrets.example.md for the kubectl commands that create them.
+# The Web pod deliberately gets no database connection string.
+# The Oidc__* and Blog__BaseUrl values are placeholders: a site overlay replaces them
+# (patches on these maps).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blog-api-config
+  namespace: blog
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  # The OIDC provider's issuer for the "blog" application.
+  Oidc__Authority: "https://idp.example.com/application/o/blog/"
+  # The client ID of the "blog" application: the provider puts it in the access token's
+  # audience, and the API validates aud against this value. It must equal the Web app's
+  # Oidc__ClientId. Not a secret (it travels in every login redirect); the client secret
+  # is a secret and never lives in this map.
+  Oidc__Audience: "your-client-id"
+  # Which external groups grant the blog's Admin/Editor roles (the role names inside the
+  # apps stay Admin/Editor). Local dev keeps these defaults via the mock IdP.
+  Oidc__RoleGroups__Admin: "Admin"
+  Oidc__RoleGroups__Editor: "Editor"
+  # Warm-up (both apps): before it reports ready, the pod sends its own public read requests to
+  # itself once, one at a time, so the first reader meets a warm pod (k8s/README.md, "Warm-up").
+  # These are the defaults; set Warmup__Enabled to "false" to skip the warm-up.
+  Warmup__Enabled: "true"
+  # The whole warm-up's budget; when it runs out the pod becomes ready regardless.
+  Warmup__Timeout: "00:01:00"
+  # Each request's own budget; a request that takes longer counts as failed and the warm-up goes on.
+  Warmup__RequestTimeout: "00:00:15"
+  # The public origin of the site: the User-Agent of the API's requests to Mastodon, Bluesky and the avatar hosts names it
+  # ("Croft/<version> (+https://...)"), so an operator can see whose software is asking. A site overlay patches it like the
+  # Web map's Blog__BaseUrl.
+  Blog__BaseUrl: "https://blog.example.com"
+  # Social replies below posts (README, "Social replies"): off by default. Switch on with "true" and fill in the owner's own
+  # accounts; a platform with an empty server or DID is left out (logged once at start). No secrets: reading public replies needs none.
+  Social__Enabled: "false"
+  # The owner's Mastodon server and account: the only host and account a linked post may be on.
+  Social__Mastodon__Server: ""
+  Social__Mastodon__Account: ""
+  # The owner's Bluesky DID (did:plc:...): the only author a linked post may have.
+  Social__Bluesky__Did: ""
+  # Announcing on publish (README, "Announcing on publish"): optional overrides, not set here because their defaults are right for
+  # most sites: Social__AnnouncementLanguage (default "en", "" sends none) and Social__Bluesky__Service (default https://bsky.social,
+  # the PDS the API signs in to and posts through). The credentials are secrets, not config: Social__Mastodon__AccessToken and
+  # Social__Bluesky__AppPassword go in the Secret blog-api-secrets (k8s/secrets.example.md), so this map still holds no secrets.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blog-web-config
+  namespace: blog
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  # The Web app calls the API through its in-cluster Service and proxies media to the
+  # browser; browsers never talk to the API directly.
+  ApiBaseUrl: "http://blog-api.blog.svc.cluster.local/"
+  # The OIDC provider's issuer for the "blog" application.
+  Oidc__Authority: "https://idp.example.com/application/o/blog/"
+  # The client ID of the "blog" application; the client secret lives in the blog-web-secrets
+  # Secret (k8s/secrets.example.md).
+  Oidc__ClientId: "your-client-id"
+  # Same role-group mapping as the API: which external groups grant Admin/Editor.
+  Oidc__RoleGroups__Admin: "Admin"
+  Oidc__RoleGroups__Editor: "Editor"
+  # The public origin every absolute URL is built from (canonical, og:image, JSON-LD).
+  Blog__BaseUrl: "https://blog.example.com"
+  # The peers allowed to set a visitor's address with X-Forwarded-For/-Proto: the ingress
+  # controller's network, nothing else. This is the k3s default pod network (10.42.0.0/16, where
+  # K3s's Traefik runs); change it for another cluster (k8s/README.md, "Client addresses").
+  # Empty or unset: no proxy is trusted and the headers are ignored.
+  ForwardedHeaders__KnownNetworks__0: "10.42.0.0/16"
+  # Optional encryption of the Data Protection key ring: an RSA certificate and key in PEM form, from
+  # the optional croft-dataprotection-cert Secret (type kubernetes.io/tls) mounted by the Web
+  # Deployment. Without that Secret the files are absent, the Web starts and logs one Warning that
+  # the key ring is stored unencrypted (k8s/README.md, "Encrypting the key ring").
+  DataProtection__CertificatePath: "/etc/croft/dataprotection/tls.crt"
+  DataProtection__CertificateKeyPath: "/etc/croft/dataprotection/tls.key"
+  # Warm-up (both apps): before it reports ready, the pod sends its own public read requests to
+  # itself once, one at a time, so the first reader meets a warm pod (k8s/README.md, "Warm-up").
+  # These are the defaults; set Warmup__Enabled to "false" to skip the warm-up.
+  Warmup__Enabled: "true"
+  # The whole warm-up's budget; when it runs out the pod becomes ready regardless.
+  Warmup__Timeout: "00:01:00"
+  # Each request's own budget; a request that takes longer counts as failed and the warm-up goes on.
+  Warmup__RequestTimeout: "00:00:15"
+  # Output cache (Web only): an anonymous reader's page comes from the pod's memory for this long
+  # (k8s/README.md, "Output cache"). A staff write evicts this pod's pages at once; other pods catch up
+  # when their entries expire. "00:00:00" turns page caching off. These are the defaults.
+  Croft__Web__OutputCache__Duration: "00:01:00"
+  # How long the feed and the sitemap are kept (and the max-age they send). "00:00:00" turns it off.
+  Croft__Web__OutputCache__FeedDuration: "00:05:00"
+  # The memory the cache may hold, in megabytes.
+  Croft__Web__OutputCache__SizeLimitMegabytes: "32"
+  # The largest page that is cached, in kilobytes; a larger page is served whole and uncached.
+  Croft__Web__OutputCache__MaximumBodyKilobytes: "1024"
+  # The largest image (/api/media/{id}) that is cached, in kilobytes; a larger one is streamed whole and uncached.
+  Croft__Web__OutputCache__MediaMaximumBodyKilobytes: "512"

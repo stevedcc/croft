@@ -1,0 +1,50 @@
+/* The admin posts grid (spec §6.1): the admin table uses the UI font and the token colours;
+   crimson marks acting links and buttons (colour roles, spec §3.1). The MudDataGrid chrome is a
+   child component's markup, so those rules go through ::deep. */
+.posts-grid {
+    margin-top: 1.25rem;
+    font-family: var(--font-ui);
+}
+
+.posts-grid ::deep .posts-grid__title {
+    color: var(--primary);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.posts-grid ::deep .posts-grid__title:hover,
+.posts-grid ::deep .posts-grid__title:focus-visible {
+    text-decoration: underline;
+}
+
+.posts-grid ::deep .posts-grid__category {
+    display: inline-flex;
+    color: var(--muted);
+}
+
+.posts-grid ::deep .posts-grid__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 12px;
+}
+
+.posts-grid ::deep .posts-grid__action {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--primary);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.posts-grid ::deep .posts-grid__action:hover,
+.posts-grid ::deep .posts-grid__action:focus-visible {
+    text-decoration: underline;
+}
+
+.posts-grid ::deep .posts-grid__empty {
+    margin: 1.25rem 0;
+    color: var(--muted);
+}

@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Croft.Shared\Croft.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Croft.Web.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Markdig" Version="1.4.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.13" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.13" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.13">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />
+    <PackageReference Include="MudBlazor" Version="9.11.0" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- WORKAROUND(W-025, Blazor): opts into the .NET 10 behaviour where static-SSR NavigateTo no longer throws NavigationException -->
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <!-- END WORKAROUND(W-025) -->
+    <!-- WORKAROUND(W-053, .NET): Workstation GC: smaller baseline than Server GC in a pod; measured, re-measure on a new .NET -->
+    <!-- Workstation GC is croft-web's default: the GC heap is already capped (75% of a
+         container's memory limit), the OOM kills came from memory outside it, and Workstation's
+         smaller baseline leaves more of the pod's limit for circuits. A site can still choose
+         Server GC with DOTNET_gcServer=1. -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <!-- END WORKAROUND(W-053) -->
+  </PropertyGroup>
+
+</Project>

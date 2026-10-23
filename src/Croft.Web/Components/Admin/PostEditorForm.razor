@@ -1,0 +1,379 @@
+@using System.Globalization
+@using Croft.Shared
+@using Croft.Shared.Contracts.Social
+@using Croft.Shared.Social
+@using Croft.Shared.Enums
+@inject TimeProvider Time
+@inject NavigationManager Navigation
+
+@* The editor form (spec §6.2/§7.4): the left column's fields and the actions bar (status badge,
+   "Saved hh:mm", Save draft · Publish now · Schedule · Unpublish). The form edits the model in
+   place and reports actions; the page owns the API calls and the dialogs. *@
+<div class="post-form" data-draft-scope data-draft-key="@DraftKey" data-draft-stamp="@SavedStamp" data-draft-extra="@DraftBackup.ExtraJson(Model)">
+    <div class="post-actions">
+        <StatusBadge Status="Status" />
+        @* One status region, always in the page (a live region announces what changes inside it, so it
+           must exist before the first save): "Saved hh:mm" and the publish, schedule and unpublish
+           outcomes (review 2026-10-19 I-4). *@
+        <span class="post-actions__saved" role="status">@StatusText</span>
+        <div class="post-actions__buttons">
+            <button type="button" class="post-actions__button" disabled="@ContentOverLimit"
+                    aria-describedby="@ContentOverLimitReason" @onclick="() => OnSave.InvokeAsync()">Save draft</button>
+            <button type="button" class="post-actions__button" disabled="@ContentOverLimit"
+                    aria-describedby="@ContentOverLimitReason" @onclick="() => OnPublishNow.InvokeAsync()">Publish now</button>
+            <button type="button" class="post-actions__button" disabled="@(!ScheduleEnabled || ContentOverLimit)"
+                    aria-describedby="@ScheduleDisabledReasons" @onclick="() => OnSchedule.InvokeAsync()">Schedule</button>
+            @if (Status is PostStatus.Published or PostStatus.Scheduled)
+            {
+                <button type="button" class="post-actions__button" disabled="@ContentOverLimit"
+                        aria-describedby="@ContentOverLimitReason" @onclick="() => OnUnpublish.InvokeAsync()">Unpublish</button>
+            }
+        </div>
+        @if (!ScheduleEnabled)
+        {
+            <span class="post-actions__hint" id="post-schedule-hint">Schedule needs a publish date and time in the future.</span>
+        }
+    </div>
+
+    @* The title input is wrapped in its draft-backup hook: the same-origin draft-backup.js
+       module finds the backed-up fields through these data attributes (no inline script, so the
+       enforced CSP stays untouched). *@
+    <div data-draft-field="title">
+        <MudTextField @bind-Value="Model.Title" @bind-Value:after="ModelChangedAsync" Label="Title"
+                      Variant="Variant.Outlined" Class="post-form__field" />
+    </div>
+    <div data-draft-field="subtitle">
+        <MudTextField @bind-Value="Model.Subtitle" @bind-Value:after="ModelChangedAsync" Label="Subtitle"
+                      Variant="Variant.Outlined" Class="post-form__field" />
+    </div>
+    <div data-draft-field="excerpt">
+        <MudTextField @bind-Value="Model.Excerpt" @bind-Value:after="ModelChangedAsync"
+                      Label="Search &amp; link-preview description" Variant="Variant.Outlined"
+                      Lines="3" Class="post-form__field" />
+    </div>
+
+    @* Pages carry no category or tags (the API rejects them), so page mode swaps the picker and
+       the chips for the two navigation fields; post mode is the form as it always was. *@
+    @if (!IsPage)
+    {
+        @* WORKAROUND(W-037, MudBlazor): MudAutocomplete clips at ten items, has an unnamed toggle button and cannot host per-value markup in its field *@
+        @* A single-choice search over the server's category list: a dropdown listing every category
+           would render one element per category row. AdornmentAriaLabel names the dropdown toggle
+           button (axe button-name); it is a different name from the "Category" textbox label.
+           Clearable restores the old select's "None" option: clearing sets ValueChanged(null) and the
+           model drops the category. MaxItems is off on purpose: the library's default clips the
+           dropdown at ten items even when the search returned more, silently hiding fetched matches;
+           the search's own bounded page is the only bound the list needs. The item template offers
+           each option as the old select's items did: the category's icon beside its name (the input
+           itself stays text; MudBlazor's field cannot host per-value markup). *@
+        <MudAutocomplete T="CategoryDto" Value="Model.Category" ValueChanged="CategoryChangedAsync"
+                         Label="Category" SearchFunc="SearchCategoriesAsync" ToStringFunc="CategoryText"
+                         ResetValueOnEmptyText="false" CoerceValue="false" Clearable="true"
+                         MaxItems="@((int?)null)" AdornmentAriaLabel="Category options" Class="post-form__field">
+            <ItemTemplate Context="category">
+                <span class="post-form__category"><CategoryIcon Name="@category.Icon" Size="16" /> @category.Name</span>
+            </ItemTemplate>
+        </MudAutocomplete>
+        @* END WORKAROUND(W-037) *@
+
+        <div class="post-form__tags">
+            <div class="post-form__tag-entry">
+                <label class="post-form__label" for="post-tag-entry">Tags</label>
+                <input id="post-tag-entry" class="post-form__input" name="tag-entry" list="post-tag-suggestions"
+                       value="@_tagEntry" @oninput="OnTagEntryAsync" @onkeydown="OnTagKeyDownAsync" />
+                <datalist id="post-tag-suggestions">
+                    @foreach (var name in VisibleSuggestions)
+                    {
+                        <option value="@name"></option>
+                    }
+                </datalist>
+            </div>
+            <button type="button" class="post-actions__button" @onclick="AddTagAsync">Add tag</button>
+        </div>
+        @if (Model.Tags.Count > 0)
+        {
+            <div class="post-form__chips">
+                @foreach (var tag in Model.Tags)
+                {
+                    <span class="post-form__tag" @key="tag">
+                        @tag
+                        <button type="button" class="post-form__tag-remove" aria-label="Remove tag @tag" @onclick="() => RemoveTagAsync(tag)">×</button>
+                    </span>
+                }
+            </div>
+        }
+    }
+    else
+    {
+        <div class="post-form__nav">
+            <div class="post-form__nav-placement">
+                <label class="post-form__label" for="post-nav-placement">Show in</label>
+                <select id="post-nav-placement" class="post-form__input"
+                        @bind="Model.NavigationPlacement" @bind:after="ModelChangedAsync">
+                    <option value="@NavigationPlacement.None">Nowhere</option>
+                    <option value="@NavigationPlacement.Sidebar">Sidebar</option>
+                    <option value="@NavigationPlacement.Footer">Footer</option>
+                </select>
+            </div>
+            <div class="post-form__nav-order">
+                <label class="post-form__label" for="post-nav-order">Order (lowest first)</label>
+                <input id="post-nav-order" class="post-form__input" type="number"
+                       @bind="Model.NavigationOrder" @bind:after="ModelChangedAsync" />
+            </div>
+        </div>
+    }
+
+    <div class="post-form__when">
+        <MudDatePicker @bind-Date="Model.PublishedAtDate" @bind-Date:after="ModelChangedAsync"
+                       Label="Publish date (UTC)" Variant="Variant.Outlined" Class="post-form__field" />
+        <MudTimePicker @bind-Time="Model.PublishedAtTime" @bind-Time:after="ModelChangedAsync"
+                       Label="Publish time (UTC)" Variant="Variant.Outlined" Class="post-form__field" />
+    </div>
+
+    @if (!IsPage)
+    {
+        <BannerPicker Banner="Model.Banner" OnUpload="OnUploadBanner" OnChooseFromLibrary="OnChooseBannerFromLibrary"
+                      OnRemove="RemoveBannerAsync" />
+
+        @* The announcements of this post on Mastodon and Bluesky (brief 12c). Not part of the draft
+           backup: they are small, pasted from elsewhere and validated by the API on save. *@
+        <section class="post-form__discussion" aria-labelledby="post-discussion-heading">
+            <h2 id="post-discussion-heading" class="post-form__heading">Discussion</h2>
+            <div class="post-form__link">
+                <MudTextField @bind-Value="Model.MastodonUrl" @bind-Value:after="MastodonUrlChangedAsync" Immediate="true"
+                              Label="Mastodon post URL" HelperText="The post that announces this one on Mastodon"
+                              Error="@(Model.MastodonUrlError is not null)" ErrorText="@Model.MastodonUrlError"
+                              Variant="Variant.Outlined" Class="post-form__field" id="post-mastodon-url"
+                              InputMode="InputMode.url" spellcheck="false" />
+            </div>
+            <div class="post-form__link">
+                <MudTextField @bind-Value="Model.BlueskyUrl" @bind-Value:after="BlueskyUrlChangedAsync" Immediate="true"
+                              Label="Bluesky post URL" HelperText="The post that announces this one on Bluesky"
+                              Error="@(Model.BlueskyUrlError is not null)" ErrorText="@Model.BlueskyUrlError"
+                              Variant="Variant.Outlined" Class="post-form__field" id="post-bluesky-url"
+                              InputMode="InputMode.url" spellcheck="false" />
+            </div>
+
+            @* Announcing on publish (brief 12d): the post announces itself on the networks that are ticked when it is published. Not part of
+               the draft backup either: the text is short and the API checks its length on save. *@
+            <div class="post-form__announcement">
+                <MudCheckBox T="bool" @bind-Value="Model.AnnounceMastodon" @bind-Value:after="ModelChangedAsync"
+                             Label="Announce on Mastodon when published" id="announce-mastodon" />
+                <MudCheckBox T="bool" @bind-Value="Model.AnnounceBluesky" @bind-Value:after="ModelChangedAsync"
+                             Label="Announce on Bluesky when published" id="announce-bluesky" />
+                <MudTextField @bind-Value="Model.AnnouncementText" @bind-Value:after="AnnouncementTextChangedAsync" Immediate="true"
+                              Label="Announcement text" Placeholder="@AnnouncementText.Default(Model.Title, BlankToNull(Model.Subtitle))"
+                              HelperText="The post's address is added at the end. Hashtags (#homelab) are linked on both networks."
+                              Error="@(Model.AnnouncementTextError is not null)" ErrorText="@Model.AnnouncementTextError"
+                              Lines="4" Variant="Variant.Outlined" Class="post-form__field" id="announcement-text" />
+                <div class="post-form__previews">
+                    @if (Model.AnnounceMastodon)
+                    {
+                        <AnnouncementPreview Platform="SocialPlatform.Mastodon" Title="@Model.Title" Subtitle="@BlankToNull(Model.Subtitle)"
+                                             Text="@Model.AnnouncementText" PostUrl="@PreviewUrl" />
+                    }
+                    @if (Model.AnnounceBluesky)
+                    {
+                        <AnnouncementPreview Platform="SocialPlatform.Bluesky" Title="@Model.Title" Subtitle="@BlankToNull(Model.Subtitle)"
+                                             Text="@Model.AnnouncementText" PostUrl="@PreviewUrl" />
+                    }
+                </div>
+            </div>
+        </section>
+    }
+
+    <MarkdownEditor @ref="_markdown" @bind-Value="Model.MarkdownContent" @bind-Value:after="ModelChangedAsync"
+                    OnInsertImageRequested="OnInsertImageRequested"
+                    OnInsertFromLibraryRequested="OnInsertFromLibraryRequested" />
+</div>
+
+@code {
+    [Parameter, EditorRequired] public PostEditModel Model { get; set; } = default!;
+
+    /// <summary>Page mode: no category, tags or banner (the API rejects them for a page) and the
+    /// navigation fields instead.</summary>
+    [Parameter] public bool IsPage { get; set; }
+
+    /// <summary>The draft backup's key: the post's id, or "new" before the first save — the
+    /// same-origin draft-backup.js module keys its localStorage backup to it.</summary>
+    [Parameter] public string DraftKey { get; set; } = "new";
+
+    /// <summary>The server's saved-version stamp the editor loaded (the post's edited stamp,
+    /// falling back to its update stamp), stored in the draft backup.</summary>
+    [Parameter] public string SavedStamp { get; set; } = string.Empty;
+
+    /// <summary>The server's current tag-name matches for the entry's typeahead (bounded by the page).</summary>
+    [Parameter] public IReadOnlyList<TagDto> TagSuggestions { get; set; } = [];
+
+    /// <summary>The page's server-side category search behind the picker (bounded results).</summary>
+    [Parameter] public Func<string, CancellationToken, Task<IEnumerable<CategoryDto>>>? CategorySearch { get; set; }
+
+    /// <summary>Raised with the tag entry's text so the page can refresh <see cref="TagSuggestions"/>.</summary>
+    [Parameter] public EventCallback<string> OnTagSuggestionsRequested { get; set; }
+
+    /// <summary>The saved post's slug, for the address the announcement previews end in; null for a post that was never saved (the address is then guessed from the title).</summary>
+    [Parameter] public string? Slug { get; set; }
+
+    /// <summary>The post's current state, shown by the badge and deciding whether Unpublish appears.</summary>
+    [Parameter] public PostStatus Status { get; set; }
+
+    /// <summary>When the post was last saved; shown as "Saved hh:mm".</summary>
+    [Parameter] public DateTime? SavedAt { get; set; }
+
+    /// <summary>The outcome of the last publish, schedule or unpublish ("Published"); shown in the status
+    /// region in place of the saved time until the next save.</summary>
+    [Parameter] public string? Announcement { get; set; }
+
+    private string StatusText =>
+        Announcement ?? (SavedAt is { } saved ? $"Saved {saved.ToString("HH:mm", CultureInfo.InvariantCulture)}" : string.Empty);
+
+    [Parameter] public EventCallback OnSave { get; set; }
+    [Parameter] public EventCallback OnPublishNow { get; set; }
+    [Parameter] public EventCallback OnSchedule { get; set; }
+    [Parameter] public EventCallback OnUnpublish { get; set; }
+
+    /// <summary>Raised with the banner file to upload (the page calls the API and stores the asset).</summary>
+    [Parameter] public EventCallback<IBrowserFile> OnUploadBanner { get; set; }
+
+    /// <summary>Raised by "Choose from library"; the page opens the media picker.</summary>
+    [Parameter] public EventCallback OnChooseBannerFromLibrary { get; set; }
+
+    /// <summary>Raised with the inline image to upload (the page inserts the markdown afterwards).</summary>
+    [Parameter] public EventCallback<IBrowserFile> OnInsertImageRequested { get; set; }
+
+    /// <summary>Raised by the markdown toolbar's "Insert from library"; the page opens the picker.</summary>
+    [Parameter] public EventCallback OnInsertFromLibraryRequested { get; set; }
+
+    /// <summary>Raised after any edit, so the page can keep the Preview in step with the model.</summary>
+    [Parameter] public EventCallback OnModelChanged { get; set; }
+
+    private MarkdownEditor _markdown = default!;
+    private string _tagEntry = string.Empty;
+
+    /// <summary>Schedule publishes at the entered UTC moment, so it is only offered for the future.</summary>
+    private bool ScheduleEnabled
+    {
+        get
+        {
+            var moment = UtcDateTime.Combine(Model.PublishedAtDate, Model.PublishedAtTime);
+            return moment > Time.GetUtcNow().UtcDateTime;
+        }
+    }
+
+    /// <summary>The ids of the lines that say why Schedule is disabled (each is on the page only while its reason holds),
+    /// space-separated for aria-describedby; null when the button is enabled.</summary>
+    private string? ScheduleDisabledReasons => (ScheduleEnabled, ContentOverLimit) switch
+    {
+        (true, false) => null,
+        (false, false) => "post-schedule-hint",
+        (true, true) => MarkdownEditor.OverLimitId,
+        (false, true) => $"post-schedule-hint {MarkdownEditor.OverLimitId}",
+    };
+
+    /// <summary>The id of the editor's over-limit line while the content is over the limit, null otherwise: the
+    /// one reason Save draft, Publish now and Unpublish are disabled, linked with aria-describedby (the same
+    /// pattern as Schedule's <see cref="ScheduleDisabledReasons"/>).</summary>
+    private string? ContentOverLimitReason => ContentOverLimit ? MarkdownEditor.OverLimitId : null;
+
+    /// <summary>Over the shared content limit the API refuses the save, so every action that
+    /// saves the form first is disabled — the text itself stays in the editor untouched.</summary>
+    private bool ContentOverLimit => Model.MarkdownContent.Length > PostContent.MaxLength;
+
+    /// <summary>Inserts markdown at the editor caret; the page calls this after an image upload.</summary>
+    public Task InsertAtCursorAsync(string text) => _markdown.InsertAtCursorAsync(text);
+
+    /// <summary>The existing tag names the datalist offers; free text creates new tags. Names
+    /// already added as chips are not offered again.</summary>
+    private IEnumerable<string> VisibleSuggestions =>
+        TagSuggestions.Select(tag => tag.Name)
+            .Where(name => !Model.Tags.Contains(name, StringComparer.OrdinalIgnoreCase))
+            .OrderBy(name => name);
+
+    private async Task OnTagEntryAsync(ChangeEventArgs e)
+    {
+        _tagEntry = e.Value?.ToString() ?? string.Empty;
+        await OnTagSuggestionsRequested.InvokeAsync(_tagEntry);
+    }
+
+    /// <summary>Enter in the tag field adds the tag, like the Add tag button (review M-8).</summary>
+    private async Task OnTagKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await AddTagAsync();
+        }
+    }
+
+    private async Task CategoryChangedAsync(CategoryDto? category)
+    {
+        Model.Category = category;
+        Model.CategoryId = category?.Id;
+        await ModelChangedAsync();
+    }
+
+    private static string CategoryText(CategoryDto? category) => category?.Name ?? string.Empty;
+
+    private Task<IEnumerable<CategoryDto>> SearchCategoriesAsync(string? text, CancellationToken ct) =>
+        CategorySearch is null
+            ? Task.FromResult(Enumerable.Empty<CategoryDto>())
+            : CategorySearch(text ?? string.Empty, ct);
+
+    private async Task AddTagAsync()
+    {
+        var name = _tagEntry.Trim();
+        if (name.Length == 0 || Model.Tags.Contains(name, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        Model.Tags.Add(name);
+        _tagEntry = string.Empty;
+        await OnModelChanged.InvokeAsync();
+    }
+
+    private async Task RemoveTagAsync(string name)
+    {
+        Model.Tags.Remove(name);
+        await OnModelChanged.InvokeAsync();
+    }
+
+    private Task ModelChangedAsync() => OnModelChanged.InvokeAsync();
+
+    /// <summary>Typing in a link field withdraws the API's refusal shown under it (only that field's).</summary>
+    private Task MastodonUrlChangedAsync()
+    {
+        Model.MastodonUrlError = null;
+        return OnModelChanged.InvokeAsync();
+    }
+
+    /// <summary>Typing in the announcement text withdraws the API's refusal of it; the previews follow the model.</summary>
+    private Task AnnouncementTextChangedAsync()
+    {
+        Model.AnnouncementTextError = null;
+        return OnModelChanged.InvokeAsync();
+    }
+
+    /// <summary>
+    /// The address the previews end in: this site's address and the post's slug. A post that was never saved has no slug yet, so the slug the API will
+    /// generate from the title is guessed (lower case, runs of other characters as one hyphen); the count is then as close as the guess.
+    /// </summary>
+    private string PreviewUrl => $"{Navigation.BaseUri}post/{(string.IsNullOrEmpty(Slug) ? GuessSlug(Model.Title) : Slug)}";
+
+    private static string GuessSlug(string title) =>
+        System.Text.RegularExpressions.Regex.Replace(title.ToLowerInvariant(), @"[^\p{L}\p{N}]+", "-").Trim('-');
+
+    private static string? BlankToNull(string value) => string.IsNullOrWhiteSpace(value) ? null : value;
+
+    private Task BlueskyUrlChangedAsync()
+    {
+        Model.BlueskyUrlError = null;
+        return OnModelChanged.InvokeAsync();
+    }
+
+    private async Task RemoveBannerAsync()
+    {
+        Model.Banner = null;
+        Model.BannerImageId = null;
+        await OnModelChanged.InvokeAsync();
+    }
+}

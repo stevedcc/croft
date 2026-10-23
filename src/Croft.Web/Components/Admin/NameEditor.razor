@@ -1,0 +1,90 @@
+@* The in-place name of a table row on the Categories & Tags page: the name and a Rename button,
+   which a click or Enter on swaps for a text field. Keyboard users keep their place (review
+   2026-10-19 I-5): activating Rename moves focus into the field, Enter saves, Escape cancels,
+   and both return focus to the Rename button; blur still saves, as it always did, and moves no
+   focus (the user went elsewhere). The page saves; this component only reports the new name.
+   Focus moves through blogEditor.focusIn (see W-094): the field and the button are found by the
+   cell's id once the browser has them. *@
+@inject IJSRuntime JS
+<span id="@_hostId">
+    @if (_editing)
+    {
+        <MudTextField T="string" @bind-Value="_value" Label="Name" Variant="Variant.Outlined"
+                      Margin="Margin.Dense" Immediate="true" OnBlur="() => CommitAsync(returnFocus: false)"
+                      OnKeyDown="KeyDownAsync" />
+    }
+    else
+    {
+        <span class="admin-table__name">@Name</span>
+        <MudButton Size="Size.Small" aria-label="@($"Rename {Name}")" OnClick="Start">Rename</MudButton>
+    }
+</span>
+
+@code {
+    private readonly string _hostId = $"name-editor-{Guid.NewGuid():N}";
+    private bool _editing;
+    private bool _focusField;
+    private bool _focusRename;
+    private string _value = string.Empty;
+
+    /// <summary>The row's saved name.</summary>
+    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
+
+    /// <summary>Raised with the text in the field when the user commits (Enter or leaving the field);
+    /// not raised on Escape.</summary>
+    [Parameter] public EventCallback<string> OnRename { get; set; }
+
+    private void Start()
+    {
+        _value = Name;
+        _editing = true;
+        _focusField = true;
+    }
+
+    private async Task KeyDownAsync(KeyboardEventArgs args)
+    {
+        switch (args.Key)
+        {
+            case "Enter":
+                await CommitAsync(returnFocus: true);
+                break;
+            case "Escape":
+                Cancel();
+                break;
+        }
+    }
+
+    private async Task CommitAsync(bool returnFocus)
+    {
+        // The field's removal can blur it once more: only the first leave counts.
+        if (!_editing)
+        {
+            return;
+        }
+
+        _editing = false;
+        await OnRename.InvokeAsync(_value);
+        _focusRename = returnFocus;
+        StateHasChanged();
+    }
+
+    private void Cancel()
+    {
+        _editing = false;
+        _focusRename = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusField && _editing)
+        {
+            _focusField = false;
+            await JS.InvokeVoidAsync("blogEditor.focusIn", _hostId, "input");
+        }
+        else if (_focusRename && !_editing)
+        {
+            _focusRename = false;
+            await JS.InvokeVoidAsync("blogEditor.focusIn", _hostId, "button");
+        }
+    }
+}

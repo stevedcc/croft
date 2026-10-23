@@ -1,0 +1,356 @@
+/* The font URLs below carry the files' fingerprints (fonts/<name>.<fingerprint>.woff2), so a browser
+   keeps each font for a year (the build serves those URLs immutable) and fetches it again only when
+   the file changes. This stylesheet is not processed by the build, so the fingerprints are written
+   here by hand: they are the "fingerprint" values of the fonts/ routes in
+   Croft.Web.staticwebassets.endpoints.json (src/Croft.Web/bin/<configuration>/net10.0/, after a
+   build). When a font file changes, its old URL answers 404 and FontFilesTests
+   (EveryFontUrlInAppCss_Answers200_AndIsCachedForAYear) fails naming the rule: put the new
+   fingerprint here. App.razor preloads the same URLs through @Assets, so the two always agree. */
+/* Fonts (spec 3.2) — self-hosted WOFF2 Latin subsets (wwwroot/fonts, built by
+   dev/fonts/subset-fonts.py; the two renamed families are explained in THIRD-PARTY-NOTICES.md),
+   no third-party requests. */
+@font-face {
+    font-family: "Croft Serif";
+    src: url("fonts/CroftSerif-Regular.hshto4aicy.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Croft Serif";
+    src: url("fonts/CroftSerif-Italic.isue4wjudd.woff2") format("woff2");
+    font-weight: 400;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Croft Serif";
+    src: url("fonts/CroftSerif-SemiBold.iqov02p7xd.woff2") format("woff2");
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Croft Serif";
+    src: url("fonts/CroftSerif-Bold.sp13jwpgu3.woff2") format("woff2");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Croft Sans";
+    src: url("fonts/CroftSans-Regular.isbcobaoqy.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Croft Sans";
+    src: url("fonts/CroftSans-SemiBold.1bjwq18ha6.woff2") format("woff2");
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "JetBrains Mono";
+    src: url("fonts/JetBrainsMono-Latin.vzocsae0fd.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+:root {
+    --font-serif: "Croft Serif", Georgia, "Times New Roman", serif;
+    --font-ui: "Croft Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
+}
+
+/* The colour tokens are not here: they are generated into /branding/theme.css from the site's
+   branding folder (linked before this file), so this stylesheet holds no colour values of its
+   own — bar the two marked regions BrandingThemeCssTests allow-lists: the drawer scrim directly
+   below and MudBlazor's scrollbar copy at the end of this file. */
+
+/* The one exception besides the marked scrollbar copy: the contents drawer's scrim (brief 07i
+   item 3). Its alphas are fixed design constants — black 32% in light, 48% in dark — not
+   site-brandable palette entries (the brandable tokens are exactly the 18 theme.css generates),
+   so they live here as theme-keyed custom properties in modern CSS colour syntax: the drawer
+   paints with var(--scrim) and no alpha value appears in any component or style attribute. The
+   three blocks mirror theme.css's structure: explicit light, explicit dark, system dark. */
+/* scrim-colour-values:begin */
+:root { --scrim: color(srgb 0 0 0 / 0.32); }
+:root[data-theme=dark] { --scrim: color(srgb 0 0 0 / 0.48); }
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme=light]) { --scrim: color(srgb 0 0 0 / 0.48); }
+}
+/* scrim-colour-values:end */
+
+/* WORKAROUND(W-095, MudBlazor): its default error red is 3.68:1 (light) and 4.30:1 (dark) on the surface, so text-variant error buttons fail WCAG AA, in dialogs as well as on the pages; the colours below reach 5.6:1 and 7.6:1. Set here and not in the MudTheme: a different palette changes the theme's inline style and with it the CSP's hash. Defined on the document root and styled without a layout prefix because the dialogs are rendered outside the layout's shell. */
+/* error-text-colour-values:begin */
+:root { --error-text: #C62828; }
+:root[data-theme=dark] { --error-text: #FCA5A5; }
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme=light]) { --error-text: #FCA5A5; }
+}
+/* error-text-colour-values:end */
+
+.mud-button-text.mud-button-text-error:not(:disabled) {
+    color: var(--error-text);
+}
+/* END WORKAROUND(W-095) */
+
+html, body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+}
+
+/* Base defaults. The reading pages load no MudBlazor stylesheet; these are the parts of its
+   reset and element defaults that the shell and the pages were relying on (found by comparing
+   computed styles and screenshots with and without it), set here from our own tokens. */
+html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-size: .875rem;
+    line-height: 1.43;
+    letter-spacing: .01071em;
+}
+
+button {
+    position: relative;
+    justify-content: center;
+    vertical-align: middle;
+    user-select: none;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+}
+
+/* Keyboard focus: every focusable control shows an accent outline when focused from the keyboard
+   (:focus-visible, so mouse and touch focus look as before). Outline and offset take no layout
+   space. Controls that carry a MudBlazor class are left alone (MudBlazor loads on interactive
+   documents only and draws its own focus state; its element resets such as button { outline: 0 }
+   would otherwise win), as is anything with its own :focus-visible rule (post cards: class
+   specificity beats this). Form fields are covered too (review 2026-10-19 M-17), so a new
+   field on any page gets the same ring instead of the browser default. The accent is --primary: at least 3:1 on the page and sidebar
+   backgrounds in light and dark. */
+:where(a[href], button, summary, input, select, textarea, [tabindex]:not([tabindex="-1"])):not([class*="mud-"]):focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* Text for assistive technology only (a count's unit, a category name beside its icon). */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Fluid root type (brief 03f item 1): the root font size grows linearly from 16px at 1440px to
+   19px at 2560px, capped at both ends, so rem-sized surfaces scale with the type on big screens.
+   At 1440px the middle term is 16px, at 2560px it is 19px, and between it rises ~3px over 1120px
+   of viewport (17.3px at 1920px). Viewports ≤1440px (including phones) stay at 16px. */
+html {
+    font-size: clamp(16px, calc(16px + (100vw - 1440px) * 3 / 1120), 19px);
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-serif);
+}
+
+code, pre, kbd, samp {
+    font-family: var(--font-mono);
+}
+
+/* WORKAROUND(W-015, MudBlazor): MudBlazor writes its typography variables as inline custom properties on html, hence !important */
+/* Typography (spec §3.2): headings and post body in Croft Serif, UI text in
+   Croft Sans, code in JetBrains Mono. MudBlazor injects its --mud-typography-*-family
+   variables as inline custom properties on <html> at runtime, hence !important. */
+:root {
+    --mud-typography-default-family: var(--font-ui) !important;
+    --mud-typography-h1-family: var(--font-serif) !important;
+    --mud-typography-h2-family: var(--font-serif) !important;
+    --mud-typography-h3-family: var(--font-serif) !important;
+    --mud-typography-h4-family: var(--font-serif) !important;
+    --mud-typography-h5-family: var(--font-serif) !important;
+    --mud-typography-h6-family: var(--font-serif) !important;
+    --mud-typography-subtitle1-family: var(--font-serif) !important;
+    --mud-typography-subtitle2-family: var(--font-serif) !important;
+    --mud-typography-body1-family: var(--font-ui) !important;
+    --mud-typography-body2-family: var(--font-ui) !important;
+    --mud-typography-button-family: var(--font-ui) !important;
+    --mud-typography-caption-family: var(--font-ui) !important;
+    --mud-typography-overline-family: var(--font-ui) !important;
+}
+/* END WORKAROUND(W-015) */
+
+/* Article body 1.125rem/1.65 desktop, 1.0625rem on phones; hero title 2.5rem desktop / 1.875rem
+   phone; subtitles Croft Serif italic in --muted (spec §3.2). The sizes are rem so the reading
+   text scales with the fluid root (brief 03f item 5): 18px/17px/40px/30px at a 16px root, larger
+   above 1440px. */
+.markdown-body {
+    font-family: var(--font-serif);
+    font-size: 1.125rem;
+    line-height: 1.65;
+}
+
+.hero-title {
+    font-family: var(--font-serif);
+    font-size: 2.5rem;
+    line-height: 1.15;
+}
+
+.subtitle {
+    font-family: var(--font-serif);
+    font-style: italic;
+    color: var(--muted);
+}
+
+@media (max-width: 959.98px) {
+    .markdown-body {
+        font-size: 1.0625rem;
+    }
+
+    .hero-title {
+        font-size: 1.875rem;
+    }
+}
+
+/* Anchors speak in the accent colour (spec §3.1: crimson = act/current). */
+a {
+    color: var(--primary);
+}
+
+/* WORKAROUND(W-012, Blazor): no focus ring on h1: FocusOnNavigate focuses it programmatically */
+/* h1 receives FocusOnNavigate's programmatic focus (Routes.razor); no ring for it. */
+h1:focus {
+    outline: none;
+}
+/* END WORKAROUND(W-012) */
+
+/* Layout shell: a CSS grid with a sidebar area and a content area. Global
+   because it styles <html> classes. */
+.shell { display: grid; grid-template-columns: var(--sidebar-w) 1fr; grid-template-rows: 1fr auto; min-height: 100vh; }
+/* The sidebar spans both rows (main, then the footer) so its sticky box covers the whole page. */
+.shell > .sidebar { position: sticky; top: 0; height: 100vh; overflow-y: auto; grid-column: 1; grid-row: 1 / span 2; }
+.shell > main { container-type: inline-size; min-width: 0; grid-column: 2; grid-row: 1; }
+/* The footer is a row of the shell grid below main (not inside it: a contentinfo landmark in main
+   is nested, review 2026-10-19 M-1). It keeps the column main's content has: the same 80rem cap,
+   centred, with main's side padding. */
+.shell > footer.site-footer { grid-column: 2; grid-row: 2; justify-self: center; box-sizing: border-box;
+                        width: min(80rem, calc(100% - 56px)); margin-top: 0; margin-bottom: 48px; }
+:root { --sidebar-w: 260px; }
+html.sidebar-collapsed { --sidebar-w: 64px; }
+@media (min-width: 960px) and (max-width: 1279.98px) { :root { --sidebar-w: 64px; } }
+@media (max-width: 959.98px) {
+  .shell { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; }
+  .shell > main { grid-column: 1; grid-row: 2; }
+  .shell > footer.site-footer { grid-column: 1; grid-row: 3; width: calc(100% - 32px); margin-bottom: 40px; }
+  /* WORKAROUND(W-017, Safari): the phone drawer is sized with 100dvh (100vh fallback) and scrolls itself so Safari toolbar does not cover its last item */
+  /* The closed overlay also gets visibility: hidden so its
+     links leave the tab order. The delayed visibility transition keeps the slide-out visible; the
+     open state resets the delay to 0 so the slide-in and the immediate focus move still work.
+     The height is the dynamic viewport height (100dvh, with 100vh as the fallback) so the last
+     footer item ("Log in"/"Log out") clears Safari's toolbar on iPhone, and the drawer scrolls
+     itself (overflow-y: auto) when its content is taller than the screen. No bottom edge: the
+     height comes from dvh sizing, not from top + bottom stretching. */
+  .shell > .sidebar { position: fixed; inset: 0 auto auto 0; width: 280px; height: 100vh; height: 100dvh;
+                      grid-column: auto; grid-row: auto;
+                      overflow-y: auto; transform: translateX(-100%);
+                      transition: transform .2s, visibility 0s .2s; visibility: hidden; z-index: 1300; }
+  /* END WORKAROUND(W-017) */
+  /* WORKAROUND(W-017, Safari): safe-area-inset-bottom needs viewport-fit=cover; the drawer keeps its last item above the home indicator */
+  /* Clear the home indicator: viewport-fit=cover (App.razor) makes env(safe-area-inset-bottom)
+     non-zero on notched phones. The id selector outranks the scoped .sidebar padding (12px 10px),
+     so the bottom keeps its 12px plus the inset. */
+  #sidebar-nav { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  /* END WORKAROUND(W-017) */
+  html.nav-open .shell > .sidebar { transform: none; visibility: visible; transition: transform .2s, visibility 0s; }
+  /* Scroll lock: while the drawer is open the page behind it must not scroll. The drawer's own
+     scrolling is on .sidebar itself (overflow-y: auto), not on the root, so it is unaffected. */
+  html.nav-open { overflow: hidden; }
+  .topbar { display: flex; }
+}
+@media (min-width: 960px) { .topbar { display: none; } }
+/* rail: hide labels/counts, keep icons, tooltips via title. Gated to ≥1280px — the collapse rail
+   exists only there, and blog-sidebar=collapsed stored at a wide width must not strip labels from
+   the overlays below 1280px. */
+@media (min-width: 1280px) {
+  :root:is(.sidebar-collapsed) .sidebar .label { display: none; }
+}
+/* 960-1279px rail vs drawer: labels appear only in the drawer. The section headings and the
+   brand copy keep their boxes in the rail (text hidden, not display:none) — the headings reserve
+   their vertical space and the brand block its height — so opening the drawer adds only the
+   labels beside the icons and no icon moves. */
+@media (min-width: 960px) and (max-width: 1279.98px) {
+  .sidebar .label { display: none; }
+  html.nav-open .sidebar .label { display: inline; }
+  html .sidebar .section-heading,
+  html .sidebar .brand-name,
+  html .sidebar .brand-tagline { display: block; visibility: hidden; }
+  html.nav-open .sidebar .section-heading,
+  html.nav-open .sidebar .brand-name,
+  html.nav-open .sidebar .brand-tagline { display: block; visibility: visible; }
+}
+
+/* 960-1279px: html.nav-open widens the rail to the full sidebar as an overlay over the
+   content (spec §4.1). */
+@media (min-width: 960px) and (max-width: 1279.98px) {
+  html.nav-open .shell > .sidebar {
+    position: fixed; inset: 0 auto 0 0; width: 260px; height: 100vh; overflow-y: auto;
+    transform: none; transition: transform .2s; z-index: 1300;
+    box-shadow: 0 0 24px var(--fallback-wash);
+  }
+}
+
+/* The scrim behind the overlay sidebar (phone and the 960-1279 overlay). */
+.scrim { display: none; position: fixed; inset: 0; background: var(--fallback-wash); z-index: 1200; }
+@media (max-width: 1279.98px) { html.nav-open .scrim { display: block; } }
+/* MudBlazor's scrollbar rules, copied verbatim from the <style> block MudThemeProvider
+   renders; MainLayout's DefaultScrollbar "true" turns that block off, so this copy is what
+   keeps the look it produced. The copy stays byte-identical (line endings aside — this file
+   is CRLF) to a fresh render of the block, asserted in MudThemeStyleCspTests. It is one of
+   the two marked regions of app.css allowed to carry colour values (BrandingThemeCssTests):
+   they are MudBlazor's rules, not this file's own. */
+/* WORKAROUND(W-020, MudBlazor): verbatim copy of MudBlazor's scrollbar rules (a test compares it with a fresh render) */
+/* mudblazor-scrollbar-copy:begin */
+::-webkit-scrollbar {width: 8px;height: 8px;z-index: 1;}
+::-webkit-scrollbar-track {background: transparent;}
+::-webkit-scrollbar-thumb {background: #c4c4c4;border-radius: 1px;}
+::-webkit-scrollbar-thumb:hover {background: #a6a6a6;}
+html, body * {scrollbar-color: #c4c4c4 transparent;scrollbar-width: thin;}
+/* mudblazor-scrollbar-copy:end */
+/* END WORKAROUND(W-020) */
+
+/* Reduced motion (review 2026-10-19 M-2): one rule for every transition and animation of the app: the
+   phone drawer, the reconnect modal, the search field, the contents panel. With the preference set
+   transitions are off, animations run for next to no time and play once; nothing that moves is needed to read. */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    transition: none !important;
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}

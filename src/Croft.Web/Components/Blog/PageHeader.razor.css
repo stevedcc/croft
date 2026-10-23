@@ -1,0 +1,24 @@
+/* The list-page header (spec §5.3): serif name, muted "· N posts" count. */
+.page-header {
+    margin: 0 0 1.25rem;
+}
+
+.page-header__title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 0;
+    font-family: var(--font-serif);
+    font-size: 30px;
+    line-height: 1.2;
+    color: var(--text);
+}
+
+.page-header__meta {
+    margin: 4px 0 0;
+    font-family: var(--font-ui);
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--muted);
+}

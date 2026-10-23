@@ -1,0 +1,12 @@
+﻿<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <NotAuthorized>
+                <p>You are not authorized to access this page.</p>
+            </NotAuthorized>
+        </AuthorizeRouteView>
+        @* WORKAROUND(W-012, Blazor): FocusOnNavigate focuses h1 programmatically, which steals the fragment scroll (re-asserted in post.js) and shows a focus ring (hidden in app.css) *@
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        @* END WORKAROUND(W-012) *@
+    </Found>
+</Router>

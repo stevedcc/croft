@@ -1,0 +1,71 @@
+@page "/{slug}"
+@attribute [ExcludeFromInteractiveRouting]
+@using Croft.Shared.Enums
+@inject IBlogApiClient Api
+@inject IMarkdownRenderer Markdown
+@inject NavigationManager Navigation
+
+@* A published page at /<slug> (brief 07g item 3): the shared page surface under a plain title
+   header, with the page's SEO head. The route is a single parameter segment — literal routes
+   (/search, /post/...) still outrank it, and Croft.Shared.ReservedSlugs keeps a page from ever
+   taking one of them. *@
+<BlogPageTitle Title="@(_page?.Title ?? "Page")" />
+@if (_page is not null)
+{
+    <SeoHead Title="@_page.Title"
+             Description="@SeoDescription.FromPost(_page.Excerpt, _page.Subtitle, _page.Summary)"
+             CanonicalPath="@_path"
+             PageType="SeoPageType.Page"
+             PublishedAt="@_page.PublishedAt"
+             ModifiedAt="@_page.ContentEditedAt"
+             NoIndex="@(_page.Status != PostStatus.Published)" />
+}
+
+@* Static SSR awaits the load before it sends any HTML, so the data is set when this renders; a
+   missing item calls NotFound() and the not-found page replaces this one. *@
+@if (_page is not null && _rendered is not null)
+{
+    <PageSurface Title="@_page.Title" Subtitle="@_page.Subtitle" PublishedAt="@_page.PublishedAt"
+                 ContentEditedAt="@_page.ContentEditedAt" Markdown="@_rendered" />
+}
+
+@code {
+    [Parameter] public string Slug { get; set; } = string.Empty;
+
+    private PostDto? _page;
+    private RenderedMarkdown? _rendered;
+    private string _path = string.Empty;
+    private string? _loadedKey;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Loaded from OnParametersSet — not OnInitialized — because Blazor reuses the page
+        // instance when only the route parameter changes, exactly like Post.razor.
+        var key = Slug;
+
+        if (key == _loadedKey)
+        {
+            return;
+        }
+
+        _loadedKey = key;
+        _page = null;
+        _rendered = null;
+        _path = string.Empty;
+
+        var page = await Api.GetPageAsync(Slug);
+        if (page is null)
+        {
+            // WORKAROUND(W-024, Blazor): NavigateTo("/not-found") answers 200; NavigationManager.NotFound() makes the renderer set 404
+            // Real 404 (spec §5.5): the not-found content with HTTP status 404, the same as a
+            // missing post. NavigateTo("/not-found") would redirect with 200.
+            Navigation.NotFound();
+            // END WORKAROUND(W-024)
+            return;
+        }
+
+        _page = page;
+        _rendered = Markdown.Render(page.MarkdownContent);
+        _path = $"/{page.Slug}";
+    }
+}

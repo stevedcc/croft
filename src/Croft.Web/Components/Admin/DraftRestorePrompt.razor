@@ -1,0 +1,24 @@
+@* The restore prompt (D3, owner's decision 2 — a prompt, never a silent replace): an editor
+   load that found a local backup differing from the saved text asks "You have unsaved changes
+   from <local date and time>. Restore them?" with Restore and Discard. It never closes on its
+   own and never restores without the click; the time is the browser's local rendering of the
+   backup's instant (the draft-backup JS module formats it). *@
+
+<div class="draft-restore" role="status" aria-live="polite">
+    <p class="draft-restore__text" id="draft-restore-text">You have unsaved changes from @FromLocalTime. Restore them?</p>
+    <div class="draft-restore__actions">
+        <button type="button" class="draft-restore__restore" @onclick="() => OnRestore.InvokeAsync()">Restore</button>
+        <button type="button" class="draft-restore__discard" @onclick="() => OnDiscard.InvokeAsync()">Discard</button>
+    </div>
+</div>
+
+@code {
+    /// <summary>The backup's write time in the browser's local date and time.</summary>
+    [Parameter, EditorRequired] public string FromLocalTime { get; set; } = string.Empty;
+
+    /// <summary>Restore puts every field of the backup in the editor, unsaved.</summary>
+    [Parameter] public EventCallback OnRestore { get; set; }
+
+    /// <summary>Discard deletes the backup.</summary>
+    [Parameter] public EventCallback OnDiscard { get; set; }
+}

@@ -1,0 +1,52 @@
+/* The restore prompt: the editor's ask before anything touches the text. The actions look like
+   the form's action buttons; the panel is the surface's own card, in the theme's tokens (no
+   inline style attribute — the enforced CSP). */
+.draft-restore {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    border: 1px solid var(--primary);
+    border-radius: 6px;
+    background: var(--surface);
+    font-family: var(--font-ui);
+}
+
+.draft-restore__text {
+    flex: 1 1 260px;
+    min-width: 0;
+    margin: 0;
+    color: var(--text);
+    font-size: 13.5px;
+}
+
+.draft-restore__actions {
+    display: flex;
+    gap: 6px;
+}
+
+.draft-restore__restore,
+.draft-restore__discard {
+    padding: 5px 12px;
+    border: 1px solid var(--primary);
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--primary);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.draft-restore__restore:hover,
+.draft-restore__discard:hover {
+    background: var(--primary-strong);
+    color: #FFFFFF;
+}
+
+.draft-restore__restore:focus-visible,
+.draft-restore__discard:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+}

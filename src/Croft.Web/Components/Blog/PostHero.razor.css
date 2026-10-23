@@ -1,0 +1,110 @@
+/* The post hero (spec §5.4): at least 360px tall (240px on phones), with the text overlaid on the
+   banner under the hero's own dark overlay (the text-anchored gradient below). The height is a
+   minimum, not a fixed box: the content stays in flow (bottom-anchored through the hero's flex-end
+   and padding) so a long title grows the hero instead of running off its top or over the banner's
+   edge, and the title and subtitle wrap long unbroken words rather than overflowing.
+   box-sizing: border-box keeps the minimum the old fixed height including the padding. The title
+   takes app.css's .hero-title. The padding values are custom properties because the overlay's
+   pseudo-element must extend past the content box to the hero's bottom and sides. */
+.post-hero {
+    --post-hero-pad-x: 28px;
+    --post-hero-pad-b: 18px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    box-sizing: border-box;
+    min-height: 360px;
+    padding: 28px var(--post-hero-pad-x) var(--post-hero-pad-b);
+    overflow: hidden;
+}
+
+.post-hero__media {
+    position: absolute;
+    inset: 0;
+}
+
+/* In flow (was absolutely positioned over the media) so the hero's height follows the text;
+   the hero's padding replaces the old right/bottom/left insets one for one. */
+.post-hero__content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
+}
+
+/* The hero's dark overlay follows its text block instead of the hero's height: a long title grows
+   the hero, so a fixed-height gradient band (BannerOrFallback's, 65% of the hero) leaves its top
+   lines on the bare banner. The gradient is anchored to the content box — the text block's top
+   edge is exactly 4rem below this pseudo-element's top: alpha .75 at the hero's bottom (what the
+   band always gave), .55 at the text block's top and everything between (white text needs 4.5:1,
+   i.e. a backdrop of sRGB <= 118 per channel; 255 × (1 − .55) ≈ 115), fading linearly to 0 over
+   the 4rem above the text block. The pseudo-element extends past the content box to the hero's
+   bottom and sides (the hero's padding, one for one); z-index -1 paints it behind the text but,
+   inside .post-hero__content's stacking context, above the media. */
+.post-hero__content::before {
+    content: "";
+    position: absolute;
+    top: -4rem;
+    left: calc(-1 * var(--post-hero-pad-x));
+    right: calc(-1 * var(--post-hero-pad-x));
+    bottom: calc(-1 * var(--post-hero-pad-b));
+    z-index: -1;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, .55) 4rem, rgba(0, 0, 0, .75) 100%);
+    pointer-events: none;
+}
+
+/* The hero keeps its category icon in the top-right: its text still sits at the bottom, the
+   reason BannerOrFallback's --overlay modifier moves the icon there — the hero just draws the
+   gradient itself now. */
+.post-hero__media ::deep .banner-or-fallback__icon {
+    inset: 14px 18px auto auto;
+}
+
+.post-hero__title {
+    margin: 0;
+    color: #FFFFFF;
+    overflow-wrap: anywhere;
+}
+
+.post-hero__subtitle {
+    margin: 0;
+    color: #FFFFFF;
+    overflow-wrap: anywhere;
+}
+
+/* The meta line sits on the dark gradient — override PostMeta's muted colour through ::deep
+   (scoped CSS cannot reach a child component's root element). */
+.post-hero__content ::deep .post-meta {
+    color: rgba(255, 255, 255, .85);
+}
+
+.post-hero__content ::deep .post-meta__status {
+    background: rgba(255, 255, 255, .92);
+}
+
+/* The Draft ribbon sits above the category chip on preview/draft surfaces.
+   --primary, not --primary-hover: spec §3.1 makes --primary the text accent. */
+.post-hero__ribbon {
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: var(--primary-container);
+    color: var(--primary);
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+@media (max-width: 959.98px) {
+    .post-hero {
+        --post-hero-pad-x: 18px;
+        --post-hero-pad-b: 14px;
+        min-height: 240px;
+        padding: 18px var(--post-hero-pad-x) var(--post-hero-pad-b);
+    }
+}

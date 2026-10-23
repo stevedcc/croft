@@ -1,0 +1,93 @@
+{
+ "id": "110054900866478823",
+ "created_at": "2023-03-20T09:28:37.620Z",
+ "in_reply_to_id": "110054716536910059",
+ "in_reply_to_account_id": "109365763626189362",
+ "sensitive": false,
+ "spoiler_text": "",
+ "visibility": "public",
+ "language": "en",
+ "uri": "https://social.example/uri/2564377d",
+ "url": "https://social.example/url/c10451b4",
+ "replies_count": 2,
+ "reblogs_count": 1,
+ "favourites_count": 0,
+ "quotes_count": 0,
+ "edited_at": null,
+ "content": "<p>Example reply text a125609f.</p>",
+ "reblog": null,
+ "application": {
+  "name": "x-79ab731d",
+  "website": "https://social.example/website/636a0492"
+ },
+ "account": {
+  "id": "109405514975902875",
+  "username": "readerd9486507",
+  "acct": "readerd9486507",
+  "display_name": "Reader D2BF",
+  "locked": false,
+  "bot": false,
+  "discoverable": null,
+  "indexable": false,
+  "group": false,
+  "created_at": "2022-11-25T00:00:00.000Z",
+  "note": "<p>Example reply text 850a7b7b.</p>",
+  "url": "https://social.example/url/a9b7d2b5",
+  "uri": "https://social.example/uri/7c69d4e5",
+  "avatar": "https://social.example/avatar/3fe4bb86",
+  "avatar_static": "https://social.example/avatar/3fe4bb86",
+  "avatar_description": "",
+  "header": "https://social.example/header/c3d9986e",
+  "header_static": "https://social.example/header/c3d9986e",
+  "header_description": "",
+  "followers_count": 9,
+  "following_count": 28,
+  "statuses_count": 75,
+  "last_status_at": "x-a6290946",
+  "hide_collections": null,
+  "show_media": true,
+  "show_media_replies": true,
+  "show_featured": true,
+  "noindex": false,
+  "feature_approval": {
+   "automatic": [],
+   "manual": [],
+   "current_user": "x-62d6c233"
+  },
+  "emojis": [],
+  "roles": [],
+  "fields": [
+   {
+    "name": "x-8c6bc099",
+    "value": "x-4ff542b6",
+    "verified_at": "x-7a6476c8"
+   }
+  ]
+ },
+ "media_attachments": [],
+ "mentions": [
+  {
+   "id": "109365763626189362",
+   "username": "readerc8b46bb8",
+   "url": "https://social.example/url/ff306e34",
+   "acct": "readerc13ff082"
+  },
+  {
+   "id": "109337138244048038",
+   "username": "reader612f919e",
+   "url": "https://social.example/url/112bc26e",
+   "acct": "reader993b4740"
+  }
+ ],
+ "tags": [],
+ "emojis": [],
+ "tagged_collections": [],
+ "quote": null,
+ "card": null,
+ "poll": null,
+ "quote_approval": {
+  "automatic": [],
+  "manual": [],
+  "current_user": "x-62d6c233"
+ }
+}

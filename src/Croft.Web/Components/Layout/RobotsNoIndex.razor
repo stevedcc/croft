@@ -1,0 +1,7 @@
+@* The one `<meta name="robots" content="noindex">`: the pages search engines have no business
+   indexing — search results, not-found and error surfaces, admin and editor pages, and
+   non-published posts — render this instead of writing the tag themselves. The element is bare
+   on purpose: Blazor's HeadOutlet renders the content of exactly one HeadContent per page (a
+   HeadContent registers as a section provider and the outlet keeps a single one), so each page
+   puts this inside its own HeadContent — SeoHead does the same for draft and scheduled posts. *@
+<meta name="robots" content="noindex" />

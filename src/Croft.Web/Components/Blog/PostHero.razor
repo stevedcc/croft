@@ -1,0 +1,50 @@
+@namespace Croft.Web.Components
+@* The post hero (spec §5.4): full content width, at least 360px tall (240px on phones — the hero
+   grows with its text so a long title never leaves the box), the banner image or
+   the site's fallback banner under the hero's own dark overlay — a gradient anchored to the text
+   block (PostHero.razor.css) rather than the hero's height, so a long title never sits on the
+   bare banner. BannerOrFallback draws no overlay here (Overlay=false): its fixed-height gradient
+   serves the cards that use it. The category chip, h1 title, subtitle and date · reading time are
+   overlaid at the bottom. DraftRibbon marks the preview/draft-review surfaces. A post with no
+   category shows no chip and one with no subtitle shows no empty element. *@
+<header class="post-hero">
+    <div class="post-hero__media">
+        <BannerOrFallback Banner="@BannerRef" Category="@Post.Category" IconSize="64" Overlay="false" />
+    </div>
+    <div class="post-hero__content">
+        @if (DraftRibbon)
+        {
+            <div class="post-hero__ribbon">Draft</div>
+        }
+        <CategoryChip Category="@Post.Category" />
+        @if (HeadingLevel == 1)
+        {
+            <h1 class="post-hero__title hero-title">@Post.Title</h1>
+        }
+        else
+        {
+            <h2 class="post-hero__title hero-title">@Post.Title</h2>
+        }
+        @if (!string.IsNullOrWhiteSpace(Post.Subtitle))
+        {
+            <p class="post-hero__subtitle subtitle">@Post.Subtitle</p>
+        }
+        <PostMeta PublishedAt="@Post.PublishedAt" ReadingMinutes="@Post.ReadingMinutes"
+                  ContentEditedAt="@Post.ContentEditedAt" />
+    </div>
+</header>
+
+@code {
+    /// <summary>The post to present.</summary>
+    [Parameter, EditorRequired] public PostDto Post { get; set; } = default!;
+
+    /// <summary>The title's heading level: 1 on the page itself, 2 in the editor's preview, whose own
+    /// page header carries the document's one h1 (review 2026-10-19 M-12).</summary>
+    [Parameter] public int HeadingLevel { get; set; } = 1;
+
+    /// <summary>Shows the Draft ribbon (editor preview and draft review); off on the public page.</summary>
+    [Parameter] public bool DraftRibbon { get; set; }
+
+    private BannerRefDto? BannerRef =>
+        Post.BannerImage is null ? null : new BannerRefDto(Post.BannerImage.Url, Post.BannerImage.AltText);
+}

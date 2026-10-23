@@ -1,0 +1,15 @@
+# A generic kustomize base: plain Kubernetes with placeholder values. A site overlays this
+# (resources: <this folder>) and sets its host, image tags, config values and whatever its
+# cluster needs on top; see README, "Deploying a site".
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - pvc.yaml
+  - api-service.yaml
+  - web-service.yaml
+  - api-deployment.yaml
+  - web-deployment.yaml
+  - pdb.yaml
+  - ingress.yaml

@@ -1,0 +1,9 @@
+@* Phone-only top bar (spec §7.2): ☰ with aria-controls/aria-expanded + BrandBlock Compact.
+   The bar's display is driven by the shell CSS in app.css; this file only looks after its look. *@
+<header class="topbar">
+    <button type="button" class="menu-button" data-nav-toggle aria-controls="sidebar-nav"
+            aria-expanded="false" aria-label="Menu">
+        <CategoryIcon Name="Menu" Size="24" />
+    </button>
+    <BrandBlock Compact="true" />
+</header>

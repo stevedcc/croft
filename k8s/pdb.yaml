@@ -1,0 +1,24 @@
+# A PodDisruptionBudget per app: node drains and other voluntary evictions always leave
+# one pod serving. It does not protect against crashes — that is what the second replica
+# is for — and with a single replica it can only block drains (see README.md).
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: blog-api
+  namespace: blog
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: blog-api
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: blog-web
+  namespace: blog
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: blog-web

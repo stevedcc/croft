@@ -1,0 +1,65 @@
+/* The editor page (spec §6.2): two columns — the form first, then the Preview/Feedback tabs —
+   stacking on phones with the form on top. Surfaces use the shared tokens (spec §3.1). */
+.post-edit {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+    min-width: 0;
+}
+
+@media (min-width: 960px) {
+    .post-edit {
+        --post-edit-top-gap: 24px;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    /* From 960px the editor fits the viewport instead of growing with the Preview: the Preview
+       column parks below the page's top gap while the form scrolls, is as tall as the viewport
+       below that gap, and scrolls on its own (editor.js follows the Markdown box's top line
+       into it). Under 960px the columns stack and nothing here applies. */
+    .post-edit__side {
+        position: sticky;
+        top: var(--post-edit-top-gap);
+        height: calc(100dvh - var(--post-edit-top-gap));
+        overflow-y: auto;
+    }
+}
+
+.post-edit__form,
+.post-edit__side {
+    min-width: 0;
+}
+
+.post-edit__notice {
+    margin: 0 0 16px;
+    padding: 10px 12px;
+    border: 1px solid var(--muted);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 14px;
+}
+
+.post-edit__notice-dismiss {
+    margin-left: 8px;
+    padding: 2px 8px;
+    border: 1px solid var(--muted);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+}
+
+.post-edit__error {
+    margin: 0 0 16px;
+    padding: 10px 12px;
+    border: 1px solid var(--primary);
+    border-radius: 6px;
+    background: var(--primary-container);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 14px;
+}

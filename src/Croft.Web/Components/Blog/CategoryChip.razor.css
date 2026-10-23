@@ -1,0 +1,30 @@
+/* The green category chip (green classifies, crimson acts).
+   Long names ellipsize; the full name stays in title and text. */
+.category-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    box-sizing: border-box;
+    max-width: 100%;
+    /* WCAG 2.5.8: the chip sits beside the card-wide link, so it is its own target and at least 24 px high. */
+    min-height: 24px;
+    padding: 2px 10px;
+    border-radius: 10px;
+    background: var(--secondary-container);
+    color: var(--on-secondary-container);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.5;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.category-chip:hover .category-chip__name {
+    text-decoration: underline;
+}
+
+.category-chip__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

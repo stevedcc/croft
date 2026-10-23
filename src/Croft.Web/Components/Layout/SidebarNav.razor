@@ -1,0 +1,123 @@
+@* The sidebar (spec §7.2): brand, Home/Search, categories with published-post counts
+   (0-post categories hidden), the Admin and Editor role sections, and the footer with the
+   theme switch, Log in / Log out and Collapse (≥1280px only). NavItems carry labels in
+   <span class="label"> plus title tooltips; the rail state hides the labels from CSS alone. *@
+<nav id="sidebar-nav" class="sidebar" aria-label="Main navigation">
+    <button type="button" class="rail-toggle" data-nav-toggle aria-controls="sidebar-nav"
+            aria-expanded="false" aria-label="Menu" title="Menu">
+        <CategoryIcon Name="Menu" Size="22" />
+    </button>
+
+    <BrandBlock />
+
+    <div class="nav-section">
+        <NavItem Href="/" Icon="Home" Text="Home" Match="NavLinkMatch.All" />
+        <NavItem Href="/search" Icon="Search" Text="Search" Match="NavLinkMatch.Prefix" />
+        @* The marked pages (brief 07g item 3) join the Home/Search section, after Search and
+           above Categories, in the order the API gives them (NavigationOrder, then title). *@
+        @foreach (var entry in Pages)
+        {
+            <NavItem Href="@($"/{entry.Slug}")" Icon="Description" Text="@entry.Title" Match="NavLinkMatch.All" />
+        }
+    </div>
+
+    @if (_categories.Count > 0)
+    {
+        <div class="label section-heading" id="sidebar-heading-categories">Categories</div>
+        <div class="nav-section" role="group" aria-labelledby="sidebar-heading-categories">
+            @foreach (var category in _categories)
+            {
+                <NavItem Href="@($"/category/{category.Slug}")" Icon="@category.Icon" Text="@category.Name"
+                         Count="@category.PostCount" Match="NavLinkMatch.All" />
+            }
+            @* The rest of the categories live on their paged directory page, so the sidebar stays
+               a sidebar no matter how many categories exist. *@
+            <NavItem Href="/categories" Icon="MoreHoriz" Text="More categories" Match="NavLinkMatch.All" />
+        </div>
+    }
+
+    <AuthorizeView Roles="Admin">
+        <Authorized>
+            <div class="label section-heading" id="sidebar-heading-admin">Admin</div>
+            <div class="nav-section" role="group" aria-labelledby="sidebar-heading-admin">
+                <NavItem Href="/admin/posts" Icon="Article" Text="Posts" Match="NavLinkMatch.Prefix" />
+                <NavItem Href="/admin/pages" Icon="Description" Text="Pages" Match="NavLinkMatch.Prefix" />
+                <NavItem Href="/admin/posts/new" Icon="NoteAdd" Text="New post" Match="NavLinkMatch.All" />
+                <NavItem Href="/admin/pages/new" Icon="PostAdd" Text="New page" Match="NavLinkMatch.All" />
+                <NavItem Href="/admin/media" Icon="PermMedia" Text="Media" Match="NavLinkMatch.All" />
+                <NavItem Href="/admin/tags" Icon="Sell" Text="Tags & categories" Match="NavLinkMatch.All" />
+                <NavItem Href="/admin/discussion/blocks" Icon="VisibilityOff" Text="Hidden replies" Match="NavLinkMatch.All" />
+            </div>
+        </Authorized>
+    </AuthorizeView>
+
+    <AuthorizeView Roles="Editor">
+        <Authorized>
+            <div class="label section-heading" id="sidebar-heading-editor">Editor</div>
+            <div class="nav-section" role="group" aria-labelledby="sidebar-heading-editor">
+                <NavItem Href="/editor" Icon="Drafts" Text="Drafts" Match="NavLinkMatch.Prefix" />
+            </div>
+        </Authorized>
+    </AuthorizeView>
+
+    <div class="sidebar-footer">
+        <ThemeSwitch ThemeChanged="ThemeChanged" />
+        <AuthorizeView>
+            <Authorized>
+                @* WORKAROUND(W-007, Blazor): the log-out link crosses to a server endpoint: target=_top plus data-enhance-nav=false force a full load *@
+                @* /logout is a server endpoint (MapGet), not a Blazor route. target="_top" makes the
+                   interactive Router's link interception skip the anchor (full page load);
+                   data-enhance-nav="false" opts out of enhanced navigation before interactivity. *@
+                <a class="footer-item" href="/logout" target="_top" data-enhance-nav="false" title="Log out">
+                    <CategoryIcon Name="Logout" Size="20" />
+                    <span class="label">Log out</span>
+                </a>
+                @* END WORKAROUND(W-007) *@
+            </Authorized>
+            <NotAuthorized>
+                @* WORKAROUND(W-007, Blazor): the log-in link crosses to a server endpoint: target=_top plus data-enhance-nav=false force a full load *@
+                @* /login is a server endpoint too (see above). *@
+                <a class="footer-item" href="/login" target="_top" data-enhance-nav="false" title="Log in">
+                    <CategoryIcon Name="Login" Size="20" />
+                    <span class="label">Log in</span>
+                </a>
+                @* END WORKAROUND(W-007) *@
+            </NotAuthorized>
+        </AuthorizeView>
+        <button type="button" class="footer-item collapse-toggle" data-sidebar-collapse title="Collapse">
+            <CategoryIcon Name="ChevronLeft" Size="20" />
+            <span class="label">Collapse</span>
+        </button>
+    </div>
+</nav>
+
+@code {
+    /// <summary>The sidebar's cap: the most used categories fill the sidebar, "More categories"
+    /// covers the rest.</summary>
+    public const int MaxCategories = Croft.Shared.PublicPageSizes.SidebarCategories;
+
+    /// <summary>Categories to pick from; only the top <see cref="MaxCategories"/> with published
+    /// posts are rendered (spec §4.2), most published posts first.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<CategoryDto> Categories { get; set; } = Array.Empty<CategoryDto>();
+
+    /// <summary>The sidebar's page entries (GET /api/pages/navigation): published pages marked
+    /// for navigation, in their order, rendered in the Home/Search section after Search.</summary>
+    [Parameter] public IReadOnlyList<PageNavItemDto> Pages { get; set; } = [];
+
+    /// <summary>Forwarded from <see cref="ThemeSwitch"/>.</summary>
+    [Parameter] public EventCallback<string> ThemeChanged { get; set; }
+
+    private IReadOnlyList<CategoryDto> _categories = Array.Empty<CategoryDto>();
+
+    protected override void OnParametersSet()
+    {
+        _categories =
+        [
+            .. Categories
+                .Where(c => c.PostCount > 0)
+                .OrderByDescending(c => c.PostCount)
+                .ThenBy(c => c.Name)
+                .Take(MaxCategories)
+        ];
+    }
+}

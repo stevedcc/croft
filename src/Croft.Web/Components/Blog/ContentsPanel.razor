@@ -1,0 +1,70 @@
+@namespace Croft.Web.Components
+@using Croft.Web.Services
+@* The rail-less "On this page" panel: at content widths where the rail is not shown the TOC and
+   the tags become one panel under the hero with three states — the in-flow block (the TOC title,
+   up to five entries, a "+N more…" button and the tags in a right-hand column), the pinned
+   one-row bar (the scroll-spy's current section and a chevron) and the opened drawer (the full
+   list scrolling inside at most 70vh, tags still on the right). wwwroot/js/post.js owns the
+   states: pinning and shrinking, the row's title (read from the one scroll-spy's aria-current
+   entry), the pull gesture on the handle and the closes. The list is the shared TableOfContents
+   and the tags the shared TagPills — one source of truth for both. The states are a JavaScript
+   enhancement: without them the block shows its whole list in place. Posts with fewer than two
+   headings get no panel: their Tags panel
+   stays after the text (the page's layout rules key on this component's presence).
+   The root keeps the toc-inline hook because this block is what earlier layouts called the
+   inline "On this page" — the pages' @container rules and the post tests locate it by that name. *@
+@if (Headings is { Count: >= 2 })
+{
+    <section class="toc-inline">
+        <button type="button" class="toc-inline__row" aria-label="Contents" aria-expanded="false" aria-controls="toc-inline-body">
+            <span class="toc-inline__row-text"></span>
+            <span class="toc-inline__handle" aria-hidden="true">
+                <svg class="toc-inline__chevron" viewBox="0 0 24 24" width="20" height="20">
+                    <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+            </span>
+        </button>
+        <div class="toc-inline__body" id="toc-inline-body">
+            <div class="toc-inline__list-column">
+                <TableOfContents Headings="@Headings" Path="@Path" />
+                @if (Headings is { Count: > 5 })
+                {
+                    <button type="button" class="toc-inline__more">+@(Headings.Count - 5) more…</button>
+                }
+            </div>
+            @if (Tags is { Count: > 0 })
+            {
+                <div class="toc-inline__tags"><TagPills Tags="@Tags" /></div>
+            }
+        </div>
+        @* The drawer's pull-up target (brief 07i item 2): a strip at the drawer's bottom edge
+            with the grab bar in it. It exists only for the open state's gesture — the row's
+            handle keeps its pull-down — and is decorative to assistive tech (the row button
+            already closes), so it is aria-hidden and never focusable. *@
+        <div class="toc-inline__strip" aria-hidden="true">
+            <span class="toc-inline__grab"></span>
+        </div>
+    </section>
+    @* The scrim over the page below the opened drawer (brief 07i item 3): post.js sizes its top
+        edge to the drawer's bottom; tapping it closes the drawer exactly as tapping outside
+        always has. A sibling of the panel, below it in stacking order, so the drawer paints
+        over it and its tap never counts as a tap inside the panel. It carries no colour: the
+        alpha comes from the --scrim token on the theme (app.css), per the public pages' CSP
+        (no style attributes; state sizes go through the CSSOM only). *@
+    <div class="toc-inline__scrim" aria-hidden="true"></div>
+}
+
+@code {
+    /// <summary>The post's h2/h3 headings; the panel shows itself only for two or more — the
+    /// same rule as the TOC it carries.</summary>
+    [Parameter] public IReadOnlyList<Heading>? Headings { get; set; }
+
+    /// <summary>The post's tags, in the panel's right-hand column.</summary>
+    [Parameter] public IReadOnlyList<TagDto>? Tags { get; set; }
+
+    /// <summary>
+    /// The post page's own path, forwarded to TableOfContents so its links are path-qualified
+    /// (a bare "#id" href would resolve against &lt;base href="/"&gt; and leave the page).
+    /// </summary>
+    [Parameter, EditorRequired] public string Path { get; set; } = string.Empty;
+}

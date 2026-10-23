@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Croft.Api/Croft.Api.csproj" />
+    <Project Path="src/Croft.Web/Croft.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Croft.Api.Tests/Croft.Api.Tests.csproj" />
+    <Project Path="tests/Croft.Web.E2E/Croft.Web.E2E.csproj" />
+    <Project Path="tests/Croft.Web.Tests/Croft.Web.Tests.csproj" />
+  </Folder>
+  <Project Path="src/Croft.Shared/Croft.Shared.csproj" />
+</Solution>

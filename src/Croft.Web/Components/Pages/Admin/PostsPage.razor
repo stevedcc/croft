@@ -1,0 +1,20 @@
+@page "/admin/posts"
+@page "/admin"
+@attribute [Authorize(Roles = "Admin")]
+@using Croft.Shared.Enums
+@inject NavigationManager Navigation
+
+@* The posts list (spec §6.1): posts only, since brief 10f — pages have /admin/pages. Bare /admin
+   lands here. *@
+<PostsList Kind="PostKind.Post" />
+
+@code {
+    protected override void OnInitialized()
+    {
+        if (new Uri(Navigation.Uri).AbsolutePath.TrimEnd('/').Equals("/admin", StringComparison.OrdinalIgnoreCase))
+        {
+            // The redirect keeps any query string: /admin?page=2 must land on /admin/posts?page=2.
+            Navigation.NavigateTo($"/admin/posts{new Uri(Navigation.Uri).Query}");
+        }
+    }
+}

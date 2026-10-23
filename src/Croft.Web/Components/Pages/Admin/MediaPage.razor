@@ -1,0 +1,12 @@
+@page "/admin/media"
+@attribute [Authorize(Roles = "Admin")]
+
+<BlogPageTitle Title="Media library" />
+@* WORKAROUND(W-008, Blazor): HeadOutlet keeps one HeadContent provider per page, so the feed link sits beside RobotsNoIndex here *@
+<HeadContent><RobotsNoIndex /><FeedAlternateLink /></HeadContent>
+@* END WORKAROUND(W-008) *@
+
+<PageHeader Title="Media library" />
+
+@* MediaGrid is a service component (spec §7.4): it fetches and manages the global images itself. *@
+<MediaGrid Mode="MediaGridMode.Manage" />

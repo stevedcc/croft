@@ -1,0 +1,188 @@
+@using System.Globalization
+@using Croft.Shared.Contracts
+@using Croft.Shared.Enums
+
+@* The posts grid (spec §6.1/§7.4): a MudDataGrid paged on the server — title (link to the
+   editor), status badge, date ("–" for drafts), category icon, views and open-feedback count.
+   Edit/Analytics/Feedback/Delete report through the row action callbacks (the page owns
+   navigation and the delete confirm); View links to the public post or the draft review.
+   ReadOnly (the Editor role) shows Review only. *@
+<div class="posts-grid">
+    <MudDataGrid T="PostSummaryDto" @ref="_grid" ServerData="ServerData" RowsPerPage="10"
+                 SortMode="SortMode.None" Filterable="false" Hideable="false" ShowColumnOptions="false"
+                 Elevation="0" Outlined="true" RowClass="posts-grid__row">
+        <Columns>
+            <TemplateColumn T="PostSummaryDto" Title="Title">
+                <CellTemplate>
+                    @if (ReadOnly)
+                    {
+                        <span class="posts-grid__title">@context.Item.Title</span>
+                    }
+                    else
+                    {
+                        <a class="posts-grid__title" href="@AdminRoutes.Edit(context.Item.Kind, context.Item.Id)">@context.Item.Title</a>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn T="PostSummaryDto" Title="Status">
+                <CellTemplate>
+                    <span class="posts-grid__status"><StatusBadge Status="context.Item.Status" /></span>
+                </CellTemplate>
+            </TemplateColumn>
+            @if (Kind == PostKind.Page)
+            {
+                @* Pages: where the page appears and in which order, and when it last changed. *@
+                <TemplateColumn T="PostSummaryDto" Title="Show in">
+                    <CellTemplate>
+                        <span class="posts-grid__placement">@PlacementText(context.Item)</span>
+                    </CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn T="PostSummaryDto" Title="Order">
+                    <CellTemplate>
+                        <span class="posts-grid__order">@context.Item.NavigationOrder</span>
+                    </CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn T="PostSummaryDto" Title="Updated">
+                    <CellTemplate>
+                        <span class="posts-grid__updated">@context.Item.UpdatedAt.ToString("d MMMM yyyy", EnGb)</span>
+                    </CellTemplate>
+                </TemplateColumn>
+            }
+            else
+            {
+                @if (Kind is null)
+                {
+                    <TemplateColumn T="PostSummaryDto" Title="Kind">
+                        <CellTemplate>
+                            <span class="posts-grid__kind">@context.Item.Kind</span>
+                        </CellTemplate>
+                    </TemplateColumn>
+                }
+                <TemplateColumn T="PostSummaryDto" Title="Date">
+                    <CellTemplate>
+                        <span class="posts-grid__date">@DateText(context.Item)</span>
+                    </CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn T="PostSummaryDto" Title="Category">
+                    <CellTemplate>
+                        <span class="posts-grid__category"><CategoryIcon Name="@context.Item.Category?.Icon" Size="20" /><span class="visually-hidden">@(context.Item.Category?.Name ?? "No category")</span></span>
+                    </CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn T="PostSummaryDto" Title="Views">
+                    <CellTemplate>
+                        <span class="posts-grid__views">@CountText(context.Item.ViewCount)</span>
+                    </CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn T="PostSummaryDto" Title="Open feedback">
+                    <CellTemplate>
+                        <span class="posts-grid__feedback">@CountText(context.Item.OpenFeedbackCount)</span>
+                    </CellTemplate>
+                </TemplateColumn>
+            }
+            <TemplateColumn T="PostSummaryDto" Title="Actions">
+                <CellTemplate>
+                    <div class="posts-grid__actions">
+                        @if (ReadOnly)
+                        {
+                            <a class="posts-grid__action posts-grid__review" href="@ViewHref(context.Item)"
+                               aria-label="@($"Review {context.Item.Title}")"
+                               @attributes="AdminArea.LinkAttributes(InAdminArea, ViewHref(context.Item))">Review</a>
+                        }
+                        else
+                        {
+                            <button type="button" class="posts-grid__action" aria-label="@($"Edit {context.Item.Title}")"
+                                    @onclick="() => OnEdit.InvokeAsync(context.Item)">Edit</button>
+                            <a class="posts-grid__action posts-grid__view" href="@ViewHref(context.Item)"
+                               aria-label="@($"View {context.Item.Title}")"
+                               @attributes="AdminArea.LinkAttributes(InAdminArea, ViewHref(context.Item))">View</a>
+                            @if (Kind != PostKind.Page)
+                            {
+                                @* Pages have no analytics and no feedback. *@
+                                <button type="button" class="posts-grid__action" aria-label="@($"Analytics for {context.Item.Title}")"
+                                        @onclick="() => OnAnalytics.InvokeAsync(context.Item)">Analytics</button>
+                                <button type="button" class="posts-grid__action" aria-label="@($"Feedback for {context.Item.Title}")"
+                                        @onclick="() => OnFeedback.InvokeAsync(context.Item)">Feedback</button>
+                            }
+                            <button type="button" class="posts-grid__action posts-grid__delete" aria-label="@($"Delete {context.Item.Title}")"
+                                    @onclick="() => OnDelete.InvokeAsync(context.Item)">Delete</button>
+                        }
+                    </div>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <NoRecordsContent>
+            @if (ShowEmptyState)
+            {
+                <p class="posts-grid__empty">@(Kind == PostKind.Page ? "No pages found." : "No posts found.")</p>
+            }
+        </NoRecordsContent>
+        <PagerContent>
+            @* WORKAROUND(W-038, MudBlazor): the grid pager's rows-per-page selector renders as an unnamed combobox (axe), so it is hidden *@
+            @* No rows-per-page selector: the design pages the grid on the server at the pinned
+               page size 10, and MudBlazor's built-in selector renders as an ARIA combobox with no
+               accessible name (its "Rows per page:" caption is only a sibling paragraph) — a
+               serious aria-input-field-name violation. The page navigation stays: its buttons
+               carry aria-labels and do the server-paged job. *@
+            <MudDataGridPager T="PostSummaryDto" PageSizeSelector="false" />
+            @* END WORKAROUND(W-038) *@
+        </PagerContent>
+    </MudDataGrid>
+</div>
+
+@code {
+    private static readonly CultureInfo EnGb = CultureInfo.GetCultureInfo("en-GB");
+
+    private MudDataGrid<PostSummaryDto>? _grid;
+
+    /// <summary>The server page loader (paging and filter state come from the grid).</summary>
+    [Parameter] public Func<GridState<PostSummaryDto>, CancellationToken, Task<GridData<PostSummaryDto>>>? ServerData { get; set; }
+
+    [Parameter] public EventCallback<PostSummaryDto> OnEdit { get; set; }
+
+    [Parameter] public EventCallback<PostSummaryDto> OnAnalytics { get; set; }
+
+    [Parameter] public EventCallback<PostSummaryDto> OnFeedback { get; set; }
+
+    [Parameter] public EventCallback<PostSummaryDto> OnDelete { get; set; }
+
+    /// <summary>The kind of rows the grid shows: <see cref="PostKind.Post"/> (the posts list),
+    /// <see cref="PostKind.Page"/> (the pages list: placement, order and update columns, and no
+    /// analytics or feedback actions), or null for both (the editor's drafts list, which labels
+    /// each row's kind).</summary>
+    [Parameter] public PostKind? Kind { get; set; }
+
+    /// <summary>Read-only rows for the Editor role (spec §6.6: actions: Review).</summary>
+    [Parameter] public bool ReadOnly { get; set; }
+
+    /// <summary>Whether this renders on a staff page: it always does (the admin posts list and
+    /// the editor drafts list), and the View/Review links that leave for the public side must
+    /// load a fresh document (see <see cref="AdminArea"/>).</summary>
+    [CascadingParameter(Name = "InAdminArea")] public bool InAdminArea { get; set; }
+
+    /// <summary>The empty state claims there is nothing to show; a page whose load failed turns it
+    /// off (its error banner speaks instead) — the same guard MediaGrid applies internally.</summary>
+    [Parameter] public bool ShowEmptyState { get; set; } = true;
+
+    /// <summary>Reloads the current page of rows, e.g. after the page's filters change.</summary>
+    public Task ReloadAsync() => _grid?.ReloadServerData() ?? Task.CompletedTask;
+
+    /// <summary>The View action's target: the public post when published (the public page at its
+    /// root slug for a page), the draft review otherwise (the Editor role's Review action lands
+    /// there too).</summary>
+    private static string ViewHref(PostSummaryDto post) =>
+        post.Status == PostStatus.Published
+            ? (post.Kind == PostKind.Page ? $"/{post.Slug}" : $"/post/{post.Slug}")
+            : $"/editor/posts/{post.Slug}";
+
+    /// <summary>Where a page appears: "Sidebar" or "Footer", a dash for a page shown nowhere.</summary>
+    private static string PlacementText(PostSummaryDto page) =>
+        page.NavigationPlacement == NavigationPlacement.None ? "–" : page.NavigationPlacement.ToString();
+
+    /// <summary>Published or scheduled date; drafts show "–" (spec §6.1).</summary>
+    private static string DateText(PostSummaryDto post) =>
+        post.PublishedAt is { } publishedAt ? publishedAt.ToString("d MMMM yyyy", EnGb) : "–";
+
+    /// <summary>Admin-only counts are null for callers without the Admin role.</summary>
+    private static string CountText<T>(T? value) where T : struct =>
+        value?.ToString() ?? "–";
+}

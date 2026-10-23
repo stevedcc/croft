@@ -1,0 +1,53 @@
+/* The status badge (spec §3.1): Published uses the green container, Scheduled the amber
+   container (light and dark values verbatim from the spec) and Draft neutral grey. */
+.status-badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 4px;
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    line-height: 1.5;
+}
+
+.status-badge--published {
+    background: var(--secondary-container);
+    color: var(--on-secondary-container);
+}
+
+.status-badge--scheduled {
+    background: #FFF1D6;
+    color: #7A4B00;
+}
+
+.status-badge--draft {
+    background: rgba(128, 128, 128, .25);
+    color: var(--muted);
+}
+
+/* The Scheduled amber's dark values, via the same dark selectors app.css uses. */
+:root[data-theme=dark] .status-badge--scheduled {
+    background: #3A2E14;
+    color: #F2C877;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme=light]) .status-badge--scheduled {
+        background: #3A2E14;
+        color: #F2C877;
+    }
+}
+
+/* The Draft wash needs a deeper ground in dark: --muted on the .25 grey wash over --surface
+   falls below AA (4.14:1) with the built-in dark palette, so dark gets a deeper wash
+   (4.9:1), light unchanged. */
+:root[data-theme=dark] .status-badge--draft {
+    background: rgba(128, 128, 128, .12);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme=light]) .status-badge--draft {
+        background: rgba(128, 128, 128, .12);
+    }
+}

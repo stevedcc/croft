@@ -1,0 +1,52 @@
+.theme-switch {
+    display: flex;
+    align-items: center;
+    /* Explicit: app.css centres every <button>'s flex content (see .footer-item). */
+    justify-content: flex-start;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--sidebar-text);
+    font-family: var(--font-ui);
+    font-size: 14.5px;
+    line-height: 1.3;
+    text-align: left;
+    cursor: pointer;
+}
+
+/* WORKAROUND(W-086, Blazor): no circuit re-renders the button on static pages; data-mode picks the icon */
+/* Only the icon of the current mode shows. */
+.theme-switch__icon {
+    display: none;
+}
+
+.theme-switch[data-mode="system"] .theme-switch__icon--system,
+.theme-switch[data-mode="light"] .theme-switch__icon--light,
+.theme-switch[data-mode="dark"] .theme-switch__icon--dark {
+    display: inline-flex;
+}
+
+/* END WORKAROUND(W-086) */
+
+.theme-switch:hover {
+    background: var(--primary-container);
+    color: var(--text);
+}
+
+/* 960-1279px rail: centred icon with the mode as its tooltip (title comes from the label).
+   The drawer's left padding (14px) is the rail's centred icon slot ((48 − 20) / 2), so the icon
+   stays put and only its label appears. */
+@media (min-width: 960px) and (max-width: 1279.98px) {
+    .theme-switch {
+        justify-content: center;
+        padding: 8px 0;
+    }
+
+    html.nav-open .theme-switch {
+        justify-content: flex-start;
+        padding: 8px 10px 8px 14px;
+    }
+}

@@ -1,0 +1,110 @@
+/* The markdown editor (spec §6.2): toolbar controls and a mono textarea. Crimson marks the
+   interactive controls (act); the surfaces use the shared tokens (spec §3.1). */
+.md-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    font-family: var(--font-ui);
+}
+
+.md-editor__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.md-editor__tool {
+    padding: 4px 10px;
+    border: 1px solid var(--muted);
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 12.5px;
+    line-height: 1.5;
+    cursor: pointer;
+}
+
+.md-editor__tool:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.md-editor__tool:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+}
+
+/* "Insert image" is a label with a transparent file input stretched over it: the native picker
+   opens on click and on keyboard activation, with no script involved. */
+.md-editor__insert {
+    position: relative;
+    display: inline-flex;
+}
+
+/* The input inside is transparent, so its own focus ring cannot be seen: the wrapper, which is
+   the same box as the visible label, draws the ring the sibling buttons draw (review 2026-10-19 I-1). */
+.md-editor__insert:focus-within {
+    border-radius: 4px;
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+}
+
+.md-editor__file {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.md-editor__textarea {
+    width: 100%;
+    min-height: 320px;
+    padding: 10px 12px;
+    border: 1px solid var(--muted);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    line-height: 1.55;
+    resize: vertical;
+}
+
+/* From 960px (where the editor has two columns) the box fills the viewport height, less the
+   toolbar and a margin, so it is about as tall as the Preview beside it; the user can still
+   resize it. Under 960px it keeps the 320px minimum above and the rows-based height. */
+@media (min-width: 960px) {
+    .md-editor__textarea {
+        height: max(320px, calc(100dvh - 12rem));
+    }
+}
+
+.md-editor__textarea:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+}
+
+/* The character count (over 90% of the limit) and the over-limit error below the textarea:
+   quiet UI text; the error carries role="alert" so it announces itself. */
+.md-editor__count {
+    margin: 0;
+    color: var(--muted);
+    font-family: var(--font-ui);
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+
+.md-editor__over {
+    margin: 0;
+    padding: 6px 10px;
+    border: 1px solid var(--primary);
+    border-radius: 6px;
+    background: var(--primary-container);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 12.5px;
+    line-height: 1.5;
+}

@@ -1,0 +1,77 @@
+@page "/categories"
+@attribute [ExcludeFromInteractiveRouting]
+@inject IBlogApiClient Api
+@inject NavigationManager Navigation
+
+<BlogPageTitle Title="Categories" />
+
+<PageHeader Title="Categories" />
+
+@* The categories directory behind the sidebar's "More categories" link: every category with its
+   icon, name and published-post count, paged on the server like the public post lists (?page=N
+   with real links, so paging works with JavaScript disabled). *@
+@* Static SSR awaits the load before it sends any HTML, so the data is set when this renders. *@
+@if (_result is { Items.Count: 0 })
+{
+    <p class="category-directory__empty">No categories yet.</p>
+}
+else if (_result is not null)
+{
+    <ul class="category-directory">
+        @foreach (var category in _result.Items)
+        {
+            <li class="category-directory__item" @key="category.Id">
+                <a class="category-directory__link" href="@($"/category/{category.Slug}")">
+                    <CategoryIcon Name="@category.Icon" Size="20" />
+                    <span class="category-directory__name">@category.Name</span>
+                    <span class="category-directory__count">@category.PostCount posts</span>
+                </a>
+            </li>
+        }
+    </ul>
+    <PagePager Page="@_page" TotalPages="@TotalPages" Path="/categories" />
+}
+
+@code {
+    private const int PageSize = Croft.Shared.PublicPageSizes.Categories;
+
+    // WORKAROUND(W-023, Blazor): a pager click changes only the query string, and Blazor re-runs the parameter lifecycle only when a supplied parameter changes
+    // ?page=N as a supplied query parameter on purpose: a pager click changes only the query
+    // string, and Blazor re-runs this page's parameter lifecycle only when a parameter value
+    // changes — the same reason Home.razor and Category.razor carry this.
+    [SupplyParameterFromQuery(Name = "page")]
+    public string? PageNumber { get; set; }
+    // END WORKAROUND(W-023)
+
+    private PagedResult<CategoryDto>? _result;
+    private int _page = 1;
+    private string? _loadedKey;
+
+    private int TotalPages => _result is null
+        ? 1
+        : Math.Max(1, (int)Math.Ceiling((double)_result.TotalCount / PageSize));
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Loaded from OnParametersSet — not OnInitialized — because Blazor reuses the page
+        // instance when only the query string changes (?page=N links land here).
+        var page = PageQuery.ReadPageNumber(new Uri(Navigation.Uri).Query);
+        var key = $"categories|{PageNumber}";
+
+        if (key == _loadedKey)
+        {
+            return;
+        }
+
+        _loadedKey = key;
+        var result = await Api.GetCategoriesAsync(page, PageSize);
+        if (key != _loadedKey)
+        {
+            // A superseded load completing late must not clobber the newer one's state.
+            return;
+        }
+
+        _result = result;
+        _page = page;
+    }
+}

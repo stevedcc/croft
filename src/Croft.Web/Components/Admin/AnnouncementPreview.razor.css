@@ -1,0 +1,49 @@
+/* One network's announcement preview (brief 12d). The text is plain; its line breaks come from white-space, not from markup, so no inline
+   style is needed (the CSP allows none of ours). Long words and addresses wrap instead of widening the editor on a phone. */
+.announce-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--muted);
+    border-radius: 6px;
+    background: var(--surface);
+    font-family: var(--font-ui);
+}
+
+.announce-preview p {
+    margin: 0;
+}
+
+.announce-preview__title {
+    color: var(--muted);
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+.announce-preview__text {
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.announce-preview__count {
+    color: var(--muted);
+    font-size: 12.5px;
+}
+
+.announce-preview__count--over {
+    color: var(--primary);
+    font-weight: 700;
+}
+
+.announce-preview__warning {
+    padding: 6px 10px;
+    border: 1px solid var(--primary);
+    border-radius: 6px;
+    background: var(--primary-container);
+    color: var(--text);
+    font-size: 12.5px;
+}

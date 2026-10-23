@@ -1,0 +1,62 @@
+@* Theme switch (spec §7.2, service component): cycles System → Light → Dark through the shell JS
+   module and raises ThemeChanged so MainLayout can feed MudThemeProvider the effective mode. *@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+@* WORKAROUND(W-086, Blazor): a static page has no circuit to re-render the button, so script switches data-mode and CSS shows one icon *@
+@* data-mode picks which of the three icons shows (ThemeSwitch.razor.css); static-glue.js changes
+   data-mode, title and label itself. *@
+<button type="button" class="theme-switch" data-mode="@_mode" title="Theme: @ModeLabel" @onclick="CycleAsync">
+    <span class="theme-switch__icon theme-switch__icon--system"><CategoryIcon Name="BrightnessAuto" Size="20" /></span>
+    <span class="theme-switch__icon theme-switch__icon--light"><CategoryIcon Name="LightMode" Size="20" /></span>
+    <span class="theme-switch__icon theme-switch__icon--dark"><CategoryIcon Name="DarkMode" Size="20" /></span>
+    <span class="label">Theme: @ModeLabel</span>
+</button>
+@* END WORKAROUND(W-086) *@
+
+@code {
+    private string _mode = "system";
+    private IJSObjectReference? _shell;
+
+    /// <summary>Raised after the theme has been cycled (payload is the new mode).</summary>
+    [Parameter] public EventCallback<string> ThemeChanged { get; set; }
+
+    private string ModeLabel => _mode switch
+    {
+        "light" => "Light",
+        "dark" => "Dark",
+        _ => "System",
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        // Show the stored preference after reload; without JS the default "System" label stands.
+        var stored = await (await GetShellAsync()).InvokeAsync<string?>("currentMode");
+        if (stored is not null && stored != _mode)
+        {
+            _mode = stored;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CycleAsync()
+    {
+        var mode = await (await GetShellAsync()).InvokeAsync<string?>("cycleTheme");
+        if (mode is not null)
+        {
+            _mode = mode;
+        }
+
+        await ThemeChanged.InvokeAsync(_mode);
+    }
+
+    private async Task<IJSObjectReference> GetShellAsync() =>
+        _shell ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/shell.js");
+
+    public ValueTask DisposeAsync() => JsModuleReference.DisposeAsync(_shell);
+}

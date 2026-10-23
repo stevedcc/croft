@@ -1,0 +1,7 @@
+@page "/admin/pages"
+@attribute [Authorize(Roles = "Admin")]
+@using Croft.Shared.Enums
+
+@* The pages list (brief 10f item 3): the posts grid filtered to pages, with where each page
+   appears (Show in) and its order. *@
+<PostsList Kind="PostKind.Page" />

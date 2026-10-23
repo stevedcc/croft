@@ -1,0 +1,241 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blog-api
+  namespace: blog
+spec:
+  # Two of everything: losing one pod must not take the API down.
+  replicas: 2
+  # RollingUpdate with one surge pod and none unavailable: the media volume is
+  # ReadWriteMany, so the surge pod mounts it while the old pods still run. (Recreate
+  # existed only because the volume used to be ReadWriteOnce.)
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: blog-api
+  template:
+    metadata:
+      labels:
+        app: blog-api
+        # Stable across a site's renames (blue/green, croft-*): placement and the optional
+        # network-policy component (components/network-policies) select on these.
+        app.kubernetes.io/part-of: croft
+        app.kubernetes.io/component: api
+    spec:
+      # Spread the two pods over different nodes when possible; ScheduleAnyway so a
+      # single-node cluster still schedules them.
+      # Prefer a node without any other Croft pod (Web or API): with four nodes the two Web and
+      # two API pods land one per node. A preference, never a requirement: a rollout's surge pod
+      # or a failed node's replacement still schedules, and a single-node cluster still works.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/part-of: croft
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: blog-api
+      # WORKAROUND(W-056, Kubernetes): endpoints drop a pod asynchronously, so terminationGracePeriodSeconds covers the preStop sleep plus in-flight work
+      # 40s = the 10s preStop plus 30s to finish in-flight requests after SIGTERM.
+      terminationGracePeriodSeconds: 40
+      # END WORKAROUND(W-056)
+      # No pod here talks to the Kubernetes API: no service-account token in the filesystem.
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+        # The image's app user is uid/gid 1654; matching fsGroup makes the volumes
+        # (media uploads) writable by that user.
+        fsGroup: 1654
+      # WORKAROUND(W-055, Kubernetes): cluster default ndots=5 walks the search list for every lookup; ndots 2 resolves them in one query
+      # The pods call fully-qualified service names (the database, the API): with the cluster's
+      # default ndots=5 every lookup walks the search list first, and those wasted queries were
+      # part of the 2026-10-14 DNS stalls. ndots 2 resolves them in one query.
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "2"
+      # END WORKAROUND(W-055)
+      # Migrations run from the API's "migrate" entry (the image's dotnet Croft.Api.dll migrate)
+      # before the API starts: an initContainer must exit 0 before the pod's app container is
+      # created, so a failed migration never leaves an API serving against an old schema. The
+      # entry wraps Migrate in a Postgres advisory lock, so several pods starting at once run
+      # the migration chain once (EF's own migration lock covers a single migration only); a
+      # queued init container waits and then finds nothing pending.
+      initContainers:
+        - name: migrate
+          image: croft-api
+          imagePullPolicy: IfNotPresent
+          command: ["dotnet", "Croft.Api.dll"]
+          args: ["migrate"]
+          env:
+            # Order matters: $(VAR) expands only from env entries declared above it.
+            # The connection details come from the blog-db Secret (k8s/secrets.example.md);
+            # an overlay points at another Secret with a patch.
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: blog-db
+                  key: host
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: blog-db
+                  key: port
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: blog-db
+                  key: dbname
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: blog-db
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: blog-db
+                  key: password
+            - name: ConnectionStrings__BlogDb
+              value: "Host=$(DB_HOST);Port=$(DB_PORT);Database=$(DB_NAME);Username=$(DB_USER);Password=$(DB_PASSWORD)"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      containers:
+        - name: api
+          image: croft-api
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            # Order matters: $(VAR) expands only from env entries declared above it.
+            # The connection details come from the blog-db Secret (k8s/secrets.example.md);
+            # an overlay points at another Secret with a patch.
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: blog-db
+                  key: host
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: blog-db
+                  key: port
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: blog-db
+                  key: dbname
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: blog-db
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: blog-db
+                  key: password
+            - name: ConnectionStrings__BlogDb
+              value: "Host=$(DB_HOST);Port=$(DB_PORT);Database=$(DB_NAME);Username=$(DB_USER);Password=$(DB_PASSWORD)"
+            # Uploaded files live on the blog-media-pvc mount below, not in the image.
+            - name: FileStorage__BasePath
+              value: "/app/uploads"
+            # Telemetry: the resource's service.name and the pod identity every exported signal
+            # carries (k8s/README.md, "Telemetry"). OTEL_EXPORTER_OTLP_ENDPOINT is deliberately
+            # not set here — a site that runs a collector adds it.
+            - name: OTEL_SERVICE_NAME
+              value: "croft-api"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            # Order matters: $(VAR) expands only from env entries declared above it.
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "k8s.pod.name=$(POD_NAME),k8s.namespace.name=$(POD_NAMESPACE)"
+          envFrom:
+            - configMapRef:
+                name: blog-api-config
+            - secretRef:
+                name: blog-api-secrets
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            # The root filesystem is read-only; /tmp is the one writable path (the runtime's
+            # diagnostics sockets, ASP.NET's buffering of large request bodies).
+            - name: tmp
+              mountPath: /tmp
+            - name: media
+              mountPath: /app/uploads
+          lifecycle:
+            # WORKAROUND(W-056, Kubernetes): sleep so the ingress drops this pod before the process stops
+            preStop:
+              exec:
+                # Sleep so the Service's endpoints drop this pod before the process
+                # stops; without it requests still routed here fail.
+                command: ["sleep", "10"]
+            # END WORKAROUND(W-056)
+          # Liveness is /health/live: the process serving requests and nothing else, so a database
+          # outage never restarts the pod (a restart cannot fix a dependency). Readiness is
+          # /health/ready: a trivial query on the primary database with a 2 s bound, so a pod that
+          # cannot reach it takes no traffic; timeoutSeconds: 5 covers the bound (the kubelet's
+          # default of 1 s would fail a healthy but slow answer).
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: media
+          persistentVolumeClaim:
+            claimName: blog-media-pvc

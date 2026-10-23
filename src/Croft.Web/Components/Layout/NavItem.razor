@@ -1,0 +1,38 @@
+@* One sidebar entry (spec §7.2): icon + label, optional published-post count, active state from
+   NavLink. The icon takes a Material icon NAME and renders through CategoryIcon —
+   there is no second name→path resolution. title carries the label as the rail tooltip.
+   The wrapper exists because scoped CSS cannot reach NavLink's root element: every
+   rule in NavItem.razor.css targets the link through .nav-item-wrap ::deep, so the styles land on
+   the <a> itself. *@
+<div class="nav-item-wrap">
+    <NavLink href="@Href" Match="@Match" class="nav-item" title="@Text"
+             @attributes="AdminArea.LinkAttributes(InAdminArea, Href)">
+        <CategoryIcon Name="@Icon" Size="20" />
+        <span class="label">@Text</span>
+        @if (Count is not null)
+        {
+            <span class="label count">@Count<span class="visually-hidden">@($" {PostCount.Unit(Count.Value)}")</span></span>
+        }
+    </NavLink>
+</div>
+
+@code {
+    /// <summary>Target URL, e.g. <c>/category/programming</c>.</summary>
+    [Parameter, EditorRequired] public string Href { get; set; } = string.Empty;
+
+    /// <summary>Whether this renders on a staff page (/admin or /editor): a link to the other
+    /// side of that boundary must load a fresh document (see <see cref="AdminArea"/>).</summary>
+    [CascadingParameter(Name = "InAdminArea")] public bool InAdminArea { get; set; }
+
+    /// <summary>Material icon name resolved by <c>CategoryIcon</c>; unknown names render the Folder fallback.</summary>
+    [Parameter] public string? Icon { get; set; }
+
+    /// <summary>Visible label; also the rail tooltip via <c>title</c>.</summary>
+    [Parameter, EditorRequired] public string Text { get; set; } = string.Empty;
+
+    /// <summary>Optional published-post count (categories only); hidden in the rail.</summary>
+    [Parameter] public int? Count { get; set; }
+
+    /// <summary>Active-state matching: prefix for section parents, all for exact destinations.</summary>
+    [Parameter] public NavLinkMatch Match { get; set; } = NavLinkMatch.Prefix;
+}

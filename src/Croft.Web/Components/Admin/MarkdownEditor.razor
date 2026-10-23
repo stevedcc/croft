@@ -1,0 +1,107 @@
+@using System.Globalization
+@using Croft.Shared
+@inject IJSRuntime JS
+
+@* The markdown editor (spec §6.2/§7.4): a textarea with a toolbar whose inserts go at the caret
+   through the blogEditor.insertAtCursor JS helper. "Insert image" is a label over a transparent
+   file input, so clicking it (or keyboard-activating the input) opens the picker and the chosen
+   file goes to the host — the page owns the upload and then inserts the markdown via
+   InsertAtCursorAsync. Over 90% of the content limit the count below the textarea starts
+   showing; over the limit an error line (role="alert") joins it. The text itself is never
+   truncated or dropped — the limit must never lose text — the page just disables its save
+   actions while the content is over it. *@
+<div class="md-editor">
+    <div class="md-editor__toolbar" role="group" aria-label="Formatting">
+        <button type="button" class="md-editor__tool" @onclick='() => InsertAtCursorAsync("**bold**")'>Bold</button>
+        <button type="button" class="md-editor__tool" @onclick='() => InsertAtCursorAsync("*italic*")'>Italic</button>
+        <button type="button" class="md-editor__tool" @onclick='() => InsertAtCursorAsync("## ")'>Heading</button>
+        <button type="button" class="md-editor__tool" @onclick='() => InsertAtCursorAsync("[title](https://)")'>Link</button>
+        <button type="button" class="md-editor__tool" @onclick='() => InsertAtCursorAsync("`code`")'>Code</button>
+        <span class="md-editor__insert">
+            <label class="md-editor__tool" for="md-inline-upload">Insert image</label>
+            <InputFile id="md-inline-upload" class="md-editor__file" aria-label="Upload inline image"
+                       accept="image/png,image/jpeg,image/gif,image/webp" OnChange="RequestImageAsync" />
+        </span>
+        <button type="button" class="md-editor__tool" @onclick="() => OnInsertFromLibraryRequested.InvokeAsync()">Insert from library</button>
+    </div>
+    <textarea class="md-editor__textarea" aria-label="Markdown" rows="18" data-draft-field="body"
+              @ref="_textarea" value="@_renderedValue" @oninput="OnInput"></textarea>
+    @if (Value.Length > CountVisibilityThreshold)
+    {
+        <p class="md-editor__count">@CountText</p>
+    }
+    @if (Value.Length > PostContent.MaxLength)
+    {
+        <p class="md-editor__over" id="@OverLimitId" role="alert">@OverLimitText</p>
+    }
+</div>
+
+@code {
+    /// <summary>The markdown being edited; the host reads it back through the two-way binding.</summary>
+    [Parameter] public string Value { get; set; } = string.Empty;
+
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    /// <summary>Raised with the image the user picked; the host uploads it and inserts the markdown.</summary>
+    [Parameter] public EventCallback<IBrowserFile> OnInsertImageRequested { get; set; }
+
+    /// <summary>Raised by the toolbar's "Insert from library"; the host opens the media picker.</summary>
+    [Parameter] public EventCallback OnInsertFromLibraryRequested { get; set; }
+
+    private ElementReference _textarea;
+
+    // WORKAROUND(W-009, Blazor): a render diff writing the bound value back to the textarea clobbers characters typed while the batch was in flight
+    /// <summary>The value the render tree holds for the textarea. It follows <see cref="Value"/>
+    /// only for changes from OUTSIDE the textarea: the user's own keystrokes are already in the
+    /// DOM, and a render diff that writes them back clobbers characters typed while the batch
+    /// was in flight (measured: burst typing into a 60K post lost 7 of 20 characters to stale
+    /// rewrites).</summary>
+    private string _renderedValue = string.Empty;
+
+    /// <summary>The last value this component produced itself (typing, caret insert).</summary>
+    private string _producedValue = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        if (Value != _producedValue)
+        {
+            _renderedValue = Value;
+            _producedValue = Value;
+        }
+    }
+    // END WORKAROUND(W-009)
+
+    /// <summary>The count line appears once the text is over 90% of the limit.</summary>
+    private static int CountVisibilityThreshold => PostContent.MaxLength * 9 / 10;
+
+    /// <summary>"12,345 / 200,000 characters" — invariant thousands separators, whatever the reader's culture.</summary>
+    private string CountText =>
+        FormattableString.Invariant($"{Value.Length:N0} / {PostContent.MaxLength:N0} characters");
+
+    /// <summary>The id of the over-limit line: the form's disabled buttons point their aria-describedby at it.</summary>
+    public const string OverLimitId = "md-editor-over-limit";
+
+    private static string OverLimitText =>
+        FormattableString.Invariant($"Content must be {PostContent.MaxLength:N0} characters or fewer.");
+
+    /// <summary>Inserts text at the caret and keeps the bound value in step with the textarea.</summary>
+    public async Task InsertAtCursorAsync(string text)
+    {
+        // The textarea DOM owns the caret, so the splice happens in JS; the helper returns the
+        // textarea's new value. Without script (and under loose JS interop in tests) fall back to
+        // appending, so the inserted text is never silently dropped.
+        var value = await JS.InvokeAsync<string?>("blogEditor.insertAtCursor", _textarea, text);
+        Value = value ?? Value + text;
+        _producedValue = Value;
+        await ValueChanged.InvokeAsync(Value);
+    }
+
+    private Task RequestImageAsync(InputFileChangeEventArgs e) => OnInsertImageRequested.InvokeAsync(e.File);
+
+    private Task OnInput(ChangeEventArgs e)
+    {
+        Value = e.Value?.ToString() ?? string.Empty;
+        _producedValue = Value;
+        return ValueChanged.InvokeAsync(Value);
+    }
+}

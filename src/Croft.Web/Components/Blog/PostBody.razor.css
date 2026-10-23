@@ -1,0 +1,135 @@
+/* Spec §5.4 content styling: images scale to the column (rounded, captioned from the Markdown
+   title), code blocks use --code-bg with syntax highlighting, tables get light borders. The
+   rendered markdown is raw HTML (MarkupString), which carries no scope attribute, so every rule
+   reaching inside .markdown-body goes through ::deep — otherwise nothing here would match. */
+
+/* One vertical rhythm, in em so the gaps follow the body text's size (1.125rem, 1.0625rem below
+   960px): a paragraph keeps one em of air below it, blocks step by the same measure, and headings
+   breathe more above than below. The global reset zeroes margins and nothing here set them back,
+   so separate paragraphs used to run together. The body's edges stay flush: its first child has no
+   top margin, its last child no bottom margin — the rhythm is only between elements. */
+.markdown-body ::deep p {
+    margin: 0 0 1em;
+}
+
+.markdown-body ::deep h2 {
+    margin: 1.6em 0 .5em;
+}
+
+.markdown-body ::deep h3 {
+    margin: 1.3em 0 .4em;
+}
+
+.markdown-body ::deep h4,
+.markdown-body ::deep h5,
+.markdown-body ::deep h6 {
+    margin: 1.1em 0 .3em;
+}
+
+.markdown-body ::deep > :first-child {
+    margin-top: 0;
+}
+
+.markdown-body ::deep > :last-child {
+    margin-bottom: 0;
+}
+
+.markdown-body ::deep img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 1.25rem auto;
+    border-radius: 8px;
+}
+
+.markdown-body ::deep figure {
+    margin: 0 0 1em;
+}
+
+.markdown-body ::deep figcaption {
+    margin-top: .45rem;
+    color: var(--muted);
+    font-family: var(--font-ui);
+    font-size: 0.8125rem;
+    text-align: center;
+}
+
+.markdown-body ::deep pre {
+    margin: 0 0 1em;
+    padding: 14px 16px;
+    overflow-x: auto;
+    border-radius: 8px;
+    background: var(--code-bg);
+    color: var(--code-text);
+    font-size: 0.875rem;
+    line-height: 1.55;
+}
+
+.markdown-body ::deep pre code {
+    padding: 0;
+    background: none;
+}
+
+/* WORKAROUND(W-039, MudBlazor): MudBlazor's global a reset removes the underline, so post-body links are underlined again */
+/* Axe link-in-text-block: MudBlazor's global a{text-decoration:none}
+   reset strips the underline, so inline links in running text would rely on colour alone — and
+   --primary against --text is only 1.44:1 (light) / 1.98:1 (dark). Content links are underlined;
+   component links (cards, nav, chips) keep their own designs. */
+.markdown-body ::deep a {
+    text-decoration: underline;
+}
+/* END WORKAROUND(W-039) */
+
+.markdown-body ::deep :not(pre) > code {
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--primary-container);
+    color: var(--text);
+    font-size: .85em;
+}
+
+.markdown-body ::deep table {
+    width: 100%;
+    margin: 0 0 1em;
+    border-collapse: collapse;
+}
+
+.markdown-body ::deep th,
+.markdown-body ::deep td {
+    padding: 6px 10px;
+    border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+    text-align: left;
+}
+
+.markdown-body ::deep th {
+    background: var(--primary-container);
+}
+
+.markdown-body ::deep blockquote {
+    margin: 0 0 1em;
+    padding: .25rem 1rem;
+    border-left: 3px solid var(--primary-container);
+    color: var(--muted);
+}
+
+/* The global reset zeroes list padding and nothing set it back, so outside markers rendered left
+   of the list box — left of the text column on desktop and across the screen edge on phones. The
+   padding strip is where outside markers render: 1.5em keeps them right of the paragraph edge
+   with the item text one step further in, and a nested list repeats the step from its parent's
+   content edge. Lists follow the same rhythm as the rest of the body: one em below the whole
+   list, its items stacked like lines of text with no extra space between them, and a nested list
+   flush inside its item. */
+.markdown-body ::deep ul,
+.markdown-body ::deep ol {
+    margin: 0 0 1em;
+    padding-left: 1.5em;
+}
+
+.markdown-body ::deep li + li {
+    margin-top: 0;
+}
+
+.markdown-body ::deep li > ul,
+.markdown-body ::deep li > ol {
+    margin: 0;
+}

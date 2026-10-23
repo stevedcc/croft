@@ -1,0 +1,147 @@
+@page "/search"
+@attribute [ExcludeFromInteractiveRouting]
+@inject IBlogApiClient Api
+@inject NavigationManager Navigation
+
+<BlogPageTitle Title="Search" />
+@* WORKAROUND(W-008, Blazor): HeadOutlet keeps one HeadContent provider per page, so the feed link sits beside RobotsNoIndex here *@
+<HeadContent><RobotsNoIndex /><FeedAlternateLink /></HeadContent>
+@* END WORKAROUND(W-008) *@
+
+<PageHeader Title="@HeaderTitle" />
+
+@* The search field (spec §5.3): a plain search input with the page's own classes (Search.razor.css),
+   not a MudBlazor one — the reading pages load no MudBlazor stylesheet, and MudInput writes style
+   attributes (its hidden slot's style="display:none" among them) which the public policy bans
+   (style-src-attr 'none'; an attribute-value hash would need 'unsafe-hashes'). The outlined
+   field, the floating label and the adornment are drawn by that stylesheet; the label floats on
+   :focus-within and, once the field holds text, on :has() (placeholder is a single space, so
+   :placeholder-shown is false as soon as anything is typed). *@
+@* WORKAROUND(W-006, Blazor): data-enhance makes the search GET form an enhanced navigation; without it a GET form is a full page load *@
+@* The page is static SSR (no circuit), so the search is a plain GET form: Enter and the button
+   submit it to /search?q=…, which OnParametersSetAsync reads. *@
+<form method="get" action="/search" role="search" data-enhance>
+<div class="search-field">
+    <div class="search-field__box">
+        <input id="search-field" class="search-field__input"
+               type="search" placeholder=" " autocomplete="off" inputmode="text"
+               name="q" value="@_query" />
+        <div class="search-field__adornment">
+            <button class="search-field__button" aria-label="Search" type="submit">
+                <svg class="search-field__icon" focusable="false" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M0 0h24v24H0z" fill="none" />
+                    <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+                </svg>
+            </button>
+        </div>
+        <fieldset class="search-field__border" aria-hidden="true"><legend>Search</legend></fieldset>
+    </div>
+    <label class="search-field__label" for="search-field">Search</label>
+</div>
+</form>
+@* END WORKAROUND(W-006) *@
+
+@if (_searched)
+{
+    @* Static SSR awaits the load before it sends HTML, so _result is set by the time this renders. *@
+    @if (_result is not null)
+    {
+        <PostList Items="@_result.Items" CardHeadingLevel="2" Page="@_page" TotalPages="@TotalPages" EmptyText="No results"
+                  Path="/search" QueryString="@ResultsQueryString" />
+    }
+}
+
+@code {
+    // Search (spec §5.3): "N results for 'q'" header, then List cards (no Featured) paged as on
+    // Home (?page=N merges into the query so q survives), "No results" when there is nothing.
+    private const int PageSize = Croft.Shared.PublicPageSizes.Search;
+
+    private string _query = string.Empty;
+    private string _activeQuery = string.Empty;
+    private bool _searched;
+    private int _page = 1;
+    private PagedResult<PostSummaryDto>? _result;
+    private string? _loadedKey;
+
+    // WORKAROUND(W-023, Blazor): a submit or pager click changes only the query string, and Blazor re-runs the parameter lifecycle only when a supplied parameter changes
+    // q and ?page=N as supplied query parameters on purpose: a search submit or a pager click
+    // changes only the query string, and Blazor re-runs this page's parameter lifecycle only when
+    // a parameter value changes — without this the results never reloaded (caught by the paging
+    // E2E). Absent q (plain /search) stays null; /search?q= supplies the empty string.
+    [SupplyParameterFromQuery(Name = "q")]
+    public string? SearchTerm { get; set; }
+
+    [SupplyParameterFromQuery(Name = "page")]
+    public string? PageNumber { get; set; }
+    // END WORKAROUND(W-023)
+
+    private string HeaderTitle
+    {
+        get
+        {
+            if (!_searched || string.IsNullOrWhiteSpace(_activeQuery))
+            {
+                return "Search";
+            }
+
+            var count = _result?.TotalCount ?? 0;
+            return $"{count} {(count == 1 ? "result" : "results")} for '{_activeQuery}'";
+        }
+    }
+
+    /// <summary>The active search's q=… for the pager links: paging keeps ?q=.</summary>
+    private string ResultsQueryString => string.IsNullOrWhiteSpace(_activeQuery)
+        ? string.Empty
+        : $"q={Uri.EscapeDataString(_activeQuery)}";
+
+    private int TotalPages => _result is null
+        ? 1
+        : Math.Max(1, (int)Math.Ceiling((double)_result.TotalCount / PageSize));
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Loaded from OnParametersSet — not OnInitialized — because Blazor reuses the page
+        // instance when the query string changes (?q= submits and ?page=N links land here).
+        var searched = SearchTerm is not null;
+        var q = SearchTerm ?? string.Empty;
+        var page = PageQuery.ReadPageNumber(new Uri(Navigation.Uri).Query);
+
+        // The guard key is URL-derived only (the supplied parameters mirror the URL): typing in
+        // the box must neither refetch nor clobber the input.
+        var key = $"{SearchTerm}|{PageNumber}";
+
+        if (key == _loadedKey)
+        {
+            return;
+        }
+
+        _loadedKey = key;
+        _searched = searched;
+        _query = q;
+
+        if (!searched)
+        {
+            _activeQuery = string.Empty;
+            _page = 1;
+            _result = null;
+            return;
+        }
+
+        // The loaded state (results, their count and the query they belong to) is assigned only
+        // while this load's key still matches — a superseded response completing late must not
+        // clobber the newer one — and only then, so the header never counts a fetch that has not
+        // landed (no stale or zero count while loading).
+        // The API rejects an empty query (400), and an empty search is simply "No results".
+        var result = string.IsNullOrWhiteSpace(q)
+            ? new PagedResult<PostSummaryDto>(Array.Empty<PostSummaryDto>(), 0, 1, PageSize)
+            : await Api.SearchAsync(q, page, PageSize);
+        if (key != _loadedKey)
+        {
+            return;
+        }
+
+        _activeQuery = q;
+        _page = page;
+        _result = result;
+    }
+}

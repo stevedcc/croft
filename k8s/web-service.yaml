@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: blog-web
+  namespace: blog
+spec:
+  selector:
+    app: blog-web
+  ports:
+    - port: 80
+      targetPort: 8080

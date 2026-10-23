@@ -1,0 +1,17 @@
+@inject IIconCatalog IconCatalog
+
+@* Category icon with the Folder fallback (spec §7.4). IIconCatalog.Resolve only ever returns one
+   of the MudBlazor icon constants — never the requested name — so the markup is trusted content. *@
+<svg class="category-icon" width="@Size" height="@Size" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    @* WORKAROUND(W-036, MudBlazor): renders the catalogue's SVG path markup raw (MarkupString) *@
+    @((MarkupString)IconCatalog.Resolve(Name))
+    @* END WORKAROUND(W-036) *@
+</svg>
+
+@code {
+    /// <summary>Icon name (an <c>Icons.Material.Filled</c> constant name); unknown or empty gives Folder.</summary>
+    [Parameter] public string? Name { get; set; }
+
+    /// <summary>Edge length of the icon in px.</summary>
+    [Parameter] public double Size { get; set; } = 24;
+}

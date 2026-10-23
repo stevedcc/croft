@@ -1,0 +1,94 @@
+/* The Hidden replies page (brief 12c): the admin table of TagsPage (the same rules; the table is scoped to its page). */
+.admin-table__section {
+    margin-top: 2rem;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.admin-table__error {
+    margin: 1rem 0 0;
+    color: var(--primary);
+    font-family: var(--font-ui);
+}
+
+.admin-table__notice {
+    margin: 1rem 0 0;
+    color: var(--text);
+    font-family: var(--font-ui);
+}
+
+.admin-table__empty {
+    margin: .5rem 0 0;
+    color: var(--muted);
+    font-family: var(--font-ui);
+}
+
+.admin-table {
+    width: 100%;
+    margin-top: 1rem;
+    border-collapse: collapse;
+    font-family: var(--font-ui);
+}
+
+.admin-table th {
+    padding: .5rem .75rem;
+    border-bottom: 2px solid var(--primary-container);
+    text-align: left;
+    font-size: .85rem;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.admin-table td {
+    padding: .5rem .75rem;
+    border-bottom: 1px solid var(--primary-container);
+    vertical-align: middle;
+    /* Long labels wrap instead of widening the table past the page at 390px. */
+    overflow-wrap: anywhere;
+}
+
+/* The Actions heading is visual noise in a row of buttons; kept for screen readers. */
+.admin-table__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+/* The table keeps a width its columns can live in; narrower screens scroll the region sideways. */
+/* position: relative: the visually-hidden "Actions" heading is absolutely positioned; without a positioned
+   ancestor inside the region it escapes the region's clip and widens the page. */
+.admin-table__scroll {
+    position: relative;
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.admin-table__scroll:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.admin-table__scroll .admin-table {
+    min-width: 52rem;
+}
+
+.admin-table td {
+    white-space: nowrap;
+}
+
+/* The label and the note are the long ones: they wrap, inside a width that reads. */
+.admin-table td.admin-table__wide {
+    min-width: 14rem;
+    white-space: normal;
+}
+
+/* Unhide stays in view while the rest of the row scrolls sideways on a phone. */
+.admin-table th.admin-table__action,
+.admin-table td.admin-table__action {
+    position: sticky;
+    right: 0;
+    background: var(--bg);
+}

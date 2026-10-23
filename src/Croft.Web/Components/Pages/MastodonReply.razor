@@ -1,0 +1,80 @@
+@page "/discussion/mastodon/reply"
+@attribute [ExcludeFromInteractiveRouting]
+@inject IBlogApiClient Api
+@inject NavigationManager Navigation
+
+<BlogPageTitle Title="Reply on Mastodon" />
+@* WORKAROUND(W-008, Blazor): HeadOutlet keeps one HeadContent provider per page, so the feed link sits beside RobotsNoIndex here *@
+<HeadContent><RobotsNoIndex /><FeedAlternateLink /></HeadContent>
+@* END WORKAROUND(W-008) *@
+
+@* Brief 12b item 3: where the "Reply on Mastodon" form lands. A static page (no circuit), not a reading
+   route: not output-cached, noindex, sets no cookie. A valid server gets a page with ONE link to that
+   server's authorize_interaction for the post's Mastodon URL — a link the reader follows, never a
+   redirect, so this endpoint cannot be used as an open redirect. An invalid server gets the form again
+   with a 400; an unknown post, or one with no Mastodon link, the not-found page (404). Written as a page
+   rather than a minimal endpoint so it wears the site layout without a second renderer. *@
+@if (_continueUrl is not null)
+{
+    <PageHeader Title="@($"Continue to {_host}")" />
+    <p class="mastodon-continue__text">You will be asked to sign in to <strong>@_host</strong> to reply. Croft does not see your account.</p>
+    <p class="mastodon-continue__text">
+        <a class="mastodon-continue__link" href="@_continueUrl" rel="noopener">Open the post on @_host</a>
+    </p>
+}
+else if (_slug is not null)
+{
+    <PageHeader Title="Reply on Mastodon" />
+    @if (_invalid)
+    {
+        <p class="mastodon-continue__error" role="alert">That doesn't look like a server name. Enter the address of your Mastodon server, for example mastodon.example.</p>
+    }
+
+    <MastodonReplyForm Slug="@_slug" Server="@Server" />
+}
+
+@code {
+    /// <summary>The post's slug (the form's hidden field).</summary>
+    [SupplyParameterFromQuery(Name = "post")] public string? Post { get; set; }
+
+    /// <summary>What the reader typed; null when the page is opened without it.</summary>
+    [SupplyParameterFromQuery(Name = "server")] public string? Server { get; set; }
+
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
+    private string? _slug;
+    private string? _host;
+    private string? _continueUrl;
+    private bool _invalid;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var discussion = string.IsNullOrWhiteSpace(Post) ? null : await Api.GetDiscussionAsync(Post);
+        if (discussion?.MastodonUrl is not { } mastodonUrl)
+        {
+            // WORKAROUND(W-024, Blazor): NavigateTo("/not-found") answers 200; NavigationManager.NotFound() makes the renderer set 404
+            Navigation.NotFound();
+            // END WORKAROUND(W-024)
+            return;
+        }
+
+        _slug = Post;
+        if (Server is null)
+        {
+            return;
+        }
+
+        if (MastodonServerName.TryNormalise(Server, out var host))
+        {
+            _host = host;
+            _continueUrl = $"https://{host}/authorize_interaction?uri={Uri.EscapeDataString(mastodonUrl)}";
+            return;
+        }
+
+        _invalid = true;
+        if (HttpContext is not null)
+        {
+            HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+        }
+    }
+}

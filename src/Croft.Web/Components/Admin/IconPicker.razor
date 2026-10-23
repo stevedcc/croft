@@ -1,0 +1,66 @@
+@inject IIconCatalog IconCatalog
+
+@* The icon picker (spec §6.5/§7.4): search over IIconCatalog plus a virtualised grid of every
+   Icons.Material.Filled icon, matched on name. One Virtualize item is a whole row of tiles:
+   Virtualize's size model assumes a uniform single-column list, so individual tiles in a
+   wrapping grid would break its scroll-height math. The "Default (folder)" option sets the
+   icon name to null (the Folder fallback). *@
+<div class="icon-picker">
+    <MudTextField @bind-Value="_query" @bind-Value:after="UpdateRows" Label="Search icons"
+                  Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" />
+
+    <button type="button" class="icon-picker__tile icon-picker__tile--default @SelectedClass(null)"
+            aria-pressed="@(Value is null)" @onclick="SelectDefaultAsync">
+        <CategoryIcon Name="Folder" Size="28" />
+        <span class="icon-picker__name">Default (folder)</span>
+    </button>
+
+    <div class="icon-picker__grid">
+        <Virtualize Items="_rows" Context="row" ItemSize="84">
+            <div class="icon-picker__row">
+                @foreach (var name in row)
+                {
+                    <button type="button" class="icon-picker__tile @SelectedClass(name)"
+                            aria-pressed="@(Value == name)" @onclick="() => SelectAsync(name)">
+                        <CategoryIcon Name="@name" Size="28" />
+                        <span class="icon-picker__name">@name</span>
+                    </button>
+                }
+            </div>
+        </Virtualize>
+    </div>
+</div>
+
+@code {
+    /// <summary>Icons per virtualised row; the tiles flex to the picker's width.</summary>
+    private const int TileColumns = 8;
+
+    /// <summary>The selected icon name (an <c>Icons.Material.Filled</c> constant name); null is the default (folder) icon.</summary>
+    [Parameter] public string? Value { get; set; }
+
+    /// <summary>Two-way binding for <see cref="Value"/> (<c>@bind-Value</c>).</summary>
+    [Parameter] public EventCallback<string?> ValueChanged { get; set; }
+
+    private string _query = string.Empty;
+    private string[][] _rows = [];
+
+    protected override void OnInitialized() => UpdateRows();
+
+    private void UpdateRows() =>
+        _rows = [.. IconCatalog.Search(_query, IconCatalog.Names.Count).Chunk(TileColumns)];
+
+    private async Task SelectAsync(string name)
+    {
+        Value = name;
+        await ValueChanged.InvokeAsync(name);
+    }
+
+    private async Task SelectDefaultAsync()
+    {
+        Value = null;
+        await ValueChanged.InvokeAsync(null);
+    }
+
+    private string SelectedClass(string? name) =>
+        Value == name ? "icon-picker__tile--selected" : string.Empty;
+}

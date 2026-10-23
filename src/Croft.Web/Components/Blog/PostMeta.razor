@@ -1,0 +1,57 @@
+@using Croft.Shared.Enums
+@using System.Globalization
+@namespace Croft.Web.Components
+@* The meta line (spec §5.1): "2 October 2026 · 7 min read" (en-GB date), with an
+   optional status badge for admin/draft contexts (spec §7.3). No date (drafts)
+   means no dangling separator. When the content was edited on a later UTC calendar day than it
+   was published, the line ends with "· Updated <date>" (brief 07g item 3) — the edit moment is
+   ContentEditedAt, never UpdatedAt (which also moves on publish/unpublish/scheduling). *@
+<div class="post-meta">
+    <span class="post-meta__when">@DisplayText</span>
+    @if (Status is not null)
+    {
+        <StatusBadge Status="Status!.Value" />
+    }
+</div>
+
+@code {
+    /// <summary>Publication moment (UTC) or null for drafts.</summary>
+    [Parameter] public DateTime? PublishedAt { get; set; }
+
+    /// <summary>Reading time in minutes (ceil(words/220), min 1); omitted on surfaces with no
+    /// reading time (pages).</summary>
+    [Parameter] public int? ReadingMinutes { get; set; }
+
+    /// <summary>The last content edit (UTC); shows an "Updated" segment when it falls on a later
+    /// calendar day (UTC) than <see cref="PublishedAt"/>.</summary>
+    [Parameter] public DateTime? ContentEditedAt { get; set; }
+
+    /// <summary>Show a status badge in admin/draft contexts (spec §7.3); omitted on public cards.</summary>
+    [Parameter] public PostStatus? Status { get; set; }
+
+    private static readonly CultureInfo EnGb = CultureInfo.GetCultureInfo("en-GB");
+
+    private string DisplayText
+    {
+        get
+        {
+            if (PublishedAt is not { } publishedAt)
+                return ReadingMinutes is { } onlyMinutes ? $"{onlyMinutes} min read" : string.Empty;
+
+            var published = UtcDay(publishedAt);
+            var text = ReadingMinutes is { } minutes
+                ? $"{published.ToString("d MMMM yyyy", EnGb)} · {minutes} min read"
+                : published.ToString("d MMMM yyyy", EnGb);
+
+            // The day comparison is in UTC calendar days — the same clock the dates are
+            // formatted in — so a moment just after UTC midnight counts as a new day.
+            if (ContentEditedAt is { } editedAt && UtcDay(editedAt) > published)
+                text += $" · Updated {UtcDay(editedAt).ToString("d MMMM yyyy", EnGb)}";
+
+            return text;
+        }
+    }
+
+    private static DateTime UtcDay(DateTime value) =>
+        (value.Kind == DateTimeKind.Utc ? value : value.ToUniversalTime()).Date;
+}

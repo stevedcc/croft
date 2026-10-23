@@ -1,0 +1,47 @@
+/* The not-found copy as a static document draws it: the reading pages load no MudBlazor, so
+   the heading and the two text buttons are plain elements styled here to the same look the
+   MudBlazor rendering has (a 3rem serif heading; upper-case 500-weight links in the accent
+   colour, washed on hover, focus and press; keyboard focus adds the outline from app.css). */
+.not-found__title {
+    margin: 0 0 8px;
+    font-family: var(--font-serif);
+    font-size: 3rem;
+    font-weight: 400;
+    line-height: 1.167;
+    letter-spacing: 0;
+}
+
+.not-found__link {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 64px;
+    padding: 6px 8px;
+    overflow: hidden;
+    border-radius: 4px;
+    background-color: transparent;
+    color: var(--primary);
+    cursor: pointer;
+    font-family: var(--font-ui);
+    font-size: .875rem;
+    font-weight: 500;
+    line-height: 1.75;
+    letter-spacing: .02857em;
+    text-decoration: none;
+    text-transform: uppercase;
+    transition: background-color 250ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 250ms cubic-bezier(0.4, 0, 0.2, 1), border 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+    vertical-align: middle;
+}
+
+.not-found__link:focus-visible,
+.not-found__link:active {
+    background-color: color-mix(in srgb, var(--primary) 5.88235%, transparent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .not-found__link:hover {
+        background-color: color-mix(in srgb, var(--primary) 5.88235%, transparent);
+    }
+}

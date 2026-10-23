@@ -1,0 +1,34 @@
+/* One quiet line (two on a phone): UI font at the sidebar's label size, muted text, links in the
+   link colour. It follows the page content, so it is neither fixed nor sticky. */
+.site-footer {
+    margin-top: 48px;
+    padding-top: 16px;
+    border-top: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+    color: var(--muted);
+    font-family: var(--font-ui);
+    font-size: 14.5px;
+    line-height: 1.5;
+}
+
+.site-footer a {
+    color: var(--primary);
+}
+
+.site-footer__sep {
+    color: var(--muted);
+}
+
+/* The profile icon group (brief 11a item 5): the links carry padding so every target is at
+   least 24x24 CSS px at the footer's 14.5px text (WCAG 2.2 target size), and the marks follow
+   the footer's link colour through fill="currentColor". Focus gets the site's usual ring: the
+   09i rule covers footer links as a[href]. */
+.site-footer__profiles {
+    display: inline-flex;
+    align-items: center;
+}
+
+.site-footer__profile {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px;
+}

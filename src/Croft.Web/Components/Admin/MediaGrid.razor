@@ -1,0 +1,313 @@
+@inject IBlogApiClient Api
+@inject IJSRuntime JS
+@inject ILogger<MediaGrid> Logger
+
+@* The media grid (spec §6.4/§7.4): thumbnails of media assets with the manage actions on the
+   admin page, or a click-to-pick surface for the editor's dialog. Asset URLs are the DTO's
+   relative /api/media/{id} (proxied by the Web app), so thumbnails load for draft content too.
+   Opened from the editor (Pick mode with a post), the scope switch flips between the global
+   images (default) and "this post's images" (spec §6.4). *@
+<div class="media-grid">
+    @if (Mode == MediaGridMode.Pick && PostId is not null)
+    {
+        <div class="media-grid__scopes" role="group" aria-label="Image scope">
+            <button type="button" class="media-grid__scope @(_usePostScope ? "" : "media-grid__scope--active")"
+                    aria-pressed="@(_usePostScope ? "false" : "true")" @onclick="() => SwitchScopeAsync(false)">All images</button>
+            <button type="button" class="media-grid__scope @(_usePostScope ? "media-grid__scope--active" : "")"
+                    aria-pressed="@(_usePostScope ? "true" : "false")" @onclick="() => SwitchScopeAsync(true)">This post's images</button>
+        </div>
+    }
+    @if (Mode == MediaGridMode.Manage)
+    {
+        <div class="media-upload @(_dragging ? "media-upload--active" : "")"
+             @ondragenter="OnDragEnter" @ondragleave="OnDragLeave" @ondragover:preventDefault @ondrop="OnDrop">
+            <p class="media-upload__hint">Drag images here, or choose files</p>
+            <InputFile class="media-upload__input" multiple aria-label="Upload images" OnChange="UploadAsync" />
+            @if (_uploading)
+            {
+                <MudProgressLinear Indeterminate="true" Class="media-upload__progress" />
+            }
+        </div>
+    }
+
+    @if (_error is not null)
+    {
+        <p class="media-grid__error" role="alert">@_error</p>
+    }
+
+    <div class="media-grid__toolbar">
+        <MudTextField @bind-Value="_filter" Label="Search filenames" Variant="Variant.Outlined"
+                      Margin="Margin.Dense" Immediate="true" Adornment="Adornment.End"
+                      AdornmentIcon="@Icons.Material.Filled.Search" AdornmentAriaLabel="Search"
+                      OnAdornmentClick="FilterAsync" OnKeyDown="FilterKeyDown" Class="media-grid__search" />
+        @if (_totalPages > 1)
+        {
+            <MudPagination Count="_totalPages" Selected="_page" SelectedChanged="PageChangedAsync" Class="media-grid__pager" />
+        }
+    </div>
+
+    @if (_tiles.Count == 0 && _error is null)
+    {
+        <p class="media-grid__empty">No images yet.</p>
+    }
+    else if (Mode == MediaGridMode.Pick)
+    {
+        <ul class="media-grid__tiles">
+            @foreach (var tile in _tiles)
+            {
+                <li class="media-tile" @key="tile.Asset.Id">
+                    <button type="button" class="media-tile__pick" @onclick="() => PickAsync(tile)">
+                        @* The file name is the button's text, so without alt text the image adds nothing: the same words as
+                           alt text would be read twice (axe image-redundant-alt). *@
+                        <img class="media-tile__image" src="@tile.Asset.Url" alt="@tile.Alt" />
+                        <span class="media-tile__name">@tile.Asset.OriginalName</span>
+                    </button>
+                </li>
+            }
+        </ul>
+    }
+    else
+    {
+        <ul class="media-grid__tiles">
+            @foreach (var tile in _tiles)
+            {
+                <li class="media-tile" @key="tile.Asset.Id">
+                    <img class="media-tile__image" src="@tile.Asset.Url" alt="@AltFor(tile)" />
+                    <p class="media-tile__name">@tile.Asset.OriginalName</p>
+                    <MudTextField @bind-Value="tile.Alt" Label="Alt text" MaxLength="300"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  OnBlur="() => SaveAltAsync(tile)" Class="media-tile__alt" />
+                    <div class="media-tile__actions">
+                        <MudButton Size="Size.Small" OnClick="() => CopyMarkdownAsync(tile)">Copy Markdown</MudButton>
+                        <MudButton Size="Size.Small" OnClick="() => CopyUrlAsync(tile)">Copy URL</MudButton>
+                        <MudButton Size="Size.Small" Color="Color.Error" OnClick="() => AskDelete(tile)">Delete</MudButton>
+                    </div>
+                    @if (tile.ConfirmingDelete)
+                    {
+                        <div class="media-tile__confirm" role="group" aria-label="Confirm delete">
+                            <p class="media-tile__confirm-text">Delete this image? Posts embedding the image in their content will show a broken image.</p>
+                            <div class="media-tile__actions">
+                                <MudButton Size="Size.Small" Color="Color.Error" OnClick="() => ConfirmDeleteAsync(tile)">Delete image</MudButton>
+                                <MudButton Size="Size.Small" OnClick="() => CancelDelete(tile)">Cancel</MudButton>
+                            </div>
+                        </div>
+                    }
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    /// <summary>Matches the API's 10 MB upload limit.</summary>
+    private const long MaxUploadBytes = 10 * 1024 * 1024;
+
+    /// <summary>Thumbnails per page: one bounded grid, never the whole library.</summary>
+    private const int PageSize = 24;
+
+    /// <summary>Manage shows the per-asset actions; Pick makes each tile raise <see cref="OnPicked"/>.</summary>
+    [Parameter] public MediaGridMode Mode { get; set; } = MediaGridMode.Manage;
+
+    /// <summary>Set to "this post's images" mode (list and upload under that post); null lists the global images.</summary>
+    [Parameter] public Guid? PostId { get; set; }
+
+    /// <summary>Raised when a tile is clicked in <see cref="MediaGridMode.Pick"/> mode.</summary>
+    [Parameter] public EventCallback<MediaAssetDto> OnPicked { get; set; }
+
+    private readonly List<Tile> _tiles = [];
+    private bool _uploading;
+    private bool _dragging;
+    private string? _error;
+    private bool _usePostScope;
+    private int _loadKey;
+    private int _page = 1;
+    private string _filter = string.Empty;
+    private int _totalPages = 1;
+
+    /// <summary>"This post's images" is the Pick switch's second scope (spec §6.4); Manage mode
+    /// with a PostId is R4.3's post grid and keeps listing the post's media.</summary>
+    private bool UsePostScope => PostId is not null && (Mode == MediaGridMode.Manage || _usePostScope);
+
+    // WORKAROUND(W-023, Blazor): OnInitialized runs twice on a full load (prerender, then the circuit); [PersistentState] skips the second fetch
+    /// <summary>The first page the prerender loaded, restored for the circuit so a full page load
+    /// fetches it once. Only the first load uses it (a filter or a page change loads fresh).</summary>
+    [PersistentState]
+    public PagedResult<MediaAssetDto>? InitialPage { get; set; }
+    // END WORKAROUND(W-023)
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (InitialPage is { } restored)
+        {
+            ShowPage(restored);
+            return;
+        }
+
+        InitialPage = await LoadAsync();
+    }
+
+    private void ShowPage(PagedResult<MediaAssetDto> result)
+    {
+        _totalPages = Math.Max(1, (int)Math.Ceiling((double)result.TotalCount / PageSize));
+        _tiles.Clear();
+        _tiles.AddRange(result.Items.Select(asset => new Tile(asset)));
+    }
+
+    private async Task<PagedResult<MediaAssetDto>?> LoadAsync()
+    {
+        var key = ++_loadKey;
+        _error = null;
+        try
+        {
+            var result = UsePostScope
+                ? await Api.GetPostMediaAsync(PostId!.Value, _page, PageSize, _filter)
+                : await Api.GetGlobalMediaAsync(_page, PageSize, _filter);
+            if (key != _loadKey)
+            {
+                // A scope switch started a newer load; only the latest one owns the listing.
+                return null;
+            }
+
+            ShowPage(result);
+            return result;
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "loading the media library", ex);
+            if (key == _loadKey)
+            {
+                _error = ex.Message;
+            }
+
+            return null;
+        }
+    }
+
+    private Task FilterAsync()
+    {
+        _page = 1;
+        return LoadAsync();
+    }
+
+    private async Task FilterKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await FilterAsync();
+        }
+    }
+
+    private Task PageChangedAsync(int page)
+    {
+        _page = page;
+        return LoadAsync();
+    }
+
+    private Task SwitchScopeAsync(bool usePostScope)
+    {
+        _usePostScope = usePostScope;
+        _page = 1;
+        return LoadAsync();
+    }
+
+    private async Task UploadAsync(InputFileChangeEventArgs e)
+    {
+        _error = null;
+        _uploading = true;
+        try
+        {
+            foreach (var file in e.GetMultipleFiles())
+            {
+                await using var stream = file.OpenReadStream(MaxUploadBytes);
+                var created = await Api.UploadMediaAsync(
+                    stream, file.Name, file.ContentType, PostId, PostId is null ? "Global" : "PostSpecific");
+                _tiles.Insert(0, new Tile(created));
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException)
+        {
+            // Upload failures surface in the same error line as the delete refusal (the API's
+            // rejection, or a file over OpenReadStream's limit); the rest of the batch stops.
+            _error = "Could not upload the file. Only PNG, JPEG, GIF and WebP images up to 10 MB are allowed.";
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private void OnDragEnter(DragEventArgs _) => _dragging = true;
+
+    private void OnDragLeave(DragEventArgs _) => _dragging = false;
+
+    private void OnDrop(DragEventArgs _) => _dragging = false;
+
+    private async Task SaveAltAsync(Tile tile)
+    {
+        var alt = string.IsNullOrWhiteSpace(tile.Alt) ? null : tile.Alt;
+        tile.Alt = alt ?? string.Empty;
+        tile.Asset = tile.Asset with { AltText = alt };
+        try
+        {
+            await Api.UpdateMediaAsync(tile.Asset.Id, new UpdateMediaRequest(alt));
+        }
+        catch (HttpRequestException ex)
+        {
+            // Like the upload and delete actions, a failed save surfaces inline.
+            _error = ex.Message;
+        }
+    }
+
+    private async Task CopyMarkdownAsync(Tile tile) =>
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", $"![{tile.Alt}]({tile.Asset.Url})");
+
+    private async Task CopyUrlAsync(Tile tile) =>
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", tile.Asset.Url);
+
+    private void AskDelete(Tile tile)
+    {
+        _error = null;
+        tile.ConfirmingDelete = true;
+    }
+
+    private void CancelDelete(Tile tile) => tile.ConfirmingDelete = false;
+
+    private async Task ConfirmDeleteAsync(Tile tile)
+    {
+        try
+        {
+            await Api.DeleteMediaAsync(tile.Asset.Id);
+        }
+        catch (Exception ex) when (ex is DeleteConflictException or HttpRequestException)
+        {
+            // The API refuses to delete an image that is still a post's banner; its message names
+            // the post(s) and is shown as-is. A session that ended mid-call, or any other failed
+            // call, shows the same way (the sign-in redirect runs on its own).
+            if (ex is HttpRequestException failure)
+            {
+                ApiFailureLog.Failed(Logger, "deleting an image", failure);
+            }
+
+            _error = ex.Message;
+            tile.ConfirmingDelete = false;
+            return;
+        }
+
+        _tiles.Remove(tile);
+    }
+
+    private Task PickAsync(Tile tile) => OnPicked.InvokeAsync(tile.Asset);
+
+    private static string AltFor(Tile tile) => string.IsNullOrEmpty(tile.Alt) ? tile.Asset.OriginalName : tile.Alt;
+
+    /// <summary>The grid's mutable view of an asset: the DTO plus the alt text being edited.</summary>
+    private sealed class Tile(MediaAssetDto asset)
+    {
+        public MediaAssetDto Asset { get; set; } = asset;
+
+        public string Alt { get; set; } = asset.AltText ?? string.Empty;
+
+        /// <summary>Whether this tile's delete confirmation is open (per tile, not global).</summary>
+        public bool ConfirmingDelete { get; set; }
+    }
+}

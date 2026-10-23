@@ -1,0 +1,262 @@
+/* The rail-less "On this page" panel, in its three states. The state classes are toggled by
+   wwwroot/js/post.js, which also keeps the panel's flow footprint constant while it shrinks to
+   the row or opens as a drawer: it writes height and margin-bottom through the CSSOM so
+   height + margin always add up to the block's natural height and nothing below the panel ever
+   jumps. The row height (48px) is a touch target and the pages' heading scroll-margin-top
+   (Post.razor.css, DraftReviewPage.razor.css) — change all three together. */
+
+/* At content widths where the rail shows (main's 1000px @container threshold) the rail carries
+   Tags + "On this page" and this panel renders nothing — on either post surface: neither the
+   panel nor its scrim. */
+@container (min-width: 1000px) {
+    .toc-inline,
+    .toc-inline__scrim {
+        display: none;
+    }
+}
+
+.toc-inline {
+    min-width: 0;
+    /* The block's air above the hero (brief 07i item 1): the same margin on the same structural
+       edge — top of the block that follows the hero — as the text gets on a post without a panel
+       (.post-layout's margin-top in Post.razor.css and DraftReviewPage.razor.css). The hero then
+       leaves the panel exactly the space it leaves the text, and the text's own margin-top
+       supplies the same again below the panel. Change the three values together. */
+    margin-top: 2.5rem;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    color: var(--muted);
+    transition: height 200ms ease, margin-bottom 200ms ease;
+}
+
+/* Pinning is part of the enhancement: without JavaScript (and before the module runs) the block
+   stays in normal flow — nothing floats over the text while it scrolls. */
+.toc-inline--enhanced {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+}
+
+/* States 2 and 3 sit over the scrolling text. */
+.toc-inline--pinned,
+.toc-inline--open {
+    background: var(--bg);
+}
+
+.toc-inline--pinned {
+    overflow: hidden;
+    border-bottom: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+}
+
+/* State 3 (the drawer) floats over the scrim-dimmed page: it takes an elevation shadow. The
+   theme defines no elevation token (the brandable palette is colour-only), so the drawer's
+   shadow is the specified one (brief 07i item 3): 0 4px 16px black 24%. Brief 09e item 3: while
+   it is open it also raises its layer above the post's tags and everything else the article can
+   draw — the article's own stacking tops out at z-index 5 today (Post's hero/cards 1–3,
+   DraftReviewPage's add-feedback 5) and 40 clears it with headroom; nothing else here lives
+   between the scrim (20) and 40, and the scrim must stay under the drawer either way. */
+.toc-inline--open {
+    box-shadow: 0 4px 16px rgb(0 0 0 / 24%);
+    z-index: 40;
+}
+
+/* The one-row bar: the current section's title and a chevron that doubles as the pull handle.
+   Its own touch-action so a drag anywhere on the row pulls the drawer instead of scrolling the
+   page (brief 09e item 4: a reader pulls where the text is) — the row is only ever shown pinned
+   or as the drawer's header, so page scrolling elsewhere is untouched. */
+.toc-inline__row {
+    display: none;
+    width: 100%;
+    height: 48px;
+    align-items: center;
+    gap: 8px;
+    padding: 0 4px 0 12px;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    /* WORKAROUND(W-016, Browsers): touch-action none so a drag on the outline row, handle or strip pulls the drawer instead of scrolling the page */
+    touch-action: none;
+    /* END WORKAROUND(W-016) */
+}
+
+.toc-inline--pinned .toc-inline__row,
+.toc-inline--open .toc-inline__row {
+    display: flex;
+}
+
+.toc-inline__row-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The pull target: its own touch-action so a drag pulls the drawer instead of scrolling the page. */
+.toc-inline__handle {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 48px;
+    color: var(--muted);
+    /* WORKAROUND(W-016, Browsers): touch-action none so a drag on the outline row, handle or strip pulls the drawer instead of scrolling the page */
+    touch-action: none;
+    /* END WORKAROUND(W-016) */
+    cursor: grab;
+}
+
+.toc-inline__chevron {
+    transition: transform 200ms ease;
+}
+
+.toc-inline--open .toc-inline__chevron {
+    transform: rotate(180deg);
+}
+
+/* State 1 (the block): the list on the left, the tags in a column on the right. */
+/* The list block (title, list, "+N more…", tags) fades with the block's height instead of
+   popping: when the block collapses to the row or grows back, every frame shows the row or the
+   list — never an empty area under the row. The opacity transition runs exactly alongside the
+   height's (same 200ms, same easing), so the two stay in lockstep: by the time the block is
+   more than 8px taller than the row, the list is at least faintly painted; by the time it
+   fades out, the block is already at the row's height. visibility rides along (discrete: it
+   flips to hidden only at the fade-out's end, to visible at the fade-in's start) so a hidden
+   list leaves the tab order, exactly as display:none did. The lockstep's domain: height and
+   opacity share one eased progress, so gap > 8px and opacity < 0.05 can only coexist when the
+   block is more than 160px taller than the row (8px / 5%); posts whose block grows taller than
+   that (a very long tag column) can see a violating frame of a few milliseconds at 3–5% opacity
+   — measured bound, brief 09e's final review. */
+.toc-inline__body {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 200ms ease, visibility 200ms ease;
+}
+
+/* Closed and pinned the block collapses away behind the row. */
+.toc-inline--pinned:not(.toc-inline--open) .toc-inline__body {
+    opacity: 0;
+    visibility: hidden;
+}
+
+.toc-inline__list-column {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.toc-inline__tags {
+    flex: 0 1 auto;
+    max-width: 42%;
+}
+
+/* State 3 (the drawer): the full list, scrolling inside at most 70vh, with the row as its header. */
+.toc-inline--open .toc-inline__row {
+    padding-right: 8px;
+}
+
+.toc-inline--open ::deep .toc__title {
+    display: none;
+}
+
+.toc-inline--open ::deep .toc__list {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+/* State 1 shows at most five entries — and only once the states are enhanced in at all
+   (post.js adds --enhanced): without JavaScript nothing is truncated and the "+N more…"
+   button, whose drawer needs JavaScript, is not shown. The truncation and its button are one
+   promise: either both (over five sections) or neither. */
+.toc-inline--enhanced:not(.toc-inline--open) ::deep .toc__list > li:nth-child(n + 6) {
+    display: none;
+}
+
+.toc-inline__more {
+    display: none;
+    margin: 2px 0 0;
+    padding: 6px 0;
+    border: 0;
+    background: none;
+    color: var(--primary);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+}
+
+.toc-inline--enhanced .toc-inline__more {
+    display: block;
+}
+
+.toc-inline--enhanced.toc-inline--open .toc-inline__more {
+    display: none;
+}
+
+/* The drawer's bottom strip (brief 07i item 2): the pull-up target, at least 24px tall, with
+   the grab bar centred in it — 36×4, fully rounded, the muted text colour. Shown only while the
+   drawer is open; the closed block and the pinned row show nothing. */
+.toc-inline__strip {
+    display: none;
+    height: 28px;
+    align-items: center;
+    justify-content: center;
+    margin-top: 12px;
+    /* WORKAROUND(W-016, Browsers): touch-action none so a drag on the outline row, handle or strip pulls the drawer instead of scrolling the page */
+    touch-action: none;
+    /* END WORKAROUND(W-016) */
+    cursor: grab;
+}
+
+.toc-inline--open .toc-inline__strip {
+    display: flex;
+}
+
+.toc-inline__grab {
+    width: 36px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--muted);
+}
+
+/* The scrim over the page below the opened drawer (brief 07i item 3). The panel's stacking
+   context (z-index 40 while the drawer is open, 30 pinned/closed) sits above it, so the drawer
+   paints over the dim while everything below the drawer's bottom edge shows it. Its top edge
+   follows the drawer through the CSSOM (post.js); closed it is invisible and outside the hit
+   test, so it can live in the DOM for both states and fade between them. The alpha itself never
+   appears here: the theme's --scrim token (app.css) carries it, so the public pages'
+   style-attribute-free policy holds. */
+.toc-inline__scrim {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    background: var(--scrim);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 200ms ease, visibility 200ms ease;
+}
+
+.toc-inline--open ~ .toc-inline__scrim {
+    opacity: 1;
+    visibility: visible;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .toc-inline,
+    .toc-inline__body,
+    .toc-inline__chevron,
+    .toc-inline__scrim {
+        transition: none;
+    }
+}

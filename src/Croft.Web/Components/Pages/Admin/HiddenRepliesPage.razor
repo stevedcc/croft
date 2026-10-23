@@ -1,0 +1,149 @@
+@page "/admin/discussion/blocks"
+@attribute [Authorize(Roles = "Admin")]
+@using System.Globalization
+@using Croft.Shared.Contracts.Social
+@inject IBlogApiClient Api
+@inject IDialogService Dialogs
+@inject ILogger<HiddenRepliesPage> Logger
+
+<BlogPageTitle Title="Hidden replies" />
+@* WORKAROUND(W-008, Blazor): HeadOutlet keeps one HeadContent provider per page, so the feed link sits beside RobotsNoIndex here *@
+<HeadContent><RobotsNoIndex /><FeedAlternateLink /></HeadContent>
+@* END WORKAROUND(W-008) *@
+
+<PageHeader Title="Hidden replies" />
+
+@* Hidden replies (brief 12c): every block the moderation has made, newest first, each with Unhide. Hiding a reply
+   or an account is done from a post's Discussion tab; here the owner sees what is hidden and brings it back. *@
+@if (_error is not null)
+{
+    <p class="admin-table__error" role="alert">@_error</p>
+}
+
+@if (_notice is not null)
+{
+    <p class="admin-table__notice" role="status">@_notice</p>
+}
+
+<section class="admin-table__section">
+    @if (_blocks.Count == 0)
+    {
+        <p class="admin-table__empty">Nothing is hidden.</p>
+    }
+    else
+    {
+        @* Seven columns do not fit a phone: the table scrolls sideways inside its own region (focusable, named, so the
+           keyboard can scroll it) instead of breaking words and buttons apart. *@
+        <div class="admin-table__scroll" role="region" aria-label="Hidden replies" tabindex="0">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Platform</th>
+                    <th>What</th>
+                    <th>Label</th>
+                    <th>Note</th>
+                    <th>Hidden by</th>
+                    <th>When</th>
+                    <th class="admin-table__action"><span class="admin-table__label">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var block in _blocks)
+                {
+                    <tr class="admin-table__row" @key="block.Id">
+                        <td>@(block.Platform == SocialPlatform.Bluesky ? "Bluesky" : "Mastodon")</td>
+                        <td>@(block.Kind == SocialBlockKind.Account ? "Account" : "Reply")</td>
+                        <td class="admin-table__wide">@block.Label</td>
+                        <td class="admin-table__wide">@block.Note</td>
+                        <td>@block.CreatedBy</td>
+                        <td>@block.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) UTC</td>
+                        <td class="admin-table__action">
+                            <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                       aria-label="@($"Unhide: {block.Label ?? block.ExternalId}")"
+                                       OnClick="() => UnhideAsync(block)">Unhide</MudButton>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        </div>
+    }
+</section>
+
+@code {
+    private IReadOnlyList<SocialBlockDto> _blocks = [];
+    private string? _error;
+    private string? _notice;
+
+    // WORKAROUND(W-023, Blazor): OnInitialized runs twice on a full load (prerender, then the circuit); [PersistentState] skips the second fetch
+    /// <summary>The list the prerender loaded, restored for the circuit so a full page load reads it once.
+    /// Left null when the read failed: the circuit's own run then retries and shows the error.</summary>
+    [PersistentState]
+    public List<SocialBlockDto>? Initial { get; set; }
+    // END WORKAROUND(W-023)
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Initial is { } restored)
+        {
+            _blocks = restored;
+            return;
+        }
+
+        if (await LoadAsync() is { } loaded)
+        {
+            Initial = [.. loaded];
+        }
+    }
+
+    // A failed API call (a session that ends mid-call, a restarting API, a refused request) is shown as the
+    // error line and logged; the exception must not end the circuit.
+    private async Task<IReadOnlyList<SocialBlockDto>?> LoadAsync()
+    {
+        try
+        {
+            _blocks = await Api.GetSocialBlocksAsync();
+            return _blocks;
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "loading the hidden replies", ex);
+            _error = ex.Message;
+            return null;
+        }
+    }
+
+    private async Task UnhideAsync(SocialBlockDto block)
+    {
+        _error = null;
+        _notice = null;
+        var confirmed = await Dialogs.ShowMessageBoxAsync(
+            block.Kind == SocialBlockKind.Account ? "Unhide this account?" : "Unhide this reply?",
+            block.Kind == SocialBlockKind.Account
+                ? "The account's replies come back at the next fetch, if they still exist."
+                : "The reply comes back at the next fetch, if it still exists.",
+            yesText: "Unhide",
+            noText: null,
+            cancelText: "Cancel");
+        if (confirmed is not true)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!await Api.DeleteSocialBlockAsync(block.Id))
+            {
+                _notice = "Already unhidden.";
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "unhiding a reply", ex);
+            _error = ex.Message;
+            return;
+        }
+
+        await LoadAsync();
+    }
+}

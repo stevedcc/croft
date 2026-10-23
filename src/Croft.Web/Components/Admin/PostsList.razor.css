@@ -1,0 +1,44 @@
+/* The posts list toolbar (spec §6.1): status chips as toggle buttons in the UI font; the active
+   chip is the current filter, so it takes the crimson accent (colour roles, spec §3.1). The
+   search field is MudBlazor's markup, so it is styled through ::deep. */
+.posts-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .75rem 1.25rem;
+    margin: 1rem 0 0;
+}
+
+.posts-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.posts-filters__chip {
+    padding: 3px 12px;
+    border: 1px solid var(--muted);
+    border-radius: 999px;
+    background: none;
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.posts-filters__chip--active {
+    border-color: var(--primary);
+    background: var(--primary-container);
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.posts-toolbar ::deep .posts-search {
+    min-width: 220px;
+}
+
+.posts__error {
+    margin: 1rem 0 0;
+    color: var(--primary);
+    font-family: var(--font-ui);
+}

@@ -1,0 +1,106 @@
+/* The feedback notes panel (spec §6.2): quote cards, an optional add form and the collapsed
+   resolved group. Crimson marks the actions (act); surfaces use the shared tokens. */
+.feedback-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+    font-family: var(--font-ui);
+    font-size: 14px;
+}
+
+.feedback-panel__add {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.feedback-panel__label {
+    color: var(--muted);
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+.feedback-panel__add textarea {
+    padding: 6px 8px;
+    border: 1px solid var(--muted);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13.5px;
+    resize: vertical;
+}
+
+.feedback-panel__button,
+.feedback-note__resolve {
+    align-self: flex-start;
+    padding: 4px 10px;
+    border: 1px solid var(--muted);
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+}
+
+.feedback-panel__button:hover,
+.feedback-note__resolve:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.feedback-panel__open,
+.feedback-panel__resolved ul {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.feedback-panel__empty {
+    margin: 0;
+    color: var(--muted);
+}
+
+.feedback-note {
+    padding: 10px 12px;
+    border: 1px solid var(--muted);
+    border-radius: 6px;
+    background: var(--surface);
+}
+
+.feedback-note__quote {
+    margin: 0 0 6px;
+    padding-left: 10px;
+    border-left: 3px solid var(--secondary);
+    color: var(--muted);
+    font-family: var(--font-serif);
+    font-style: italic;
+}
+
+.feedback-note__comment {
+    margin: 0 0 6px;
+    color: var(--text);
+    overflow-wrap: anywhere;
+}
+
+.feedback-note__author {
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.feedback-panel__resolved summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.feedback-panel__resolved ul {
+    margin-top: 12px;
+}

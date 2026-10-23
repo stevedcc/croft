@@ -1,0 +1,9 @@
+# Keep the build context to source only: both images build from the repo ROOT
+# (they need Croft.Shared, and the API needs the root dotnet-tools.json).
+.git/
+**/bin/
+**/obj/
+tests/
+uploads/
+**/uploads/
+.env

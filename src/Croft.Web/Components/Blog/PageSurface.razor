@@ -1,0 +1,53 @@
+@namespace Croft.Web.Components
+@using Croft.Web.Services
+@* The shared page surface (brief 07g item 3): a plain title header (title, optional subtitle,
+   the date line) above the Markdown body in the reading column. No hero image, no rail, no
+   Related, no reading time and no feedback — those are post surfaces. Used by the public page
+   (Pages/StaticPage) and reused unchanged as the admin editor's page preview. The header and
+   body sit in the same reading column as a post's body: PageSurface.razor.css mirrors
+   Post.razor.css's geometry block (including the rail's empty track where the post page has a
+   rail), so the body column lands on exactly the same edges as a post's. *@
+<article class="page-surface">
+    <div class="page-surface__layout">
+        <div class="page-surface__column">
+            <header class="page-surface__header">
+                @if (HeadingLevel == 1)
+                {
+                    <h1 class="page-surface__title hero-title">@Title</h1>
+                }
+                else
+                {
+                    <h2 class="page-surface__title hero-title">@Title</h2>
+                }
+                @if (!string.IsNullOrWhiteSpace(Subtitle))
+                {
+                    <p class="page-surface__subtitle subtitle">@Subtitle</p>
+                }
+                <PostMeta PublishedAt="@PublishedAt" ContentEditedAt="@ContentEditedAt" />
+            </header>
+            <PostBody Markdown="@Markdown" />
+        </div>
+    </div>
+</article>
+
+@code {
+    /// <summary>The page's title.</summary>
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    /// <summary>The title's heading level: 1 on the page itself, 2 in the editor's preview (the editor's
+    /// own page header carries the document's one h1, review 2026-10-19 M-12).</summary>
+    [Parameter] public int HeadingLevel { get; set; } = 1;
+
+    /// <summary>The page's subtitle; omitted when null or blank.</summary>
+    [Parameter] public string? Subtitle { get; set; }
+
+    /// <summary>Publication moment (UTC) or null for drafts — the date line's date.</summary>
+    [Parameter] public DateTime? PublishedAt { get; set; }
+
+    /// <summary>The last content edit (UTC); the date line shows "Updated" when it falls on a
+    /// later UTC calendar day than the publication.</summary>
+    [Parameter] public DateTime? ContentEditedAt { get; set; }
+
+    /// <summary>The rendered markdown (HTML + headings) produced by IMarkdownRenderer.</summary>
+    [Parameter, EditorRequired] public RenderedMarkdown Markdown { get; set; } = default!;
+}

@@ -1,0 +1,5 @@
+/* The dialog needs room for the virtualised icon grid (8 tiles per row) without stretching to
+   the full screen on wide monitors. */
+.icon-picker-dialog {
+    min-width: min(640px, 80vw);
+}

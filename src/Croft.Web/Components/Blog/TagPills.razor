@@ -1,0 +1,22 @@
+@namespace Croft.Web.Components
+@* Green tag pills linking to their tag pages (spec §7.3). A post with no tags renders
+   nothing — never an empty pill row. *@
+@if (Tags is { Count: > 0 })
+{
+    <ul class="tag-pills">
+        @foreach (var tag in Tags)
+        {
+            <li><a class="tag-pill" href="@($"/tag/{tag.Slug}")"
+                   @attributes='AdminArea.LinkAttributes(InAdminArea, $"/tag/{tag.Slug}")'>#@tag.Name</a></li>
+        }
+    </ul>
+}
+
+@code {
+    /// <summary>The post's tags; an empty set renders nothing at all.</summary>
+    [Parameter] public IReadOnlyList<TagDto>? Tags { get; set; }
+
+    /// <summary>Whether this renders on a staff page (the draft review): tag pages are public,
+    /// so from there every pill must load a fresh document (see <see cref="AdminArea"/>).</summary>
+    [CascadingParameter(Name = "InAdminArea")] public bool InAdminArea { get; set; }
+}

@@ -1,0 +1,153 @@
+﻿@* The layout shell (spec §4.1): a CSS grid with the sidebar and the content area, plus the
+   phone top bar and the skip link. MainLayout is the shell's service component — it loads the
+   categories once and keeps MudThemeProvider's IsDarkMode in step with the effective theme. *@
+@inherits LayoutComponentBase
+@implements IAsyncDisposable
+@inject IBlogApiClient Api
+@inject IJSRuntime JS
+@inject MudTheme Theme
+@inject NavigationManager Navigation
+@inject ILogger<MainLayout> Logger
+
+@* MudBlazor's providers belong to the interactive documents only (admin, the editor, login and
+   the error pages): a static reading page renders no MudBlazor component, App.razor links no
+   MudBlazor stylesheet or script for it, and so nothing of MudBlazor reaches its HTML.
+   DefaultScrollbar turns off MudBlazor's inline scrollbar style block: its rules are copied
+   verbatim into app.css, so nothing inline needs a CSP hash and the look is unchanged. *@
+@if (_interactiveDocument)
+{
+    @* WORKAROUND(W-020, MudBlazor): DefaultScrollbar=true drops MudBlazor's inline scrollbar block; its rules are copied byte for byte into app.css *@
+    <MudThemeProvider Theme="@Theme" IsDarkMode="@_isDark" DefaultScrollbar="true" />
+    @* END WORKAROUND(W-020) *@
+    <MudDialogProvider />
+    <MudSnackbarProvider />
+    <MudPopoverProvider />
+}
+
+@* InAdminArea tells every link whether it stays inside the area the document was loaded for or
+   crosses to the other one — crossing links load a fresh document (the CSP is fixed per
+   document), see AdminArea. *@
+<CascadingValue Name="InAdminArea" Value="@InAdminArea">
+<CascadingValue Name="InteractiveDocument" Value="@_interactiveDocument">
+    <SkipLink />
+    <div class="shell">
+        <TopBar />
+        <SidebarNav Categories="@_categories" Pages="@_pages" ThemeChanged="OnThemeChanged" />
+        <main id="content" tabindex="-1">
+            <div class="content">
+                @Body
+            </div>
+        </main>
+        @* The footer is its own row of the shell grid, below main: a contentinfo landmark inside main is
+           nested (axe landmark-contentinfo-is-top-level, review 2026-10-19 M-1). *@
+        <SiteFooter Pages="@_footerPages" />
+    </div>
+    <div class="scrim" aria-hidden="true"></div>
+</CascadingValue>
+</CascadingValue>
+
+<div id="blazor-error-ui" data-nosnippet role="alert">
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <button type="button" class="dismiss" aria-label="Dismiss">🗙</button>
+</div>
+
+@code {
+    // WORKAROUND(W-023, Blazor): OnInitialized runs twice on a full load (prerender, then the circuit); [PersistentState] skips the second fetch
+    /// <summary>Persisted state from prerender: the sidebar's categories and page navigation, so
+    /// the interactive render can skip the API fetch.</summary>
+    [PersistentState]
+    public MainLayoutState? State { get; set; }
+    // END WORKAROUND(W-023)
+
+    /// <summary>Whether the shell fetches the sidebar's data from the API; <see cref="ErrorLayout"/>
+    /// turns it off.</summary>
+    protected virtual bool LoadsApiData => true;
+
+    private IReadOnlyList<CategoryDto> _categories = Array.Empty<CategoryDto>();
+    private IReadOnlyList<PageNavItemDto> _pages = [];
+    private IReadOnlyList<PageNavItemDto> _footerPages = [];
+    private bool _isDark;
+    private IJSObjectReference? _shell;
+    private bool _interactiveDocument;
+
+    /// <summary>The request that renders this layout: present during the static render and the
+    /// prerender, absent in a circuit (which only interactive pages have).</summary>
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    /// <summary>Whether the document this layout renders belongs to the staff area, from the
+    /// URI at render time — a navigation across the boundary always loads a fresh document, so
+    /// the value only ever has to survive navigations inside one area.</summary>
+    private bool InAdminArea => AdminArea.ContainsPath(new Uri(Navigation.Uri).AbsolutePath);
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The same decision App.razor takes for the render mode, so the stylesheet and script it
+        // links and the providers this layout renders always agree.
+        _interactiveDocument = HttpContext?.AcceptsInteractiveRouting() ?? true;
+
+        // The error page's layout needs no API data: the API being down is the likeliest reason
+        // the error page is shown, and its layout must not wait for it again.
+        if (!LoadsApiData)
+        {
+            return;
+        }
+
+        // Try to use restored state from prerender: if present, skip the API fetch.
+        if (State is not null)
+        {
+            _categories = State.Categories;
+            _pages = State.Pages;
+            _footerPages = State.FooterPages;
+            return;
+        }
+
+        // The shell fetches the sidebar's bounded top read — never the whole categories table —
+        // and the page navigation beside it (brief 07g item 3): one call each per circuit.
+        try
+        {
+            _categories = await Api.GetTopCategoriesAsync(SidebarNav.MaxCategories);
+            var navigation = await Api.GetPageNavigationsAsync();
+            _pages = navigation.Sidebar;
+            _footerPages = navigation.Footer;
+        }
+        catch (HttpRequestException ex)
+        {
+            // Includes SessionExpiredException: the shell renders without sidebar data (and the
+            // circuit survives) while a sign-in redirect or a failing API runs its course. A
+            // failing API is logged (the one try covers both reads, so one line per failure); a
+            // session that ends is not, as the redirect says it.
+            ApiFailureLog.Failed(Logger, "the sidebar data", ex);
+        }
+
+        // Persist state for the interactive render
+        State = new MainLayoutState(_categories, _pages, _footerPages);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _shell = await JS.InvokeAsync<IJSObjectReference>("import", "./js/shell.js");
+        await _shell.InvokeVoidAsync("init");
+        _isDark = await _shell.InvokeAsync<bool>("isDark");
+        StateHasChanged();
+    }
+
+    private async Task OnThemeChanged(string _)
+    {
+        if (_shell is not null)
+        {
+            _isDark = await _shell.InvokeAsync<bool>("isDark");
+        }
+    }
+
+    public ValueTask DisposeAsync() => JsModuleReference.DisposeAsync(_shell);
+
+    public sealed record MainLayoutState(IReadOnlyList<CategoryDto> Categories, IReadOnlyList<PageNavItemDto> Pages,
+        IReadOnlyList<PageNavItemDto> FooterPages);
+}

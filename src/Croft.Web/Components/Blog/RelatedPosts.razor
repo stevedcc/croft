@@ -1,0 +1,33 @@
+@namespace Croft.Web.Components
+@* Related posts after the post body (brief 07d item 3): a "Related" section of up to 3 cards —
+   a 16:9 BannerOrFallback thumbnail above the title — each linking to its post page, so a missing
+   banner shows the fallback banner. The heading lives inside the items guard: an empty list
+   renders no section and no heading at all. The root is the container for the card grid (its own
+   width decides one vs three columns). *@
+@if (Items is { Count: > 0 })
+{
+    <section class="related-posts">
+        <h2 class="related-posts__heading">Related</h2>
+        <ul class="related-posts__list">
+            @foreach (var post in Items.Take(3))
+            {
+                <li class="related-posts__item">
+                    <a class="related-posts__link" href="@($"/post/{post.Slug}")"
+                       @attributes='AdminArea.LinkAttributes(InAdminArea, $"/post/{post.Slug}")'>
+                        <span class="related-posts__thumb"><BannerOrFallback Banner="@post.Banner" Category="@post.Category" IconSize="24" IconCorner="true" /></span>
+                        <span class="related-posts__title">@post.Title</span>
+                    </a>
+                </li>
+            }
+        </ul>
+    </section>
+}
+
+@code {
+    /// <summary>Related post summaries (the API already ranks them); only the first 3 render.</summary>
+    [Parameter] public IReadOnlyList<PostSummaryDto>? Items { get; set; }
+
+    /// <summary>Whether this renders on a staff page (the draft review): post pages are public,
+    /// so from there every card must load a fresh document (see <see cref="AdminArea"/>).</summary>
+    [CascadingParameter(Name = "InAdminArea")] public bool InAdminArea { get; set; }
+}

@@ -1,0 +1,51 @@
+@namespace Croft.Web.Components
+@* The post list (spec §7.3): one Featured card first on page 1 when ShowFeatured, the rest as List
+   cards, the pager below. EmptyText covers the empty states ("Nothing published yet." / "No posts
+   yet" / search's "No results"). *@
+<div class="post-list">
+    @if (Items is not { Count: > 0 })
+    {
+        <p class="post-list__empty">@EmptyText</p>
+    }
+    else
+    {
+        @for (var i = 0; i < Items.Count; i++)
+        {
+            <PostCard Post="@Items[i]" Variant="@(VariantFor(i))" HeadingLevel="@CardHeadingLevel" />
+        }
+    }
+    @* The pager renders whenever TotalPages > 1 — even with zero items, so a stale
+       out-of-range ?page=N shows the empty state WITH a way back (PagePager guards its own
+       single-page case and renders nothing when TotalPages is 1). *@
+    <PagePager Page="@Page" TotalPages="@TotalPages" Path="@Path" QueryString="@QueryString" />
+</div>
+
+@code {
+    /// <summary>The page's posts, newest first.</summary>
+    [Parameter] public IReadOnlyList<PostSummaryDto>? Items { get; set; }
+
+    /// <summary>Render the newest post as a Featured card (home page, first page only — spec §5.2).</summary>
+    [Parameter] public bool ShowFeatured { get; set; }
+
+    /// <summary>The level of each card's title: 3 below the home page's h2 (the default), 2 on the
+    /// pages whose own h1 is the heading above the list.</summary>
+    [Parameter] public int CardHeadingLevel { get; set; } = 3;
+
+    /// <summary>Current page number (also feeds the pager).</summary>
+    [Parameter] public int Page { get; set; } = 1;
+
+    /// <summary>Total number of pages (also feeds the pager).</summary>
+    [Parameter] public int TotalPages { get; set; } = 1;
+
+    /// <summary>Message when there is nothing to show, e.g. "Nothing published yet." / "No posts yet".</summary>
+    [Parameter] public string EmptyText { get; set; } = "Nothing published yet.";
+
+    /// <summary>The page's own path, threaded to the pager.</summary>
+    [Parameter] public string Path { get; set; } = string.Empty;
+
+    /// <summary>The page's own query parameters without the page number, threaded to the pager.</summary>
+    [Parameter] public string QueryString { get; set; } = string.Empty;
+
+    private PostCardVariant VariantFor(int index) =>
+        index == 0 && ShowFeatured && Page == 1 ? PostCardVariant.Featured : PostCardVariant.List;
+}

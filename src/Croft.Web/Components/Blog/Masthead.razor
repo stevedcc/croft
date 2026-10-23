@@ -1,0 +1,22 @@
+@namespace Croft.Web.Components
+@* The home page's site masthead (brief 10b item 3): the site's name and description over its
+   fallback banner, so the page carries the site's identity whatever banner the newest post has.
+   Plain markup: no MudBlazor, no script, no style attribute (the image is theme.css's
+   --masthead-banner token, else --fallback-banner). It is the page's h1. *@
+<section class="masthead">
+    <div class="masthead__text">
+        <h1 class="masthead__name">@Name</h1>
+        @if (!string.IsNullOrWhiteSpace(Description))
+        {
+            <p class="masthead__description">@Description</p>
+        }
+    </div>
+</section>
+
+@code {
+    /// <summary>The site's name.</summary>
+    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
+
+    /// <summary>The site's description (the caller passes the tagline when there is none).</summary>
+    [Parameter] public string? Description { get; set; }
+}

@@ -1,0 +1,207 @@
+/* The editor form (spec §6.2): the actions bar first (status, saved time, the four actions),
+   then the fields. Crimson marks the actions (act); the status badge carries the state colours. */
+.post-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+    font-family: var(--font-ui);
+}
+
+.post-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    border: 1px solid var(--muted);
+    border-radius: 6px;
+    background: var(--surface);
+}
+
+.post-actions__saved {
+    color: var(--muted);
+    font-size: 12.5px;
+}
+
+/* Why Schedule is disabled (aria-describedby on the button points here). */
+.post-actions__hint {
+    flex: 1 0 100%;
+    color: var(--muted);
+    font-size: 12.5px;
+}
+
+.post-actions__buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.post-actions__button {
+    padding: 5px 12px;
+    border: 1px solid var(--primary);
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--primary);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.post-actions__button:hover:enabled {
+    background: var(--primary-strong);
+    color: #FFFFFF;
+}
+
+.post-actions__button:disabled {
+    border-color: var(--muted);
+    color: var(--muted);
+    cursor: not-allowed;
+    opacity: .6;
+}
+
+.post-actions__button:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+}
+
+.post-form__field {
+    width: 100%;
+}
+
+.post-form__tags {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+.post-form__tag-entry {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.post-form__label {
+    color: var(--muted);
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+.post-form__input {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--muted);
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.post-form__input:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+}
+
+.post-form__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.post-form__tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 2px 0 8px;
+    border-radius: 999px;
+    background: var(--secondary-container);
+    color: var(--on-secondary-container);
+    font-size: 12.5px;
+    overflow-wrap: anywhere;
+}
+
+/* WCAG 2.5.8: at least 24 x 24 px; the pill's own padding gave way to it. */
+.post-form__tag-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    min-height: 24px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.post-form__category {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.post-form__when {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.post-form__when .post-form__field {
+    flex: 1 1 180px;
+    min-width: 0;
+}
+
+.post-form__nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 18px;
+    align-items: center;
+}
+
+.post-form__nav-placement {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1 1 180px;
+    min-width: 0;
+}
+
+.post-form__nav-order {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1 1 180px;
+    min-width: 0;
+}
+
+.post-form__discussion {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.post-form__heading {
+    margin: 0 0 8px;
+    font-size: 1.125rem;
+}
+
+/* The announcement fields under the two discussion links (brief 12d): the two flags, the text, the previews side by side when there is room. */
+.post-form__announcement {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.post-form__previews {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 10px;
+}

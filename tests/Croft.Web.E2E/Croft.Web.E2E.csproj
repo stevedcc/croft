@@ -1,0 +1,52 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- The default test filter: the LargeData category (seeded-data checks, run by
+       dev/run-large-data-e2e.sh) and the HaTests category (HA stack checks, run by
+       dev/run-ha-e2e.sh against dev/ha-local.sh) and the DefaultBranding category (the default
+       fallback banner's pixel test, which needs a site with no branding folder: dev/run-e2e.sh
+       runs it as its own second pass, or alone with its default-branding flag) are excluded from the
+       normal run — this is
+       how dev/run-e2e.sh keeps both out by default. The Csp category (the CSP measurement in
+       CspTests) runs in it like everything else since Csp:ReportOnly defaults to false: a
+       plain run measures the enforced policy with no further wiring. `dotnet test`'s filter
+       option sets the same VSTestTestCaseFilter property and replaces this default, so
+       `dotnet test` with filter "Category=HaTests" runs exactly those tests, and
+       `dev/run-e2e.sh` with its csp-enforced flag narrows to "Category=Csp". -->
+  <PropertyGroup>
+    <VSTestTestCaseFilter Condition="'$(VSTestTestCaseFilter)' == ''">Category!=LargeData&amp;Category!=HaTests&amp;Category!=DefaultBranding</VSTestTestCaseFilter>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Deque.AxeCore.Playwright" Version="4.13.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.0" />
+    <PackageReference Include="Microsoft.Playwright.NUnit" Version="1.63.0" />
+    <PackageReference Include="NUnit" Version="4.3.2" />
+    <PackageReference Include="NUnit.Analyzers" Version="4.7.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="NUnit.Framework" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Croft.Web\Croft.Web.csproj" />
+    <ProjectReference Include="..\..\src\Croft.Shared\Croft.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="test-image.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

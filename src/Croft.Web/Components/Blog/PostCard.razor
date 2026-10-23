@@ -1,0 +1,74 @@
+@namespace Croft.Web.Components
+@* One post card (spec §5.1). The whole card is one <a>, named by its content (the title, summary
+   and date: no aria-label, which would replace all of that with the title, review M-14). The
+   category chip is a sibling link laid over the card: an <a> cannot contain another <a> (nested
+   interactive controls are an accessibility violation), so the chip keeps its own link to the
+   category page and sits above the card link. Missing subtitle/summary/category
+   render nothing — no empty elements and never the text "null". *@
+<article class="@CssClass">
+    <a class="post-card__link" href="@($"/post/{Post.Slug}")">
+        <div class="post-card__media">
+            <BannerOrFallback Banner="@Post.Banner" Category="@Post.Category" IconSize="@IconSize"
+                            ShowIcon="@(Variant == PostCardVariant.Featured)"
+                            Overlay="@(Variant == PostCardVariant.Featured)" />
+            @if (Variant == PostCardVariant.Featured)
+            {
+                <div class="post-card__overlay">
+                    @Title
+                    @if (HasSubtitle)
+                    {
+                        <p class="post-card__subtitle subtitle">@Post.Subtitle</p>
+                    }
+                </div>
+            }
+        </div>
+        <div class="post-card__text">
+            @if (Variant == PostCardVariant.List)
+            {
+                @Title
+                @if (HasSubtitle)
+                {
+                    <p class="post-card__subtitle subtitle">@Post.Subtitle</p>
+                }
+            }
+            @if (HasSummary)
+            {
+                <p class="post-card__summary">@Post.Summary</p>
+            }
+            <div class="post-card__footer">
+                <PostMeta PublishedAt="@Post.PublishedAt" ReadingMinutes="@Post.ReadingMinutes" />
+                <span class="post-card__more">Read more →</span>
+            </div>
+        </div>
+    </a>
+    @if (Post.Category is not null)
+    {
+        <div class="post-card__chip"><CategoryChip Category="@Post.Category" /></div>
+    }
+</article>
+
+@code {
+    /// <summary>The post to present.</summary>
+    [Parameter, EditorRequired] public PostSummaryDto Post { get; set; } = default!;
+
+    /// <summary>Featured = large overlay card, List = compact side-by-side card (spec §5.1).</summary>
+    [Parameter] public PostCardVariant Variant { get; set; } = PostCardVariant.List;
+
+    /// <summary>The level of the title heading: 3 under the home page's "Latest posts" h2 (the
+    /// default), 2 where the page's own h1 is the heading above the cards (category, tag, search).</summary>
+    [Parameter] public int HeadingLevel { get; set; } = 3;
+
+    private RenderFragment Title => HeadingLevel == 2
+        ? @<h2 class="post-card__title">@Post.Title</h2>
+        : @<h3 class="post-card__title">@Post.Title</h3>;
+
+    private double IconSize => Variant == PostCardVariant.Featured ? 64 : 36;
+
+    private bool HasSubtitle => !string.IsNullOrWhiteSpace(Post.Subtitle);
+
+    private bool HasSummary => !string.IsNullOrWhiteSpace(Post.Summary);
+
+    private string CssClass =>
+        $"post-card post-card--{(Variant == PostCardVariant.Featured ? "featured" : "list")}" +
+        (Post.Category is null ? " post-card--no-chip" : string.Empty);
+}

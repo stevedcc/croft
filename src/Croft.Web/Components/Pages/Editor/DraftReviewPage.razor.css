@@ -1,0 +1,162 @@
+/* The draft review renders the draft with the real post layout, so the same geometry block as the
+   post page's Post.razor.css (CSS isolation keeps each copy scoped to its page): text column plus
+   the rail when the CONTENT area is at least 1000px wide (the @container query on main), otherwise
+   the rail's panels flow after the text and only its TOC is hidden. The measure is the reading
+   measure in the READING font (brief 03l item 2): the grid is declared in Croft Serif at the
+   body text's size (1.125rem, 1.0625rem below 960px — exactly .markdown-body's font), so "ch"
+   resolves in the font the text is set in and the text column is clamp(68ch, calc(68ch +
+   (100vw - 1440px) * 0.42), 88ch) — ~68 characters of body text per line at ≤1440px growing to
+   ~88 at ≥1920px — while the rail keeps its own explicit UI fonts (PostRail.razor.css) and
+   width 13.75rem so it scales with the fluid root type. At ≥1000px content width the
+   text-plus-rail block is centred under the hero (equal space either side) when it is narrower
+   than the hero — replacing 03f's 80rem gate. It stays duplicated: spec §7.1 rule 2 keeps
+   component styles in their own scoped .razor.css (only tokens/fonts/the shell grid may live in
+   app.css), which cannot be shared between two pages (ruling R5-3-e). Change both files together. */
+.post-layout {
+    display: grid;
+    grid-template-columns: minmax(0, clamp(68ch, calc(68ch + (100vw - 1440px) * 0.42), 88ch));
+    gap: 3rem;
+    margin-top: 2.5rem;
+    padding-bottom: 4rem;
+    font-family: var(--font-serif);
+    font-size: 1.125rem;
+}
+
+/* The measure must track the body text's size, which app.css drops to 1.0625rem on phones. */
+@media (max-width: 959.98px) {
+    .post-layout {
+        font-size: 1.0625rem;
+    }
+}
+
+@container (min-width: 1000px) {
+    .post-layout {
+        grid-template-columns: minmax(0, clamp(68ch, calc(68ch + (100vw - 1440px) * 0.42), 88ch)) 13.75rem;
+        justify-content: center;
+    }
+
+    /* The Related card section sits in the text column below the body and the rail is its own
+       column (brief 07d item 3). Both are placed explicitly so the body always takes the text
+       column's first row and the section always follows it — with the DOM order body, Related,
+       rail, auto-placement would send Related to the rail's column instead. */
+    .post-layout ::deep .post-rail {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .post-layout ::deep .related-posts {
+        grid-column: 1;
+        grid-row: 2;
+    }
+
+    /* The rail's top group — Tags, then "On this page" — stays in view while the post scrolls:
+       sticky 24px below the viewport top (the window scrolls; no top bar exists at these
+       widths) and capped at the viewport height minus the two 24px margins. When the group is
+       taller than the cap the TOC is the part that scrolls inside it (Tags stay at the top):
+       the Tags panel keeps its height and the TOC flexes into the remaining box with its own
+       scrollbar. overflow: hidden makes the cap absolute. */
+    .post-layout ::deep .post-rail__group {
+        position: sticky;
+        top: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 1.75rem;
+        min-width: 0;
+        max-height: calc(100vh - 48px);
+        overflow: hidden;
+    }
+
+    .post-layout ::deep .post-rail__group > .post-rail__panel {
+        flex: 0 0 auto;
+    }
+
+    .post-layout ::deep .post-rail__group .toc {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+    }
+}
+
+@container (max-width: 999.98px) {
+    .post-layout ::deep .post-rail {
+        display: contents;
+    }
+
+    .post-layout ::deep .post-rail .toc {
+        display: none;
+    }
+
+    /* The rail's children become items of .post-layout's grid when the rail dissolves, and the
+       Related section is one already. The wide DOM order — caller panels, then the Tags+TOC
+       group, then Related's own section — is not the narrow visual order (Tags, Related, then
+       the caller's panels), so the groups take explicit grid order here. With a contents panel
+       the tags move into it and the group renders nothing (below). */
+    .post-layout ::deep .post-rail__group {
+        order: 1;
+    }
+
+    .post-layout ::deep .related-posts {
+        order: 2;
+    }
+
+    .post-layout ::deep .post-rail__extra {
+        order: 3;
+    }
+
+    /* The contents panel carries the tags in its right-hand column at these widths, so the rail's
+       Tags+TOC group does not render after the text for those posts. Posts without a panel (fewer
+       than two headings) keep it there as their Tags panel. */
+    .post-layout--contents-panel ::deep .post-rail__group {
+        display: none;
+    }
+
+    /* Headings scrolled to (TOC entries, fragments) must land below the pinned row, never under
+       it: scroll-margin-top equals the row's height (ContentsPanel.razor.css). Only posts with
+       the panel carry the offset — without one there is no row — and rail widths see neither. */
+    .post-layout--contents-panel ::deep .markdown-body :is(h2, h3, h4, h5, h6) {
+        scroll-margin-top: 48px;
+    }
+}
+
+/* The "Add feedback" button at the selection (spec §6.6): an act surface in the crimson accent.
+   Absolutely positioned in main's coordinate space (main is the containing block — it carries the
+   layout container for the post-rail query), placed by the page from the selection's position
+   through the CSSOM (blogEditor.placeSelectionButton). Hidden until that placement lands, so the
+   button is never painted at its static position first. */
+.draft-review__add-feedback {
+    position: absolute;
+    z-index: 5;
+    visibility: hidden;
+    padding: 4px 12px;
+    border: 1px solid var(--primary);
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--primary);
+    font-family: var(--font-ui);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 1px 4px var(--fallback-wash);
+}
+
+.draft-review__add-feedback:hover {
+    background: var(--primary-container);
+}
+
+.draft-review__error {
+    margin: 1rem 0 0;
+    color: var(--primary);
+    font-family: var(--font-ui);
+}
+
+/* With the contents panel, the panel's own margin-bottom carries the gap below it (the same
+   2.5rem, now the block's padding — which never collapses). Adjacent siblings' vertical margins
+   collapse (to their maximum, or the positive-plus-negative sum), so a margin-top here would
+   silently replace the panel's shrinking margin-bottom and break the panel's
+   "height + margin-bottom = footprint" rule (ContentsPanel.razor.css, post.js): every state
+   change would shift the page and scroll anchoring would drag the scroll position with it.
+   Posts without a panel keep the margin above. Change this file and Post's together. */
+.post-layout--contents-panel {
+    margin-top: 0;
+    padding-top: 2.5rem;
+}

@@ -1,0 +1,50 @@
+@namespace Croft.Web.Components
+@* The image area shared by every post surface (spec §7.3): the banner image, or the site's
+   fallback banner under --fallback-wash with the category icon in white (Folder when there is no
+   category). Overlay adds the bottom-to-top dark gradient for text laid over the image. *@
+<div class="@CssClass">
+    @if (Banner is not null)
+    {
+        <img class="banner-or-fallback__img" src="@Banner.Url" alt="@(Banner.AltText ?? string.Empty)" />
+    }
+    else
+    {
+        <div class="banner-or-fallback__fallback">
+            @if (ShowIcon)
+            {
+                <div class="banner-or-fallback__icon"><CategoryIcon Name="@Category?.Icon" Size="@IconSize" /></div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>The post's banner; when absent the site's fallback banner is shown.</summary>
+    [Parameter] public BannerRefDto? Banner { get; set; }
+
+    /// <summary>The post's category; its icon decorates the fallback (Folder when null).</summary>
+    [Parameter] public CategoryDto? Category { get; set; }
+
+    /// <summary>Fallback icon edge length in px (64 featured, 36 list).</summary>
+    [Parameter] public double IconSize { get; set; } = 36;
+
+    /// <summary>Whether the fallback carries the category icon. The list card turns it off: its
+    /// category chip already shows the icon and name, so its tartan stays plain.</summary>
+    [Parameter] public bool ShowIcon { get; set; } = true;
+
+    /// <summary>Puts the fallback's icon in the top-left corner (8px in) instead of the centre:
+    /// the related-post thumbnails, where the icon is the only category cue.</summary>
+    [Parameter] public bool IconCorner { get; set; }
+
+    /// <summary>Draws the dark gradient for overlaid text (featured card; the post hero draws its
+    /// own text-anchored gradient).</summary>
+    [Parameter] public bool Overlay { get; set; }
+
+    private string CssClass => (Overlay, IconCorner) switch
+    {
+        (true, true) => "banner-or-fallback banner-or-fallback--overlay banner-or-fallback--icon-corner",
+        (true, false) => "banner-or-fallback banner-or-fallback--overlay",
+        (false, true) => "banner-or-fallback banner-or-fallback--icon-corner",
+        _ => "banner-or-fallback",
+    };
+}

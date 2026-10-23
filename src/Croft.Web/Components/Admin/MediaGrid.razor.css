@@ -1,0 +1,174 @@
+.media-grid {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.media-grid__toolbar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.media-grid__search {
+    min-width: 220px;
+}
+
+/* The drop zone doubles as the file picker: the invisible InputFile covers it, so dropping files
+   anywhere on the zone and clicking it both reach the same control. */
+.media-upload {
+    position: relative;
+    display: grid;
+    place-items: center;
+    gap: .5rem;
+    padding: 1.75rem 1rem;
+    border: 2px dashed var(--primary);
+    border-radius: 12px;
+    background: var(--surface);
+}
+
+.media-upload--active {
+    background: var(--primary-container);
+}
+
+.media-upload:focus-within {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.media-upload__hint {
+    margin: 0;
+    color: var(--muted);
+    font-family: var(--font-ui);
+}
+
+.media-upload__input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.media-upload__progress {
+    width: 100%;
+    max-width: 320px;
+}
+
+.media-grid__tiles {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+.media-tile {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    padding: .75rem;
+    border: 1px solid var(--sidebar);
+    border-radius: 12px;
+    background: var(--surface);
+}
+
+.media-tile__pick {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+}
+
+.media-tile__pick:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.media-tile__image {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: 8px;
+    background: var(--primary-container);
+}
+
+.media-tile__name {
+    margin: 0;
+    color: var(--muted);
+    font-family: var(--font-ui);
+    font-size: .875rem;
+    overflow-wrap: anywhere;
+}
+
+.media-tile__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .25rem;
+}
+
+.media-tile__confirm {
+    display: grid;
+    gap: .5rem;
+    padding-top: .5rem;
+    border-top: 1px solid var(--sidebar);
+}
+
+.media-tile__confirm-text {
+    margin: 0;
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: .875rem;
+}
+
+.media-grid__empty {
+    margin: 0;
+    color: var(--muted);
+    font-family: var(--font-ui);
+}
+
+.media-grid__error {
+    margin: 0;
+    padding: .75rem 1rem;
+    border-left: 4px solid var(--primary);
+    background: var(--primary-container);
+    color: var(--text);
+    font-family: var(--font-ui);
+}
+
+/* The Pick-mode scope switch (spec §6.4): "All images" (global, default) or "this post's
+   images". Crimson marks the active scope (you are here); the rest stays neutral. */
+.media-grid__scopes {
+    display: flex;
+    gap: 6px;
+}
+
+.media-grid__scope {
+    padding: 3px 10px;
+    border: 1px solid var(--muted);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 12.5px;
+    cursor: pointer;
+}
+
+.media-grid__scope--active {
+    border-color: var(--primary);
+    background: var(--primary-container);
+    color: var(--primary);
+}
+
+.media-grid__scope:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+}

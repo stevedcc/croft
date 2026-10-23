@@ -1,0 +1,524 @@
+@page "/admin/tags"
+@attribute [Authorize(Roles = "Admin")]
+@inject IBlogApiClient Api
+@inject IDialogService DialogService
+@inject ILogger<TagsPage> Logger
+
+<BlogPageTitle Title="Tags & categories" />
+@* WORKAROUND(W-008, Blazor): HeadOutlet keeps one HeadContent provider per page, so the feed link sits beside RobotsNoIndex here *@
+<HeadContent><RobotsNoIndex /><FeedAlternateLink /></HeadContent>
+@* END WORKAROUND(W-008) *@
+
+<PageHeader Title="Tags & categories" />
+
+@* Tags & categories (spec §6.5): icon picker dialog per category, in-place names, post counts and
+   Delete disabled while posts use the row. Categories with drafts only can still hit the API's
+   refusal, whose message is shown verbatim. Each table pages on the server with a name filter
+   (like the posts list) and only the row being edited is an editor. The tags table's Related
+   switch saves at once (name unchanged) and snaps back to its saved state when the save fails. *@
+@if (_error is not null)
+{
+    <p class="admin-table__error" role="alert">@_error</p>
+}
+
+<section class="admin-table__section">
+    <h2>Categories</h2>
+    <MudTextField @bind-Value="_newCategory" Label="New category" Variant="Variant.Outlined"
+                  Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Add"
+                  AdornmentAriaLabel="Add category" OnAdornmentClick="AddCategoryAsync" />
+    <MudTextField @bind-Value="_categoryFilter" Label="Search categories" Variant="Variant.Outlined"
+                  Margin="Margin.Dense" Immediate="true" Adornment="Adornment.End"
+                  AdornmentIcon="@Icons.Material.Filled.Search" AdornmentAriaLabel="Search"
+                  OnAdornmentClick="FilterCategoriesAsync" OnKeyDown="CategoryFilterKeyDown"
+                  Class="admin-table__search" />
+    @if (_categories.Count == 0)
+    {
+        <p class="admin-table__empty">No categories yet.</p>
+    }
+    else
+    {
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Icon</th>
+                    <th>Name</th>
+                    <th>Posts</th>
+                    <th><span class="admin-table__label">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in _categories)
+                {
+                    <tr class="admin-table__row" @key="row.Category.Id">
+                        <td>
+                            <button type="button" class="admin-table__icon" aria-label="Icon for @row.Name"
+                                    @onclick="() => ChooseIconAsync(row)">
+                                <CategoryIcon Name="@row.Category.Icon" Size="24" />
+                            </button>
+                        </td>
+                        <td>
+                            <NameEditor Name="@row.Name" OnRename="name => SaveCategoryNameAsync(row, name)" />
+                        </td>
+                        <td class="admin-table__count">@row.Category.PostCount</td>
+                        <td>
+                            <MudTooltip Text="@DeleteTooltip("category")" Disabled="@(row.Category.PostCount == 0)">
+                                <span class="admin-table__actions">
+                                    <MudButton Color="Color.Error" Disabled="@(row.Category.PostCount > 0)"
+                                               aria-describedby="@(row.Category.PostCount > 0 ? $"delete-reason-{row.Category.Id}" : null)"
+                                               OnClick="() => DeleteCategoryAsync(row)">Delete</MudButton>
+                                </span>
+                            </MudTooltip>
+                            @if (row.Category.PostCount > 0)
+                            {
+                                <span class="admin-table__reason" id="delete-reason-@row.Category.Id">@DeleteReason(row.Category.PostCount)</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    @if (_categoryTotalPages > 1)
+    {
+        <MudPagination Count="_categoryTotalPages" Selected="_categoryPage"
+                       SelectedChanged="CategoryPageChangedAsync" Class="admin-table__pager" />
+    }
+</section>
+
+<section class="admin-table__section">
+    <h2>Tags</h2>
+    <MudTextField @bind-Value="_newTag" Label="New tag" Variant="Variant.Outlined"
+                  Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Add"
+                  AdornmentAriaLabel="Add tag" OnAdornmentClick="AddTagAsync" />
+    <MudTextField @bind-Value="_tagFilter" Label="Search tags" Variant="Variant.Outlined"
+                  Margin="Margin.Dense" Immediate="true" Adornment="Adornment.End"
+                  AdornmentIcon="@Icons.Material.Filled.Search" AdornmentAriaLabel="Search"
+                  OnAdornmentClick="FilterTagsAsync" OnKeyDown="TagFilterKeyDown"
+                  Class="admin-table__search" />
+    @if (_tags.Count == 0)
+    {
+        <p class="admin-table__empty">No tags yet.</p>
+    }
+    else
+    {
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Posts</th>
+                    <th>Related</th>
+                    <th><span class="admin-table__label">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in _tags)
+                {
+                    <tr class="admin-table__row" @key="row.Tag.Id">
+                        <td>
+                            <NameEditor Name="@row.Name" OnRename="name => SaveTagNameAsync(row, name)" />
+                        </td>
+                        <td class="admin-table__count">@row.Tag.PostCount</td>
+                        <td class="admin-table__switch">
+                            <MudSwitch T="bool" Value="row.CountsTowardsRelated" Size="Size.Small"
+                                       ValueChanged="value => SaveTagRelatedAsync(row, value)"
+                                       AriaLabel="@($"Counts towards related posts: {row.Tag.Name}")" />
+                        </td>
+                        <td>
+                            <MudTooltip Text="@DeleteTooltip("tag")" Disabled="@(row.Tag.PostCount == 0)">
+                                <span class="admin-table__actions">
+                                    <MudButton Color="Color.Error" Disabled="@(row.Tag.PostCount > 0)"
+                                               aria-describedby="@(row.Tag.PostCount > 0 ? $"delete-reason-{row.Tag.Id}" : null)"
+                                               OnClick="() => DeleteTagAsync(row)">Delete</MudButton>
+                                </span>
+                            </MudTooltip>
+                            @if (row.Tag.PostCount > 0)
+                            {
+                                <span class="admin-table__reason" id="delete-reason-@row.Tag.Id">@DeleteReason(row.Tag.PostCount)</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    @if (_tagTotalPages > 1)
+    {
+        <MudPagination Count="_tagTotalPages" Selected="_tagPage"
+                       SelectedChanged="TagPageChangedAsync" Class="admin-table__pager" />
+    }
+</section>
+
+@code {
+    private const int PageSize = 10;
+
+    private readonly List<CategoryRow> _categories = [];
+    private readonly List<TagRow> _tags = [];
+    private string _newCategory = string.Empty;
+    private string _newTag = string.Empty;
+    private string _categoryFilter = string.Empty;
+    private string _tagFilter = string.Empty;
+    private int _categoryPage = 1;
+    private int _tagPage = 1;
+    private int _categoryTotalPages = 1;
+    private int _tagTotalPages = 1;
+    private string? _error;
+
+    // WORKAROUND(W-023, Blazor): OnInitialized runs twice on a full load (prerender, then the circuit); [PersistentState] skips the second fetch
+    /// <summary>The first page of each table, loaded during prerender and restored for the circuit
+    /// so a full page load fetches each once. Left null when either read failed: the circuit's
+    /// own run then retries and shows the error.</summary>
+    [PersistentState]
+    public InitialLists? Initial { get; set; }
+    // END WORKAROUND(W-023)
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Initial is { } restored)
+        {
+            ApplyCategories(restored.Categories);
+            ApplyTags(restored.Tags);
+            return;
+        }
+
+        var categories = await LoadCategoriesAsync();
+        var tags = await LoadTagsAsync();
+        if (categories is not null && tags is not null)
+        {
+            Initial = new InitialLists(categories, tags);
+        }
+    }
+
+    /// <summary>What the prerender loaded, handed to the circuit.</summary>
+    public sealed record InitialLists(PagedResult<CategoryDto> Categories, PagedResult<TagDto> Tags);
+
+    // Any failed API call (a session that ends mid-call, a restarting API, a refused request) is
+    // shown as the error line and logged; the exception must not end the circuit.
+    private async Task<PagedResult<CategoryDto>?> LoadCategoriesAsync()
+    {
+        try
+        {
+            var result = await Api.GetCategoriesAsync(_categoryPage, PageSize, _categoryFilter);
+            ApplyCategories(result);
+            return result;
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "loading categories", ex);
+            _error = ex.Message;
+            return null;
+        }
+    }
+
+    private async Task<PagedResult<TagDto>?> LoadTagsAsync()
+    {
+        try
+        {
+            var result = await Api.GetTagsAsync(_tagPage, PageSize, _tagFilter);
+            ApplyTags(result);
+            return result;
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "loading tags", ex);
+            _error = ex.Message;
+            return null;
+        }
+    }
+
+    private void ApplyCategories(PagedResult<CategoryDto> result)
+    {
+        _categoryTotalPages = TotalPages(result.TotalCount);
+        _categories.Clear();
+        foreach (var category in result.Items)
+        {
+            AddCategoryRow(category);
+        }
+    }
+
+    private void ApplyTags(PagedResult<TagDto> result)
+    {
+        _tagTotalPages = TotalPages(result.TotalCount);
+        _tags.Clear();
+        foreach (var tag in result.Items)
+        {
+            AddTagRow(tag);
+        }
+    }
+
+    private static int TotalPages(int totalCount) =>
+        Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
+
+    private Task FilterCategoriesAsync()
+    {
+        _categoryPage = 1;
+        return LoadCategoriesAsync();
+    }
+
+    private Task FilterTagsAsync()
+    {
+        _tagPage = 1;
+        return LoadTagsAsync();
+    }
+
+    private async Task CategoryFilterKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await FilterCategoriesAsync();
+        }
+    }
+
+    private async Task TagFilterKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await FilterTagsAsync();
+        }
+    }
+
+    private Task CategoryPageChangedAsync(int page)
+    {
+        _categoryPage = page;
+        return LoadCategoriesAsync();
+    }
+
+    private Task TagPageChangedAsync(int page)
+    {
+        _tagPage = page;
+        return LoadTagsAsync();
+    }
+
+    // WORKAROUND(W-041, Blazor): a duplicate @key crashes the circuit, so rows are merged by id
+    /// <summary>Merges by id: the API's create is idempotent by slug, so a create racing this
+    /// load can return a row the load also brings — adding it twice crashes the circuit on the
+    /// duplicate @key.</summary>
+    private void AddCategoryRow(CategoryDto category)
+    {
+        if (_categories.All(row => row.Category.Id != category.Id))
+        {
+            _categories.Add(new CategoryRow(category));
+        }
+    }
+    // END WORKAROUND(W-041)
+
+    // WORKAROUND(W-041, Blazor): a duplicate @key crashes the circuit, so rows are merged by id
+    private void AddTagRow(TagDto tag)
+    {
+        if (_tags.All(row => row.Tag.Id != tag.Id))
+        {
+            _tags.Add(new TagRow(tag));
+        }
+    }
+    // END WORKAROUND(W-041)
+
+    private static string DeleteTooltip(string kind) =>
+        $"Cannot delete while posts use this {kind}.";
+
+    /// <summary>The visible reason a Delete is disabled (the tooltip needs a hover and a disabled
+    /// button takes no focus, so the same fact also stands in the row).</summary>
+    private static string DeleteReason(int postCount) =>
+        $"Used by {PostCount.Text(postCount)}, so it cannot be deleted.";
+
+    private async Task AddCategoryAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newCategory))
+        {
+            return;
+        }
+
+        _error = null;
+        try
+        {
+            var category = await Api.CreateCategoryAsync(_newCategory.Trim());
+            AddCategoryRow(category);
+            _newCategory = string.Empty;
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "adding a category", ex);
+            _error = ex.Message;
+        }
+    }
+
+    private async Task AddTagAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newTag))
+        {
+            return;
+        }
+
+        _error = null;
+        try
+        {
+            var tag = await Api.CreateTagAsync(_newTag.Trim());
+            AddTagRow(tag);
+            _newTag = string.Empty;
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "adding a tag", ex);
+            _error = ex.Message;
+        }
+    }
+
+    private async Task ChooseIconAsync(CategoryRow row)
+    {
+        _error = null;
+        var parameters = new DialogParameters { [nameof(IconPickerDialog.Value)] = row.Category.Icon };
+        var reference = await DialogService.ShowAsync<IconPickerDialog>(parameters);
+        var result = await reference.Result;
+        if (result is null || result.Canceled)
+        {
+            return;
+        }
+
+        try
+        {
+            row.Category = await Api.UpdateCategoryAsync(
+                row.Category.Id, new UpdateCategoryRequest(row.Name, result.Data as string));
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "saving a category icon", ex);
+            // Same shape as the sibling save methods: a failed icon save surfaces inline.
+            _error = "Could not save the icon.";
+        }
+    }
+
+    private async Task SaveCategoryNameAsync(CategoryRow row, string name)
+    {
+        row.Name = name;
+        if (row.Name == row.Category.Name)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(row.Name))
+        {
+            _error = "Name cannot be blank.";
+            row.Name = row.Category.Name;
+            return;
+        }
+
+        try
+        {
+            row.Category = await Api.UpdateCategoryAsync(
+                row.Category.Id, new UpdateCategoryRequest(row.Name.Trim(), row.Category.Icon));
+            row.Name = row.Category.Name;
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "saving a name", ex);
+            _error = "Could not save the name.";
+            row.Name = row.Category.Name;
+        }
+    }
+
+    private async Task SaveTagNameAsync(TagRow row, string name)
+    {
+        row.Name = name;
+        if (row.Name == row.Tag.Name)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(row.Name))
+        {
+            _error = "Name cannot be blank.";
+            row.Name = row.Tag.Name;
+            return;
+        }
+
+        try
+        {
+            row.Tag = await Api.UpdateTagAsync(row.Tag.Id, new UpdateTagRequest(row.Name.Trim()));
+            row.Name = row.Tag.Name;
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "saving a name", ex);
+            _error = "Could not save the name.";
+            row.Name = row.Tag.Name;
+        }
+    }
+
+    /// <summary>The Related switch saves at once through the same update as a rename (the name
+    /// unchanged); on failure the switch returns to the tag's saved state and the error surfaces
+    /// inline like the sibling save methods.</summary>
+    private async Task SaveTagRelatedAsync(TagRow row, bool value)
+    {
+        row.CountsTowardsRelated = value;
+        try
+        {
+            row.Tag = await Api.UpdateTagAsync(row.Tag.Id, new UpdateTagRequest(row.Tag.Name, value));
+            row.CountsTowardsRelated = row.Tag.CountsTowardsRelated;
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "saving the related setting", ex);
+            _error = "Could not save the related setting.";
+            row.CountsTowardsRelated = row.Tag.CountsTowardsRelated;
+        }
+    }
+
+    private async Task DeleteCategoryAsync(CategoryRow row)
+    {
+        _error = null;
+        try
+        {
+            await Api.DeleteCategoryAsync(row.Category.Id);
+        }
+        catch (Exception ex) when (ex is DeleteConflictException or HttpRequestException)
+        {
+            if (ex is HttpRequestException failure)
+            {
+                ApiFailureLog.Failed(Logger, "deleting a category", failure);
+            }
+
+            _error = ex.Message;
+            return;
+        }
+
+        _categories.Remove(row);
+    }
+
+    private async Task DeleteTagAsync(TagRow row)
+    {
+        _error = null;
+        try
+        {
+            await Api.DeleteTagAsync(row.Tag.Id);
+        }
+        catch (Exception ex) when (ex is DeleteConflictException or HttpRequestException)
+        {
+            if (ex is HttpRequestException failure)
+            {
+                ApiFailureLog.Failed(Logger, "deleting a tag", failure);
+            }
+
+            _error = ex.Message;
+            return;
+        }
+
+        _tags.Remove(row);
+    }
+
+    /// <summary>The table rows' mutable view of the DTO: the name being edited in place.</summary>
+    private sealed class CategoryRow(CategoryDto category)
+    {
+        public CategoryDto Category { get; set; } = category;
+
+        public string Name { get; set; } = category.Name;
+    }
+
+    /// <summary>The table rows' mutable view of the DTO: the name being edited in place and the
+    /// Related switch's pending state.</summary>
+    private sealed class TagRow(TagDto tag)
+    {
+        public TagDto Tag { get; set; } = tag;
+
+        public string Name { get; set; } = tag.Name;
+
+        public bool CountsTowardsRelated { get; set; } = tag.CountsTowardsRelated;
+    }
+}

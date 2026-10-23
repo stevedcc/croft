@@ -1,0 +1,946 @@
+@page "/admin/pages/new"
+@page "/admin/posts/new"
+@page "/admin/posts/{id:guid}/edit"
+@page "/admin/pages/{id:guid}/edit"
+@attribute [Authorize(Roles = "Admin")]
+@using System.Globalization
+@using System.Text.RegularExpressions
+@using Croft.Shared
+@using Croft.Shared.Contracts.Social
+@using Croft.Shared.Enums
+@using Microsoft.AspNetCore.WebUtilities
+@inject IBlogApiClient Api
+@inject IMarkdownRenderer Markdown
+@inject TimeProvider Time
+@inject NavigationManager Navigation
+@inject IDialogService Dialogs
+@inject IJSRuntime JS
+@inject SessionExpiryHooks SessionExpiry
+@inject ILogger<PostEditPage> Logger
+@implements IDisposable
+
+<BlogPageTitle Title="@EditorTitle" />
+@* WORKAROUND(W-008, Blazor): HeadOutlet keeps one HeadContent provider per page, so the feed link sits beside RobotsNoIndex here *@
+<HeadContent><RobotsNoIndex /><FeedAlternateLink /></HeadContent>
+@* END WORKAROUND(W-008) *@
+<PageHeader Title="@EditorTitle" />
+
+@* The post editor (spec §6.2): the form on the left, the Preview and Feedback tabs on the
+   right. Every action saves the form first; Publish now publishes at the clock's moment and
+   ignores the date field, Schedule publishes at the entered UTC moment. Errors from the API
+   surface as the alert at the top with the problem detail text. The same component writes a
+   page (/admin/pages/new, or any edit route of a page): page mode hides category, tags and
+   banner and shows the navigation fields, and the Preview renders the page layout. *@
+@if (_error is not null)
+{
+    <p class="post-edit__error" role="alert">@_error</p>
+}
+
+<div class="post-edit">
+    <div class="post-edit__form">
+        @if (_signedBackInNotice)
+        {
+            <p class="post-edit__notice" role="status">
+                Your session ended, so you signed in again. Your unsaved changes were restored.
+                <button type="button" class="post-edit__notice-dismiss" @onclick="DismissSignedBackInNotice">Dismiss</button>
+            </p>
+        }
+        @if (_restore is not null)
+        {
+            <DraftRestorePrompt FromLocalTime="@_restore.LocalTime" OnRestore="RestoreDraft" OnDiscard="DiscardDraftAsync" />
+        }
+        <PostEditorForm @ref="_form" Model="_model" TagSuggestions="_tagSuggestions" IsPage="IsPage"
+                        DraftKey="@DraftKey" SavedStamp="@_savedStamp"
+                        OnTagSuggestionsRequested="LoadTagSuggestionsAsync" CategorySearch="SearchCategoriesAsync"
+                        Status="_status" SavedAt="_savedAt" Announcement="@_announcement" Slug="@_post?.Slug" OnModelChanged="ModelChangedAsync"
+                        OnSave="SaveAsync" OnPublishNow="PublishNowAsync" OnSchedule="ScheduleAsync"
+                        OnUnpublish="UnpublishAsync" OnUploadBanner="UploadBannerAsync"
+                        OnChooseBannerFromLibrary="ChooseBannerAsync"
+                        OnInsertImageRequested="InsertImageAsync"
+                        OnInsertFromLibraryRequested="InsertFromLibraryAsync" />
+    </div>
+    <div class="post-edit__side">
+        @* MinimumTabWidth: MudBlazor's 160px default would not fit three tabs in a phone's width (the third scrolled half out of sight). *@
+        <MudTabs @bind-ActivePanelIndex="_tabIndex" @bind-ActivePanelIndex:after="TabChangedAsync" MinimumTabWidth="100px">
+            <MudTabPanel Text="Preview">
+                @if (IsPage)
+                {
+                    <PageSurface HeadingLevel="2" Title="@_model.Title" Subtitle="@BlankToNull(_model.Subtitle)"
+                                 PublishedAt="@UtcDateTime.Combine(_model.PublishedAtDate, _model.PublishedAtTime)"
+                                 ContentEditedAt="@_post?.ContentEditedAt" Markdown="@Rendered" />
+                }
+                else
+                {
+                    <PostHero Post="PreviewPost" HeadingLevel="2" DraftRibbon="@(_status == PostStatus.Draft)" />
+                    <PostBody Markdown="Rendered" />
+                }
+            </MudTabPanel>
+            <MudTabPanel Text="Feedback">
+                <FeedbackPanel Items="_feedback" CanResolve="true" OnResolve="ResolveAsync" />
+            </MudTabPanel>
+            @* Discussion (brief 12c): an existing post only (a page has none, a new post has nothing yet). The panel
+               reads the API when the tab is first opened, so the editor itself loads no faster or slower. *@
+            @if (_post is not null && !IsPage)
+            {
+                <MudTabPanel Text="Discussion">
+                    <DiscussionPanel Data="_discussion" Error="@_discussionError" Notice="@_discussionNotice"
+                                     Refreshing="_refreshing" OnRefresh="RefreshDiscussionAsync"
+                                     OnHideReply="HideReplyAsync" OnHideAccount="HideAccountAsync"
+                                     Announcements="_announcements" PostPublished="@(_status == PostStatus.Published)"
+                                     MastodonLinked="@(_post.MastodonUrl is not null)" BlueskyLinked="@(_post.BlueskyUrl is not null)"
+                                     Announcing="_announcing" OnAnnounce="AnnounceAsync" />
+                </MudTabPanel>
+            }
+        </MudTabs>
+    </div>
+</div>
+
+@code {
+    /// <summary>The post to edit; empty guid on /admin/posts/new.</summary>
+    [Parameter] public Guid Id { get; set; }
+
+    /// <summary>Matches the API's 10 MB upload limit.</summary>
+    private const long MaxUploadBytes = 10 * 1024 * 1024;
+
+    /// <summary>How many tag names or categories a typeahead fetch offers at once.</summary>
+    private const int SuggestionCount = 20;
+
+    private static readonly Regex FencedCode = new("```.*?```", RegexOptions.Singleline);
+
+    private readonly PostEditModel _model = new();
+    private PostEditorForm _form = default!;
+    private IReadOnlyList<TagDto> _tagSuggestions = [];
+    private IReadOnlyList<FeedbackDto> _feedback = [];
+    private PostDto? _post;
+    private PostStatus _status = PostStatus.Draft;
+    private DateTime? _savedAt;
+
+    /// <summary>What the last publish, schedule or unpublish did, for the status region; a save clears it
+    /// (the region then shows "Saved hh:mm").</summary>
+    private string? _announcement;
+    private int _tabIndex;
+    private string? _error;
+
+    /// <summary>The local draft backup waiting for the user's Restore/Discard decision, if the
+    /// editor loaded with one that differs from the saved text.</summary>
+    private DraftBackupRecord? _restore;
+
+    /// <summary>The saved text is loaded (the editor is ready to compare a backup against it).</summary>
+    private bool _loaded;
+
+    /// <summary>The one load-time backup check ran (it must run exactly once per editor load).</summary>
+    private bool _backupChecked;
+
+    /// <summary>The server's saved-version stamp the editor loaded (contentEditedAt, falling
+    /// back to updatedAt), carried into the draft backup.</summary>
+    private string _savedStamp = string.Empty;
+
+    /// <summary>Shows the "your session ended" line above the form: set when the editor restored
+    /// the backup without asking after the user signed in again.</summary>
+    private bool _signedBackInNotice;
+
+    private IDisposable? _sessionExpiryRegistration;
+
+    private bool _isNew => Id == Guid.Empty;
+
+    /// <summary>The draft backup's key: the post's id once it exists, "new" until then — the
+    /// first save of a new post moves the backups to the created id.</summary>
+    private string DraftKey => _post is null ? "new" : _post.Id.ToString();
+
+    /// <summary>The editor's kind: the loaded post's own Kind decides the edit routes; the
+    /// /admin/pages/new route creates a page, every other route a post. Computed per render so a
+    /// reused instance (Blazor reuses the page across its own routes) always follows the URL.</summary>
+    private PostKind Kind =>
+        _post?.Kind ?? (IsNewPageRequest ? PostKind.Page : PostKind.Post);
+
+    private bool IsPage => Kind == PostKind.Page;
+
+    private bool IsNewPageRequest =>
+        new Uri(Navigation.Uri).AbsolutePath.TrimEnd('/').Equals("/admin/pages/new", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>What the editor calls itself in the browser title and the heading: the kind
+    /// decides the noun ("Post"/"Page"), and an edit route before the post has loaded says
+    /// "Edit" alone — the kind comes from the loaded post and is not known yet, so the wrong
+    /// noun never appears.</summary>
+    private string EditorTitle => _isNew
+        ? (IsPage ? "New Page" : "New Post")
+        : _post is null ? "Edit" : (IsPage ? "Edit Page" : "Edit Post");
+
+    protected override void OnInitialized()
+    {
+        // When the session ends the API client first runs this, then sends the browser to sign
+        // in: the typed work is written to the draft backup while the page is still here. The
+        // prerender has no browser to write to, and nothing was typed in it.
+        _sessionExpiryRegistration = SessionExpiry.Register(BackUpBeforeSignInAsync);
+    }
+
+    private async Task<bool> BackUpBeforeSignInAsync() =>
+        RendererInfo.IsInteractive && await JS.InvokeAsync<bool>("blogDraft.flush");
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _previewTimer?.Dispose();
+        _sessionExpiryRegistration?.Dispose();
+    }
+
+    // WORKAROUND(W-023, Blazor): OnInitialized runs twice on a full load (prerender, then the circuit); [PersistentState] skips the second fetch
+    /// <summary>What the prerender loaded, restored for the circuit so a full page load fetches
+    /// each piece once. Each piece is filled with <c>??=</c> as it is loaded, so a piece that
+    /// failed or was missing is the only one the circuit asks for again.</summary>
+    [PersistentState]
+    public EditorLoad? Load { get; set; }
+    // END WORKAROUND(W-023)
+
+    /// <summary>The tag suggestions, the post and its feedback, each null until loaded.</summary>
+    public sealed class EditorLoad
+    {
+        public IReadOnlyList<TagDto>? Tags { get; set; }
+
+        public PostDto? Post { get; set; }
+
+        public IReadOnlyList<FeedbackDto>? Feedback { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _tabIndex = ReadTab();
+        var load = Load ??= new EditorLoad();
+        try
+        {
+            // Bounded suggestion data only: the category picker searches the server on demand
+            // and the tag typeahead refreshes as the user types — never the whole tables.
+            load.Tags ??= (await Api.GetTagsAsync(1, SuggestionCount)).Items;
+            _tagSuggestions = load.Tags;
+            if (_isNew)
+            {
+                _loaded = true;
+                return;
+            }
+
+            _post = load.Post ??= await Api.GetPostByIdAsync(Id);
+            if (_post is null)
+            {
+                _error = "Post not found.";
+                return;
+            }
+
+            // One URL per kind: an old /admin/posts/{id}/edit bookmark of a page (or a post opened
+            // under /admin/pages) moves to its own route, keeping the query (?tab=feedback).
+            var route = AdminRoutes.Edit(_post.Kind, _post.Id);
+            var current = new Uri(Navigation.Uri);
+            if (!current.AbsolutePath.Equals(route, StringComparison.OrdinalIgnoreCase))
+            {
+                Navigation.NavigateTo(route + current.Query, replace: true);
+            }
+
+            _status = _post.Status;
+            MapToModel(_post);
+            _savedStamp = SavedStampOf(_post);
+            _loaded = true;
+            _feedback = load.Feedback ??= await Api.GetFeedbackAsync(Id);
+            if (!PersistentStateBudget.Fits(load))
+            {
+                // A very long post would not fit the hand-over (see PersistentStateBudget): the
+                // circuit fetches the post and its feedback again; the suggestions still travel.
+                load.Post = null;
+                load.Feedback = null;
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "loading the post", ex);
+            _error = ex.Message;
+        }
+    }
+
+    private int ReadTab()
+    {
+        var query = QueryHelpers.ParseQuery(new Uri(Navigation.Uri).Query);
+        return query.TryGetValue("tab", out var tab) && tab == "feedback" ? 1 : 0;
+    }
+
+    /// <summary>
+    /// The local draft backup (D3's guaranteed layer) is read once — when the editor has loaded,
+    /// not before: Blazor renders while OnInitializedAsync is still fetching the post, and read
+    /// against the partial state the backup would be keyed to "new" and compared against empty
+    /// text. An identical backup is deleted silently (the brief's only silent delete); a
+    /// differing one is offered with its time — Restore or Discard, never a silent replace.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_loaded || _backupChecked)
+        {
+            return;
+        }
+
+        _backupChecked = true;
+        var signedBackIn = TakeSignedBackInFlag();
+        var backup = await JS.InvokeAsync<DraftBackupRecord?>("blogDraft.read", DraftKey);
+        if (backup is null)
+        {
+            return;
+        }
+
+        if (DraftBackup.Decide(_model, backup) == DraftBackupAction.DeleteSilently)
+        {
+            await JS.InvokeVoidAsync("blogDraft.remove", DraftKey);
+            return;
+        }
+
+        if (signedBackIn)
+        {
+            // The session ended with this work unsaved and the user signed in again: nothing to
+            // ask, the work comes back and the page says so.
+            DraftBackup.ApplyTo(_model, backup);
+            _signedBackInNotice = true;
+        }
+        else
+        {
+            _restore = backup;
+        }
+
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Whether the user arrived by signing in again after the session ended with work kept in
+    /// the backup (<see cref="BlogApiClient.SignedBackInParameter"/> on the return URL). The
+    /// parameter is one-shot: it is removed from the address bar here.
+    /// </summary>
+    private bool TakeSignedBackInFlag()
+    {
+        var uri = new Uri(Navigation.Uri);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+        if (!query.ContainsKey(BlogApiClient.SignedBackInParameter))
+        {
+            return false;
+        }
+
+        var remaining = query
+            .Where(pair => pair.Key != BlogApiClient.SignedBackInParameter)
+            .SelectMany(pair => pair.Value.Select(value => new KeyValuePair<string, string?>(pair.Key, value)));
+        var clean = QueryHelpers.AddQueryString(uri.GetLeftPart(UriPartial.Path), remaining);
+        Navigation.NavigateTo(clean, replace: true);
+        return true;
+    }
+
+    private void DismissSignedBackInNotice() => _signedBackInNotice = false;
+
+    /// <summary>Restore puts every field of the backup in the editor — unsaved, so the user
+    /// saves; the backup keeps protecting the text until then.</summary>
+    private void RestoreDraft()
+    {
+        if (_restore is null)
+        {
+            return;
+        }
+
+        DraftBackup.ApplyTo(_model, _restore);
+        _restore = null;
+    }
+
+    /// <summary>Discard deletes the backup and leaves the saved text in the editor.</summary>
+    private async Task DiscardDraftAsync()
+    {
+        _restore = null;
+        await JS.InvokeVoidAsync("blogDraft.remove", DraftKey);
+    }
+
+    /// <summary>The saved-version stamp rule: the post's edited stamp, falling back to its
+    /// update stamp, as a round-trip string for the draft backup.</summary>
+    private static string SavedStampOf(PostDto post) =>
+        (post.ContentEditedAt ?? post.UpdatedAt).ToString("o", CultureInfo.InvariantCulture);
+
+    /// <summary>The tag entry's typeahead: bounded matches from the server for what is typed.</summary>
+    private async Task LoadTagSuggestionsAsync(string text)
+    {
+        try
+        {
+            _tagSuggestions = (await Api.GetTagsAsync(1, SuggestionCount, BlankToNull(text))).Items;
+        }
+        catch (HttpRequestException ex)
+        {
+            // A typeahead has nothing to say (a session ending shows its own redirect), and the
+            // exception must not end the circuit.
+            ApiFailureLog.Failed(Logger, "searching tags", ex);
+        }
+    }
+
+    /// <summary>The category picker's server-side search (the form reports, the page fetches).</summary>
+    private async Task<IEnumerable<CategoryDto>> SearchCategoriesAsync(string text, CancellationToken ct)
+    {
+        try
+        {
+            return (await Api.GetCategoriesAsync(1, SuggestionCount, BlankToNull(text), ct)).Items;
+        }
+        catch (HttpRequestException ex)
+        {
+            // As for the tag typeahead: the circuit must survive a failed search.
+            ApiFailureLog.Failed(Logger, "searching categories", ex);
+            return [];
+        }
+    }
+
+    private void MapToModel(PostDto post)
+    {
+        _model.Title = post.Title;
+        _model.Subtitle = post.Subtitle ?? string.Empty;
+        _model.Excerpt = post.Excerpt ?? string.Empty;
+        _model.MarkdownContent = post.MarkdownContent;
+        ShowPreviewNow();
+        _model.Category = post.Category;
+        _model.CategoryId = post.Category?.Id;
+        _model.Tags = [.. post.Tags.Select(tag => tag.Name)];
+        _model.Banner = post.BannerImage;
+        _model.BannerImageId = post.BannerImage?.Id;
+        _model.PublishedAtDate = post.PublishedAt?.Date;
+        _model.PublishedAtTime = post.PublishedAt?.TimeOfDay;
+        _model.NavigationPlacement = post.NavigationPlacement;
+        _model.NavigationOrder = post.NavigationOrder;
+        _model.MastodonUrl = post.MastodonUrl ?? string.Empty;
+        _model.BlueskyUrl = post.BlueskyUrl ?? string.Empty;
+        _model.AnnouncementText = post.AnnouncementText ?? string.Empty;
+        _model.AnnounceMastodon = post.AnnounceMastodon;
+        _model.AnnounceBluesky = post.AnnounceBluesky;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (await SaveCoreAsync())
+        {
+            NavigateIfNew();
+        }
+    }
+
+    private async Task PublishNowAsync()
+    {
+        // Publish now ignores the date field: the moment is the clock's (the TimeProvider rule).
+        if (await SaveCoreAsync())
+        {
+            await PublishAsync(Time.GetUtcNow().UtcDateTime);
+        }
+
+        NavigateIfNew();
+    }
+
+    private async Task ScheduleAsync()
+    {
+        if (UtcDateTime.Combine(_model.PublishedAtDate, _model.PublishedAtTime) is { } moment && await SaveCoreAsync())
+        {
+            await PublishAsync(moment);
+        }
+
+        NavigateIfNew();
+    }
+
+    private async Task UnpublishAsync()
+    {
+        if (await SaveCoreAsync() && _post is not null)
+        {
+            try
+            {
+                _post = await Api.UnpublishPostAsync(_post.Id);
+                _status = _post.Status;
+                _announcement = "Unpublished";
+                if (_discussionRequested)
+                {
+                    await LoadAnnouncementsAsync(); // the pending announcements were cancelled
+                }
+            }
+            catch (HttpRequestException ex)
+            {
+                _error = ex.Message;
+            }
+        }
+
+        NavigateIfNew();
+    }
+
+    /// <summary>The whole action is done before the URL changes, so the edit route never shows a
+    /// post whose save or publish is still in flight.</summary>
+    private void NavigateIfNew()
+    {
+        if (Id == Guid.Empty && _post is not null)
+        {
+            Navigation.NavigateTo(AdminRoutes.Edit(_post.Kind, _post.Id));
+        }
+    }
+
+    private async Task<bool> SaveCoreAsync()
+    {
+        _error = null;
+        _model.MastodonUrlError = null;
+        _model.BlueskyUrlError = null;
+        _model.AnnouncementTextError = null;
+        try
+        {
+            if (_post is null)
+            {
+                _post = await Api.CreatePostAsync(BuildCreateRequest());
+            }
+            else
+            {
+                _post = await Api.UpdatePostAsync(_post.Id, BuildUpdateRequest());
+            }
+
+            _status = _post.Status;
+            _savedAt = Time.GetUtcNow().UtcDateTime;
+            _announcement = null;
+            _savedStamp = SavedStampOf(_post);
+            if (!IsPage)
+            {
+                // What the API stored is the baseline the next save compares against (and shows).
+                _model.MastodonUrl = _post.MastodonUrl ?? string.Empty;
+                _model.BlueskyUrl = _post.BlueskyUrl ?? string.Empty;
+                _model.AnnouncementText = _post.AnnouncementText ?? string.Empty;
+            }
+
+            // The successful save clears the backup (the first save of a new post moves future
+            // backups to the created id); a failed save leaves it in place.
+            await JS.InvokeVoidAsync("blogDraft.saved", _post.Id.ToString());
+            return true;
+        }
+        catch (HttpRequestException ex)
+        {
+            ShowSaveFailure(ex.Message);
+            return false;
+        }
+    }
+
+    /// <summary>A refusal of a discussion link (its message starts with the field's name) shows under that field;
+    /// any other failure is the page's general line.</summary>
+    private void ShowSaveFailure(string message)
+    {
+        if (message.StartsWith(nameof(PostEditModel.MastodonUrl), StringComparison.Ordinal))
+        {
+            _model.MastodonUrlError = message;
+        }
+        else if (message.StartsWith(nameof(PostEditModel.BlueskyUrl), StringComparison.Ordinal))
+        {
+            _model.BlueskyUrlError = message;
+        }
+        else if (!IsPage && message.StartsWith(nameof(PostEditModel.AnnouncementText), StringComparison.Ordinal))
+        {
+            _model.AnnouncementTextError = message;
+        }
+        else
+        {
+            _error = message;
+        }
+    }
+
+    private async Task PublishAsync(DateTime publishedAt)
+    {
+        try
+        {
+            // The API's response is authoritative for the resulting status: its clock decides
+            // Scheduled vs Published at the moment of the request, the client's may differ.
+            _post = await Api.PublishPostAsync(_post!.Id, new PublishRequest(publishedAt));
+            _status = _post.Status;
+            _announcement = _status == PostStatus.Scheduled
+                ? $"Scheduled for {_post.PublishedAt ?? publishedAt:yyyy-MM-dd HH:mm} UTC"
+                : await PublishedTextAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private CreatePostRequest BuildCreateRequest() => new(
+        _model.Title,
+        _model.MarkdownContent,
+        Subtitle: BlankToNull(_model.Subtitle),
+        Excerpt: BlankToNull(_model.Excerpt),
+        BannerImageId: _model.BannerImageId,
+        Tags: _model.Tags.Count == 0 ? null : [.. _model.Tags],
+        CategoryId: _model.CategoryId,
+        Kind: Kind,
+        NavigationPlacement: _model.NavigationPlacement,
+        NavigationOrder: _model.NavigationOrder,
+        // A page has no discussion: nothing is sent, whatever the model holds.
+        MastodonUrl: IsPage ? null : BlankToNull(_model.MastodonUrl.Trim()),
+        BlueskyUrl: IsPage ? null : BlankToNull(_model.BlueskyUrl.Trim()),
+        // Nor is a page announced; a post sends the flags as they are.
+        AnnouncementText: IsPage ? null : BlankToNull(_model.AnnouncementText),
+        AnnounceMastodon: IsPage ? null : _model.AnnounceMastodon,
+        AnnounceBluesky: IsPage ? null : _model.AnnounceBluesky);
+
+    private UpdatePostRequest BuildUpdateRequest() => new(
+        _model.Title,
+        _model.MarkdownContent,
+        Subtitle: BlankToNull(_model.Subtitle),
+        Excerpt: BlankToNull(_model.Excerpt),
+        BannerImageId: _model.BannerImageId,
+        Tags: _model.Tags.Count == 0 ? null : [.. _model.Tags],
+        CategoryId: _model.CategoryId,
+        // The existing Kind travels with every update: the API refuses a Kind change with a 400.
+        Kind: Kind,
+        NavigationPlacement: _model.NavigationPlacement,
+        NavigationOrder: _model.NavigationOrder,
+        // A link goes only when it changed (an unrelated edit never re-validates one saved earlier).
+        MastodonUrl: IsPage ? null : LinkChange(_model.MastodonUrl, _post?.MastodonUrl),
+        BlueskyUrl: IsPage ? null : LinkChange(_model.BlueskyUrl, _post?.BlueskyUrl),
+        // The text goes like a link: null when it is still what was loaded, "" when it was emptied (back to the default), else the text.
+        AnnouncementText: IsPage ? null : LinkChange(_model.AnnouncementText, _post?.AnnouncementText),
+        AnnounceMastodon: IsPage ? null : _model.AnnounceMastodon,
+        AnnounceBluesky: IsPage ? null : _model.AnnounceBluesky);
+
+    /// <summary>The update's value for a discussion link: null when the field still holds what was loaded
+    /// (or nothing, and nothing was linked), "" when it was emptied (clears the link), else the trimmed text.</summary>
+    private static string? LinkChange(string entered, string? loaded)
+    {
+        var text = entered.Trim();
+        return string.Equals(text, loaded ?? string.Empty, StringComparison.Ordinal)
+            ? null
+            : text;
+    }
+
+    private static string? BlankToNull(string value) => string.IsNullOrWhiteSpace(value) ? null : value;
+
+    private async Task UploadBannerAsync(IBrowserFile file)
+    {
+        if (await UploadAsync(file) is { } asset)
+        {
+            _model.Banner = asset;
+            _model.BannerImageId = asset.Id;
+        }
+    }
+
+    private async Task InsertImageAsync(IBrowserFile file)
+    {
+        if (await UploadAsync(file) is { } asset)
+        {
+            // The file name is the best alt text an upload has until the media library gets one.
+            await _form.InsertAtCursorAsync($"![{file.Name}]({asset.Url})");
+        }
+    }
+
+    private async Task<MediaAssetDto?> UploadAsync(IBrowserFile file)
+    {
+        _error = null;
+        try
+        {
+            await using var stream = file.OpenReadStream(MaxUploadBytes);
+            return await Api.UploadMediaAsync(stream, file.Name, file.ContentType, _post?.Id,
+                _post is null ? "Global" : "PostSpecific");
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = ex.Message;
+            return null;
+        }
+        catch (IOException)
+        {
+            _error = "Could not upload the file. Only PNG, JPEG, GIF and WebP images up to 10 MB are allowed.";
+            return null;
+        }
+    }
+
+    private async Task ChooseBannerAsync()
+    {
+        if (await PickMediaAsync() is { } asset)
+        {
+            _model.Banner = asset;
+            _model.BannerImageId = asset.Id;
+        }
+    }
+
+    private async Task InsertFromLibraryAsync()
+    {
+        if (await PickMediaAsync() is { } asset)
+        {
+            await _form.InsertAtCursorAsync($"![{asset.AltText ?? string.Empty}]({asset.Url})");
+        }
+    }
+
+    private async Task<MediaAssetDto?> PickMediaAsync()
+    {
+        _error = null;
+        var parameters = new DialogParameters { [nameof(MediaPickerDialog.PostId)] = _post?.Id };
+        var reference = await Dialogs.ShowAsync<MediaPickerDialog>(parameters);
+        var result = await reference.Result;
+        return result is { Canceled: false, Data: MediaAssetDto asset } ? asset : null;
+    }
+
+    // ---- the Discussion tab (brief 12c) ----
+
+    /// <summary>The tab's index: Preview 0, Feedback 1, Discussion 2.</summary>
+    private const int DiscussionTab = 2;
+
+    private PostDiscussionAdminDto? _discussion;
+    private bool _discussionRequested;
+    private bool _refreshing;
+    private string? _discussionError;
+    private string? _discussionNotice;
+
+    /// <summary>The first opening of the Discussion tab reads the API; later openings show what is there.</summary>
+    private async Task TabChangedAsync()
+    {
+        if (_tabIndex == DiscussionTab && !_discussionRequested && _post is not null)
+        {
+            _discussionRequested = true;
+            await LoadDiscussionAsync();
+            await LoadAnnouncementsAsync();
+        }
+    }
+
+    private PostAnnouncementsDto? _announcements;
+    private bool _announcing;
+
+    /// <summary>Reads the post's announcements for the tab's block. A failure keeps what was shown and says why in the tab's alert line.</summary>
+    private async Task LoadAnnouncementsAsync()
+    {
+        try
+        {
+            _announcements = await Api.GetAnnouncementsAsync(_post!.Id);
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "loading the announcements", ex);
+            _discussionError = ex.Message;
+        }
+    }
+
+    /// <summary>"Announce now" / "Retry": the API queues the announcement at once, the block is read again. A refusal (400, 409) shows in the page's error area.</summary>
+    private async Task AnnounceAsync(SocialPlatform platform)
+    {
+        _error = null;
+        _announcing = true;
+        try
+        {
+            await Api.AnnounceAsync(_post!.Id, platform);
+            await LoadAnnouncementsAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "announcing the post", ex);
+            _error = ex.Message;
+        }
+        finally
+        {
+            _announcing = false;
+        }
+    }
+
+    /// <summary>
+    /// "Published", or, when the API queued announcements for the publish, "Published. Announcing on Mastodon and Bluesky." (only the networks with a pending row).
+    /// The extra read must never turn a publish that worked into an error.
+    /// </summary>
+    private async Task<string> PublishedTextAsync()
+    {
+        try
+        {
+            var announcements = await Api.GetAnnouncementsAsync(_post!.Id);
+            if (_discussionRequested)
+            {
+                _announcements = announcements;
+            }
+
+            var pending = (announcements?.Items ?? [])
+                .Where(item => item.State == AnnouncementState.Pending)
+                .Select(item => item.Platform)
+                .Distinct()
+                .Order()
+                .Select(platform => platform.ToString())
+                .ToList();
+            return pending.Count == 0 ? "Published" : $"Published. Announcing on {string.Join(" and ", pending)}.";
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "reading the announcements", ex);
+            return "Published";
+        }
+    }
+
+    /// <summary>Reads the admin view of the discussion. A failure keeps what was shown and says why in the tab's alert line.</summary>
+    private async Task LoadDiscussionAsync()
+    {
+        try
+        {
+            var loaded = await Api.GetDiscussionAdminAsync(_post!.Id);
+            if (loaded is null)
+            {
+                _discussionError = "The discussion could not be found.";
+                return;
+            }
+
+            _discussion = loaded;
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "loading the discussion", ex);
+            _discussionError = ex.Message;
+        }
+    }
+
+    /// <summary>Asks the API to fetch the threads soon (it answers at once and the fetcher does it on its next tick), then
+    /// reads the status again. No polling: the new replies show on the next reload of the tab.</summary>
+    private async Task RefreshDiscussionAsync()
+    {
+        _refreshing = true;
+        _discussionError = null;
+        _discussionNotice = null;
+        try
+        {
+            await Api.RefreshDiscussionAsync(_post!.Id);
+            _discussionNotice = "Refresh queued. New replies appear within a few minutes.";
+            await LoadDiscussionAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "refreshing the discussion", ex);
+            _discussionError = ex.Message;
+        }
+        finally
+        {
+            _refreshing = false;
+        }
+    }
+
+    private Task HideReplyAsync(DiscussionReplyDto reply) => HideAsync(
+        "Hide this reply?",
+        $"The reply by @{reply.AuthorHandle} and the answers to it leave this page and the post's page.",
+        new CreateSocialBlockRequest(reply.Platform, SocialBlockKind.Reply, reply.ExternalId, SocialBlockLabels.ForReply(reply), null));
+
+    private Task HideAccountAsync(DiscussionReplyDto reply) => HideAsync(
+        "Hide this account?",
+        $"Hides every reply of @{reply.AuthorHandle} on every post, not only this one.",
+        new CreateSocialBlockRequest(reply.Platform, SocialBlockKind.Account, reply.AuthorAccountId, SocialBlockLabels.ForAccount(reply), null));
+
+    /// <summary>The dialog asks first (with an optional note); the block is created only on Hide, then the tab reads the discussion again.</summary>
+    private async Task HideAsync(string title, string text, CreateSocialBlockRequest block)
+    {
+        _discussionError = null;
+        _discussionNotice = null;
+        var parameters = new DialogParameters
+        {
+            [nameof(HideBlockDialog.Title)] = title,
+            [nameof(HideBlockDialog.Text)] = text,
+        };
+        var reference = await Dialogs.ShowAsync<HideBlockDialog>(parameters);
+        var result = await reference.Result;
+        if (result is not { Canceled: false, Data: string note })
+        {
+            return;
+        }
+
+        try
+        {
+            await Api.CreateSocialBlockAsync(block with { Note = BlankToNull(note) });
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "hiding a reply", ex);
+            _discussionError = ex.Message;
+            return;
+        }
+
+        await LoadDiscussionAsync();
+    }
+
+    private async Task ResolveAsync(FeedbackDto item)
+    {
+        _error = null;
+        try
+        {
+            var resolved = await Api.ResolveFeedbackAsync(_post!.Id, item.Id);
+            _feedback = [.. _feedback.Select(f => f.Id == resolved.Id ? resolved : f)];
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    /// <summary>How long the text must be still before the Preview renders it again.</summary>
+    private static readonly TimeSpan PreviewDebounce = TimeSpan.FromMilliseconds(150);
+
+    private RenderedMarkdown? _rendered;
+    private string? _renderedFor;
+    private ITimer? _previewTimer;
+    private int _previewVersion;
+    private bool _previewPending;
+    private bool _disposed;
+
+    /// <summary>The model changed (the form reports every edit). A change to the Markdown starts (or
+    /// restarts) the Preview's debounce window; the Preview shows the text it last rendered until the
+    /// text has been still for <see cref="PreviewDebounce"/>, so a burst of typing is one render.</summary>
+    private Task ModelChangedAsync()
+    {
+        if (string.Equals(_renderedFor, _model.MarkdownContent, StringComparison.Ordinal))
+        {
+            return Task.CompletedTask;
+        }
+
+        var version = ++_previewVersion;
+        _previewPending = true;
+        _previewTimer?.Dispose();
+        _previewTimer = Time.CreateTimer(
+            _ => _ = InvokeAsync(() => PreviewWindowPassed(version)), null, PreviewDebounce, Timeout.InfiniteTimeSpan);
+        return Task.CompletedTask;
+    }
+
+    private void PreviewWindowPassed(int version)
+    {
+        if (_disposed || version != _previewVersion)
+        {
+            return;
+        }
+
+        _previewPending = false;
+        StateHasChanged();
+    }
+
+    /// <summary>A text that was replaced as a whole (a load, a restore) shows at once.</summary>
+    private void ShowPreviewNow()
+    {
+        _previewVersion++;
+        _previewPending = false;
+        _previewTimer?.Dispose();
+    }
+
+    // The Preview alone asks for source lines: the Markdown box's scroll sync needs them. The text
+    // is rendered when it differs from the one last rendered and no typing burst is in progress (a
+    // pending window serves the last render), never merely because the page rendered.
+    private RenderedMarkdown Rendered
+    {
+        get
+        {
+            if (_rendered is null
+                || (!_previewPending && !string.Equals(_renderedFor, _model.MarkdownContent, StringComparison.Ordinal)))
+            {
+                _renderedFor = _model.MarkdownContent;
+                _rendered = Markdown.Render(_renderedFor, new MarkdownRenderOptions { SourceLines = true });
+            }
+
+            return _rendered;
+        }
+    }
+
+    private PostDto PreviewPost => new(
+        _post?.Id ?? Guid.Empty,
+        _post?.Slug ?? string.Empty,
+        _model.Title,
+        BlankToNull(_model.Subtitle),
+        _model.MarkdownContent,
+        BlankToNull(_model.Excerpt),
+        _post?.Summary,
+        _status,
+        UtcDateTime.Combine(_model.PublishedAtDate, _model.PublishedAtTime),
+        _post?.CreatedAt ?? Time.GetUtcNow().UtcDateTime,
+        _post?.UpdatedAt ?? Time.GetUtcNow().UtcDateTime,
+        _post?.AuthorId ?? string.Empty,
+        _post?.AuthorName ?? string.Empty,
+        _model.Banner,
+        [.. _model.Tags.Select(name => _tagSuggestions.FirstOrDefault(t => t.Name == name) ?? new TagDto(Guid.Empty, name, name, 0, true))],
+        _model.Category,
+        ReadingMinutes(_model.MarkdownContent));
+
+    /// <summary>The API computes the stored reading time on save; the preview shows the same rule
+    /// (Croft.Shared.ReadingTime) over the same simple word count — code contributes no words.</summary>
+    private static int ReadingMinutes(string markdown) =>
+        ReadingTime.FromWords(FencedCode.Replace(markdown, " ")
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length);
+}

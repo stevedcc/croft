@@ -1,0 +1,105 @@
+@using System.Globalization
+@using Croft.Shared.Contracts
+@* The feedback notes panel (spec §6.2/§7.4): open notes show quote, comment and author with
+   Resolve; resolved notes collapse under "Resolved (N)". The panel reports the actions and
+   renders the notes; the page owns the data and replaces items as the API answers. *@
+<div class="feedback-panel">
+    @if (CanAdd)
+    {
+        <div class="feedback-panel__add">
+            <label class="feedback-panel__label" for="feedback-quote">Quote</label>
+            <textarea id="feedback-quote" name="quote" rows="2" maxlength="2000" @bind="_quote"></textarea>
+            <label class="feedback-panel__label" for="feedback-comment">Comment</label>
+            <textarea id="feedback-comment" name="comment" rows="3" maxlength="10000" @bind="_comment"></textarea>
+            <button type="button" class="feedback-panel__button" @onclick="AddAsync">Add</button>
+        </div>
+    }
+
+    @if (Items.Count == 0)
+    {
+        <p class="feedback-panel__empty">No feedback yet.</p>
+    }
+    else
+    {
+        <ul class="feedback-panel__open">
+            @foreach (var item in Open)
+            {
+                @Note(item)
+            }
+        </ul>
+    }
+
+    @if (Resolved.Count > 0)
+    {
+        <details class="feedback-panel__resolved">
+            <summary>Resolved (@Resolved.Count)</summary>
+            <ul>
+                @foreach (var item in Resolved)
+                {
+                    @Note(item)
+                }
+            </ul>
+        </details>
+    }
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<FeedbackDto> Items { get; set; } = [];
+
+    [Parameter] public bool CanResolve { get; set; }
+
+    [Parameter] public EventCallback<FeedbackDto> OnResolve { get; set; }
+
+    [Parameter] public bool CanAdd { get; set; }
+
+    [Parameter] public EventCallback<CreateFeedbackRequest> OnAdd { get; set; }
+
+    /// <summary>The draft review's selection hand-off: fills the quote field when the value changes.</summary>
+    [Parameter] public string? Quote { get; set; }
+
+    private static readonly CultureInfo EnGb = CultureInfo.GetCultureInfo("en-GB");
+
+    private string _quote = string.Empty;
+    private string _comment = string.Empty;
+    private string? _lastQuote;
+
+    /// <summary>
+    /// Applies the hand-off when <see cref="Quote"/> changes to a non-empty value. Change-tracked,
+    /// so a parent re-render never refills over the user's own edit — and a value that comes back
+    /// after clearing (the same selection offered again) applies again.
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        if (Quote != _lastQuote)
+        {
+            _lastQuote = Quote;
+            if (!string.IsNullOrWhiteSpace(Quote))
+            {
+                _quote = Quote;
+            }
+        }
+    }
+
+    private IReadOnlyList<FeedbackDto> Open => [.. Items.Where(f => f.ResolvedAt is null)];
+
+    private IReadOnlyList<FeedbackDto> Resolved => [.. Items.Where(f => f.ResolvedAt is not null)];
+
+    private RenderFragment<FeedbackDto> Note => item =>
+        @<li class="feedback-note" @key="item.Id">
+            <blockquote class="feedback-note__quote">@item.QuotedText</blockquote>
+            <p class="feedback-note__comment">@item.Comment</p>
+            <p class="feedback-note__author">@item.AuthorName · @item.CreatedAt.ToString("d MMMM yyyy HH:mm", EnGb)</p>
+            @if (item.ResolvedAt is null && CanResolve)
+            {
+                <button type="button" class="feedback-note__resolve" @onclick="() => OnResolve.InvokeAsync(item)">Resolve</button>
+            }
+        </li>;
+
+    private Task AddAsync()
+    {
+        var request = new CreateFeedbackRequest(_quote, _comment);
+        _quote = string.Empty;
+        _comment = string.Empty;
+        return OnAdd.InvokeAsync(request);
+    }
+}

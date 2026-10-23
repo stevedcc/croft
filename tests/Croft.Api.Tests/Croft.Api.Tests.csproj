@@ -1,0 +1,55 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- The default test filter (the same mechanism as tests/Croft.Web.E2E): the Container category
+       (builds the Dockerfiles and runs the images through Podman) and the ReadyToRun category
+       (publishes for linux-arm64) are opt-in, slow (about 2 minutes) and need container access,
+       so a plain `dotnet test` skips them. `dotnet test`'s filter option sets the same
+       VSTestTestCaseFilter property and replaces this default: a filter of "Category=Container"
+       runs exactly those tests (AGENTS.md, "Opt-in tests"). -->
+  <PropertyGroup>
+    <VSTestTestCaseFilter Condition="'$(VSTestTestCaseFilter)' == ''">Category!=Container&amp;Category!=ReadyToRun</VSTestTestCaseFilter>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="AwesomeAssertions" Version="9.6.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.13" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.13" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.13" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="OpenTelemetry.Exporter.InMemory" Version="1.19.1" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.15.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <!-- Brief 12a: the anonymised platform answers (copies of docs/briefs/12a-fixtures) the social tests build their cases from. -->
+  <ItemGroup>
+    <Content Include="Fixtures\Social\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!-- Brief 14a: the warm-up contract tests are written once (Croft.Web.Tests owns them) and run
+       against both apps' hosts. -->
+  <ItemGroup>
+    <Compile Include="..\Croft.Web.Tests\Warmup\WarmupContractTests.cs" Link="Warmup\WarmupContractTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Croft.Api\Croft.Api.csproj" />
+    <!-- The migration contract guard covers the Web app's migrations as well (same rule), so
+         this suite reads both apps' migration assemblies. -->
+    <ProjectReference Include="..\..\src\Croft.Web\Croft.Web.csproj" />
+  </ItemGroup>
+
+</Project>

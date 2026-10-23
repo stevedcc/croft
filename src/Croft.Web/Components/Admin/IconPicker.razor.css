@@ -1,0 +1,67 @@
+.icon-picker {
+    display: grid;
+    gap: .75rem;
+    min-width: 0;
+}
+
+/* The pinned default option and the grid tiles share one tile look, selected = crimson (act). */
+.icon-picker__tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .35rem;
+    height: 76px;
+    padding: .35rem .25rem;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--font-ui);
+    cursor: pointer;
+}
+
+.icon-picker__tile:hover {
+    background: var(--primary-container);
+}
+
+.icon-picker__tile:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.icon-picker__tile--selected {
+    border-color: var(--primary);
+    background: var(--primary-container);
+}
+
+.icon-picker__tile--default {
+    width: 100%;
+}
+
+.icon-picker__name {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: .72rem;
+    color: var(--muted);
+}
+
+.icon-picker__grid {
+    height: 360px;
+    overflow-y: auto;
+}
+
+.icon-picker__row {
+    display: flex;
+    gap: .35rem;
+    height: 84px;
+    padding: 4px 0;
+    box-sizing: border-box;
+}
+
+.icon-picker__row .icon-picker__tile {
+    flex: 1 1 0;
+    min-width: 0;
+}

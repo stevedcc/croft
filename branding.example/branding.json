@@ -1,0 +1,29 @@
+{
+  "name": "Field Notes",
+  "tagline": "An example site for the blog framework",
+  "description": "Notes from the field: an example of a site's own branding.",
+  "author": "Example Author",
+  "profiles": [
+    { "service": "mastodon", "url": "https://example.social/@someone" },
+    { "service": "bluesky", "url": "https://bsky.app/profile/example.com" },
+    { "service": "github", "url": "https://github.com/someone" },
+    { "service": "linkedin", "url": "https://www.linkedin.com/in/someone" }
+  ],
+  "fediverseCreator": "@someone@example.social",
+  "palette": {
+    "light": {
+      "primary": "#9A3412",
+      "primary-strong": "#9A3412",
+      "primary-hover": "#7C2D12",
+      "primary-container": "#FFEDD5",
+      "on-primary": "#FFFFFF"
+    },
+    "dark": {
+      "primary": "#FDBA74",
+      "primary-strong": "#7C2D12",
+      "primary-hover": "#9A3412",
+      "primary-container": "#431407",
+      "on-primary": "#0F172A"
+    }
+  }
+}

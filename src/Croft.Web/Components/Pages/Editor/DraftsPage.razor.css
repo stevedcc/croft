@@ -1,0 +1,7 @@
+/* The drafts list page: only its error line has page-local styling (the grid styles live with
+   PostsGrid). The crimson marks the failure like the admin pages' alerts. */
+.drafts__error {
+    margin: 1rem 0 0;
+    color: var(--primary);
+    font-family: var(--font-ui);
+}

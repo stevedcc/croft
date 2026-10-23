@@ -1,0 +1,21 @@
+# WORKAROUND(W-081, Kubernetes): assumes the K3s/Traefik chart labels in kube-system and node-local kubelet probes passing the policy
+# Optional: who may connect to Croft. Croft Web trusts X-Forwarded-For only from the networks in
+# ForwardedHeaders:KnownNetworks (the whole pod network in the base) and the API trusts Web's
+# X-Visitor-IP (with the ingest key), so only the ingress controller should reach Web, and only
+# Web and the ingress (the api.<host> route) the API: this component is what narrows the trust from
+# the pod network to the ingress controller. ASSUMES TRAEFIK IN kube-system: the "from" selectors of
+# web-ingress.yaml and api-ingress.yaml match the namespace label kubernetes.io/metadata.name=kube-system
+# together with the pod label app.kubernetes.io/name=traefik (K3s, and the Traefik Helm chart). With another
+# ingress controller, or Traefik elsewhere, nothing can reach Croft until a site overlay patches both
+# selectors to the controller's namespace and pod labels (JSON 6902 patches on the Traefik "from" item:
+# /spec/ingress/0/from/0 in croft-web-ingress, /spec/ingress/0/from/1 in croft-api-ingress; k8s/README.md,
+# "Network policies", has the patch). Kubelet probes come from the node and still pass on
+# K3s (its policy controller allows node-local traffic); check that on other CNIs.
+# END WORKAROUND(W-081)
+# Use from a site overlay:   components:
+#                              - <croft base>/components/network-policies
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - web-ingress.yaml
+  - api-ingress.yaml

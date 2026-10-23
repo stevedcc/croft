@@ -1,0 +1,155 @@
+@using Croft.Shared.Enums
+@inject IBlogApiClient Api
+@inject NavigationManager Navigation
+@inject IDialogService Dialogs
+@inject ILogger<PostsList> Logger
+
+<BlogPageTitle Title="@Title" />
+@* WORKAROUND(W-008, Blazor): HeadOutlet keeps one HeadContent provider per page, so the feed link sits beside RobotsNoIndex here *@
+<HeadContent><RobotsNoIndex /><FeedAlternateLink /></HeadContent>
+@* END WORKAROUND(W-008) *@
+
+@* The posts list (spec §6.1) and, since brief 10f, the pages list: status chips and a title
+   search over the server-paged grid, filtered to one kind (Posts or Pages). The row actions
+   navigate to the editor, the analytics page and the editor's Feedback tab (posts only: pages
+   have neither); Delete asks for confirmation first. *@
+<PageHeader Title="@Title" />
+
+<div class="posts-toolbar">
+    <div class="posts-filters" role="group" aria-label="Filter by status">
+        <button type="button" class="posts-filters__chip @(_status is null ? "posts-filters__chip--active" : "")"
+                aria-pressed="@(_status is null ? "true" : "false")" @onclick="() => FilterAsync(null)">All</button>
+        <button type="button" class="posts-filters__chip @(_status == PostStatus.Draft ? "posts-filters__chip--active" : "")"
+                aria-pressed="@(_status == PostStatus.Draft ? "true" : "false")" @onclick="() => FilterAsync(PostStatus.Draft)">Draft</button>
+        <button type="button" class="posts-filters__chip @(_status == PostStatus.Scheduled ? "posts-filters__chip--active" : "")"
+                aria-pressed="@(_status == PostStatus.Scheduled ? "true" : "false")" @onclick="() => FilterAsync(PostStatus.Scheduled)">Scheduled</button>
+        <button type="button" class="posts-filters__chip @(_status == PostStatus.Published ? "posts-filters__chip--active" : "")"
+                aria-pressed="@(_status == PostStatus.Published ? "true" : "false")" @onclick="() => FilterAsync(PostStatus.Published)">Published</button>
+    </div>
+    <MudTextField @bind-Value="_search" Label="Search titles" Variant="Variant.Outlined" Margin="Margin.Dense"
+                  Immediate="true" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Search"
+                  AdornmentAriaLabel="Search"
+                  OnAdornmentClick="SearchAsync" OnKeyDown="SearchOnKeyDown" Class="posts-search" />
+</div>
+
+@if (_error is not null)
+{
+    <p class="posts__error" role="alert">@_error</p>
+}
+
+<PostsGrid @ref="_grid" Kind="Kind" ServerData="LoadAsync" ShowEmptyState="@(_error is null)"
+           OnEdit="EditAsync" OnAnalytics="AnalyticsAsync"
+           OnFeedback="FeedbackAsync" OnDelete="DeleteAsync" />
+
+@code {
+    /// <summary>Which kind the list shows: posts under Posts, pages under Pages (brief 10f).</summary>
+    [Parameter, EditorRequired] public PostKind Kind { get; set; }
+
+    private string Title => Kind == PostKind.Page ? "Pages" : "Posts";
+
+    private PostsGrid _grid = default!;
+    private PostStatus? _status;
+    private string _search = string.Empty;
+    private PagedResult<PostSummaryDto>? _result;
+    private int _loadKey;
+    private string? _error;
+
+    /// <summary>The grid's server page loader: one <see cref="IBlogApiClient"/> call per load.
+    /// The keyed guard assigns the result and the error banner only while the captured load key
+    /// still matches, so a superseded filter/search load completing late cannot clobber the newer
+    /// one — and a load that succeeds clears the error a failed one left.</summary>
+    private async Task<GridData<PostSummaryDto>> LoadAsync(GridState<PostSummaryDto> state, CancellationToken ct)
+    {
+        var key = ++_loadKey;
+        try
+        {
+            var result = await Api.GetPostsAsync(
+                new PostListRequest(SearchTerm: _search, Status: _status, Kind: Kind, Page: state.Page + 1, PageSize: state.PageSize),
+                ct);
+            if (key == _loadKey)
+            {
+                _result = result;
+                _error = null;
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            ApiFailureLog.Failed(Logger, "loading the posts list", ex);
+            if (key == _loadKey)
+            {
+                _error = ex.Message;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The grid cancels a load's token when a newer one supersedes it.
+        }
+
+        if (key == _loadKey)
+        {
+            // WORKAROUND(W-040, MudBlazor): MudDataGrid can complete ServerData outside the dispatcher, so the page marshals StateHasChanged
+            // The grid renders the rows from the return value; the page's own load state (the
+            // error banner) needs this render to show it. InvokeAsync because the grid can
+            // complete this loader from outside the dispatcher.
+            await InvokeAsync(StateHasChanged);
+            // END WORKAROUND(W-040)
+        }
+
+        return new GridData<PostSummaryDto>
+        {
+            Items = _result?.Items ?? [],
+            TotalItems = _result?.TotalCount ?? 0,
+        };
+    }
+
+    private async Task FilterAsync(PostStatus? status)
+    {
+        _status = status;
+        await _grid.ReloadAsync();
+    }
+
+    private Task SearchAsync() => _grid.ReloadAsync();
+
+    private async Task SearchOnKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await SearchAsync();
+        }
+    }
+
+    private void EditAsync(PostSummaryDto post) => Navigation.NavigateTo(AdminRoutes.Edit(post.Kind, post.Id));
+
+    private void AnalyticsAsync(PostSummaryDto post) => Navigation.NavigateTo($"/admin/posts/{post.Id}/analytics");
+
+    private void FeedbackAsync(PostSummaryDto post) => Navigation.NavigateTo($"/admin/posts/{post.Id}/edit?tab=feedback");
+
+    private async Task DeleteAsync(PostSummaryDto post)
+    {
+        var confirmed = await Dialogs.ShowMessageBoxAsync(
+            post.Kind == PostKind.Page ? "Delete page?" : "Delete post?",
+            post.Kind == PostKind.Page
+                ? $"\"{post.Title}\" is deleted for good."
+                : $"\"{post.Title}\" and its feedback are deleted for good.",
+            yesText: "Delete",
+            noText: null,
+            cancelText: "Cancel");
+        if (confirmed is not true)
+        {
+            return;
+        }
+
+        _error = null;
+        try
+        {
+            await Api.DeletePostAsync(post.Id);
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = ex.Message;
+            return;
+        }
+
+        await _grid.ReloadAsync();
+    }
+}

@@ -1,0 +1,64 @@
+/* The image area wherever a post may lack a banner: the banner image,
+   or the site's fallback banner tiled at 180px under --fallback-wash with the category icon in white. */
+.banner-or-fallback {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.banner-or-fallback__img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* The fallback: the site's fallback-banner image (theme.css's --fallback-banner token, with its
+   content-hash cache-buster) repeats at 180px under --fallback-wash. The wash is its own
+   layer — the background shorthand only allows a colour in its LAST layer, so
+   "background: var(--fallback-wash), url(...)" would be invalid and dropped. */
+.banner-or-fallback__fallback {
+    position: absolute;
+    inset: 0;
+    background-image: var(--fallback-banner);
+    background-position: 0 0;
+    background-size: 180px;
+    background-repeat: repeat;
+}
+
+.banner-or-fallback__fallback::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--fallback-wash);
+}
+
+.banner-or-fallback__icon {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #FFFFFF;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, .45));
+}
+
+/* With text overlaid at the bottom the icon moves to the top-right. */
+.banner-or-fallback--overlay .banner-or-fallback__icon {
+    inset: 14px 18px auto auto;
+}
+
+/* The icon in the top-left corner, 8px in (the related thumbnails). */
+.banner-or-fallback--icon-corner .banner-or-fallback__icon {
+    inset: 8px auto auto 8px;
+}
+
+.banner-or-fallback--overlay::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0, 0, 0, .75), rgba(0, 0, 0, 0) 65%);
+}

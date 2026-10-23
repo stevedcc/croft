@@ -1,0 +1,51 @@
+@namespace Croft.Web.Components
+@using Croft.Web.Services
+@* The post's 220px right-hand column (spec §5.4): the top group (Tags, then the "On this page"
+   TOC) and the caller's extra panels via ChildContent (e.g. feedback on draft review). Related
+   posts left the rail for a card section after the post body (brief 07d item 3).
+   The DOM order is the wide-layout order — caller panels first, then the sticky Tags+TOC group —
+   so the group never slides over the caller's panels as the post scrolls; the page's @container
+   rules order the panels back (Tags, then the caller's panels) where the rail dissolves below
+   1000px of content width. Sections with no content render no heading and no empty panel — and
+   when nothing at all is available the rail renders nothing. Path is forwarded so the rail's TOC
+   links are path-qualified. *@
+@if (HasContent)
+{
+    <aside class="post-rail">
+        @if (ChildContent is not null)
+        {
+            <div class="post-rail__extra">@ChildContent</div>
+        }
+        @if (Tags is { Count: > 0 } || Headings is { Count: >= 2 })
+        {
+            <div class="post-rail__group">
+                @if (Tags is { Count: > 0 })
+                {
+                    <section class="post-rail__panel post-rail__panel--tags">
+                        <h2 class="post-rail__heading">Tags</h2>
+                        <TagPills Tags="@Tags" />
+                    </section>
+                }
+                <TableOfContents Headings="@Headings" Path="@Path" />
+            </div>
+        }
+    </aside>
+}
+
+@code {
+    /// <summary>The post's h2/h3 headings; the TOC panel hides itself below two (spec §5.4).</summary>
+    [Parameter] public IReadOnlyList<Heading>? Headings { get; set; }
+
+    /// <summary>The post's tags; the Tags panel is omitted when empty.</summary>
+    [Parameter] public IReadOnlyList<TagDto>? Tags { get; set; }
+
+    /// <summary>The post page's own path, forwarded to TableOfContents. Required (ruling
+    /// R5-3-c): without it the TOC links render as bare "#id" hrefs (R3-4-a's hazard).</summary>
+    [Parameter, EditorRequired] public string Path { get; set; } = string.Empty;
+
+    /// <summary>Extra panels from the caller (e.g. FeedbackPanel on draft review).</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private bool HasContent =>
+        Headings is { Count: >= 2 } || Tags is { Count: > 0 } || ChildContent is not null;
+}

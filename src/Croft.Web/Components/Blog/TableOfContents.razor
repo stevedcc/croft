@@ -1,0 +1,33 @@
+@namespace Croft.Web.Components
+@using Croft.Web.Services
+@* "On this page" (spec §5.4): the post's h2/h3 headings linking to their Markdig auto-identifier
+   anchors. Hidden when the post has fewer than 2 headings — a one-entry TOC is noise. Hrefs are
+   {Path}#{Id}; a bare "#id" resolves against <base href="/"> and would leave
+   the post page. The scroll-spy (wwwroot/js/post.js) marks the current section with
+   toc__link--active as the reader scrolls. *@
+@if (Headings is { Count: >= 2 })
+{
+    <nav class="toc" aria-label="On this page">
+        <h2 class="toc__title">On this page</h2>
+        <ul class="toc__list">
+            @foreach (var heading in Headings)
+            {
+                <li class="toc__item toc__item--@heading.Level">
+                    <a class="toc__link toc__link--@heading.Level" href="@($"{Path}#{heading.Id}")">@heading.Text</a>
+                </li>
+            }
+        </ul>
+    </nav>
+}
+
+@code {
+    /// <summary>The post's h2/h3 headings (level, plain text, anchor id) from RenderedMarkdown.</summary>
+    [Parameter] public IReadOnlyList<Heading>? Headings { get; set; }
+
+    /// <summary>
+    /// The post page's own path, e.g. "/post/my-post" — required: a bare "#id" href resolves
+    /// against &lt;base href="/"&gt; and leaves the page (R3-4-a). Ruling R5-3-c makes the
+    /// requirement structural; every markup caller passes it.
+    /// </summary>
+    [Parameter, EditorRequired] public string Path { get; set; } = string.Empty;
+}

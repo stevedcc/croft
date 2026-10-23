@@ -1,0 +1,16 @@
+/* "2 October 2026 · 7 min read" (spec §5.1) and the optional status badge — the badge itself is
+   the shared StatusBadge component (spec §7.4), styled in its own css. */
+.post-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    color: var(--muted);
+    font-family: var(--font-ui);
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+
+.post-meta__when {
+    overflow-wrap: anywhere;
+}

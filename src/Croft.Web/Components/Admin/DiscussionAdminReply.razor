@@ -1,0 +1,69 @@
+@using System.Globalization
+@using Croft.Shared.Contracts.Social
+
+@* One stored reply in the Discussion tab (brief 12c): who, where, when, the content, a link to the original and the
+   two moderation buttons. Presentational: the tab owns the dialogs and the API calls. The list is flat; Depth only
+   indents. A separate component from the public DiscussionReply on purpose. *@
+@{
+    var platform = Reply.Platform == SocialPlatform.Bluesky ? "Bluesky" : "Mastodon";
+}
+<li class="discussion-admin__reply discussion-admin__reply--depth-@Math.Min(Depth, MaxIndent)" data-depth="@Depth">
+    @* Decorative: the name is next to it. The hash is the API's, served by the Web's own proxy (img-src 'self'). *@
+    @if (Reply.AvatarHash is { } hash)
+    {
+        <img class="discussion-admin__avatar" src="@($"/social/avatar/{hash}.webp")" width="40" height="40" alt="" loading="lazy" decoding="async">
+    }
+    else
+    {
+        <span class="discussion-admin__avatar discussion-admin__initial" aria-hidden="true">@Initial</span>
+    }
+    <div class="discussion-admin__main">
+        <header class="discussion-admin__header">
+            <span class="discussion-admin__name">@Reply.AuthorDisplayName</span>
+            <span class="discussion-admin__handle">@("@" + Reply.AuthorHandle)</span>
+            <span class="discussion-admin__platform">@platform</span>
+            <time class="discussion-admin__time" datetime="@Reply.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture)">@Reply.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) UTC</time>
+        </header>
+        @if (Reply.ContentWarning is { } warning)
+        {
+            <p class="discussion-admin__warning">Content warning: @warning</p>
+        }
+        <div class="discussion-admin__content">@((MarkupString)Reply.ContentHtml)</div>
+        <div class="discussion-admin__actions">
+            <a class="discussion-admin__view" href="@Reply.Permalink" rel="nofollow ugc noopener" target="_blank">View on @platform</a>
+            <button type="button" class="discussion-admin__action" aria-label="@($"Hide reply by @{Reply.AuthorHandle}")"
+                    @onclick="() => OnHideReply.InvokeAsync(Reply)">Hide reply</button>
+            <button type="button" class="discussion-admin__action" aria-label="@($"Hide account @{Reply.AuthorHandle}")"
+                    @onclick="() => OnHideAccount.InvokeAsync(Reply)">Hide account</button>
+        </div>
+    </div>
+</li>
+
+@code {
+    /// <summary>The deepest indent step the stylesheet has; deeper replies (the API stops at three levels) stay on it.</summary>
+    private const int MaxIndent = 4;
+
+    [Parameter, EditorRequired] public DiscussionReplyDto Reply { get; set; } = default!;
+
+    /// <summary>0 for a reply to the post, one more for each level of answers.</summary>
+    [Parameter] public int Depth { get; set; }
+
+    [Parameter] public EventCallback<DiscussionReplyDto> OnHideReply { get; set; }
+
+    [Parameter] public EventCallback<DiscussionReplyDto> OnHideAccount { get; set; }
+
+    /// <summary>The first letter of the display name (of the handle when the name is empty), upper-cased.</summary>
+    private string Initial
+    {
+        get
+        {
+            var source = string.IsNullOrWhiteSpace(Reply.AuthorDisplayName) ? Reply.AuthorHandle : Reply.AuthorDisplayName;
+            var trimmed = source.TrimStart();
+            return trimmed.Length == 0 ? "?" : char.ConvertFromUtf32(char.ConvertToUtf32(trimmed, 0)).ToUpperInvariant();
+        }
+    }
+
+    // ContentHtml is rendered as it is: the API sanitised it at ingest (brief 12a: only p, br and a with
+    // http/https and rel="nofollow ugc noopener"). That is the one sanitiser, tested there; the
+    // Content-Security-Policy is the second layer. It is deliberately not sanitised again here.
+}

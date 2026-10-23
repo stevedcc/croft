@@ -1,0 +1,32 @@
+/* The Mastodon reply page (brief 12b): short lines in the UI font, the link as an outlined button. */
+.mastodon-continue__text,
+.mastodon-continue__error {
+    max-width: 40rem;
+    margin: 0 0 1rem;
+    font-family: var(--font-ui);
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--text);
+}
+
+.mastodon-continue__error {
+    padding-left: 10px;
+    border-left: 3px solid var(--primary);
+}
+
+.mastodon-continue__link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    box-sizing: border-box;
+    padding: 4px 16px;
+    border: 1px solid var(--primary);
+    border-radius: 6px;
+    color: var(--primary);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.mastodon-continue__link:hover {
+    background: var(--primary-container);
+}
