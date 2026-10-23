@@ -88,6 +88,37 @@ public class SocialAnnounceHashtagsTests(PostgresDatabaseFixture fixture) : ICla
     }
 
     [Fact]
+    public async Task ATagWithoutHashtags_DoesNotStopTheAnnouncement_TheCategorysHashtagsStillGoOut()
+    {
+        await using var h = await AnnounceHarness.CreateAsync(fixture);
+        var postId = await h.SeedPostAsync("Title", "Subtitle", slug: "hashtagged");
+        await h.ChangePostAsync(postId, post =>
+        {
+            post.Category = new Category { Name = "Homelab category", Slug = "homelab-category", Hashtags = [new("Homelab", HashtagNetworks.Both)] };
+            post.Tags = [new Tag { Name = "plain", Slug = "plain" }];
+        });
+
+        await h.NewReplica().TickAsync();
+
+        h.Mastodon.Sends.Should().ContainSingle().Which.Text.Should().Be($"Title\n\nSubtitle\n\n#Homelab\n\n{Url}",
+            "a tag whose hashtag column is NULL has no hashtags; it must not break the default text");
+        h.Bluesky.Sends.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task TagsWithoutHashtags_AndNoCategory_GiveTheTodaysDefaultText()
+    {
+        await using var h = await AnnounceHarness.CreateAsync(fixture);
+        var postId = await h.SeedPostAsync("Title", "Subtitle", slug: "hashtagged");
+        await h.ChangePostAsync(postId, post => post.Tags = [new Tag { Name = "plain", Slug = "plain" }, new Tag { Name = "other", Slug = "other" }]);
+
+        await h.NewReplica().TickAsync();
+
+        h.Mastodon.Sends.Should().ContainSingle().Which.Text.Should().Be($"Title\n\nSubtitle\n\n{Url}");
+        h.Bluesky.Sends.Should().ContainSingle().Which.Text.Should().Be($"Title\n\nSubtitle\n\n{Url}");
+    }
+
+    [Fact]
     public async Task ACustomText_IsSentAsTyped_WithNoHashtagsAdded_AndNoExtraTagFacets()
     {
         await using var h = await AnnounceHarness.CreateAsync(fixture);

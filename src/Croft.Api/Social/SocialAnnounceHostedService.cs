@@ -189,7 +189,8 @@ public sealed partial class SocialAnnounceHostedService(
         return await gates.RunAsync(claim.Platform, () => announcer.SendAsync(message, ct), ct);
     }
 
-    private sealed record TagHashtags(string Name, List<HashtagDto> Hashtags);
+    /// <summary>Hashtags is null for a tag that never had any: a projection bypasses the entity's setter and EF hands NULL through.</summary>
+    private sealed record TagHashtags(string Name, List<HashtagDto>? Hashtags);
 
     private sealed record PostFields(
         Guid Id, string Slug, string Title, string? Subtitle, string? AnnouncementText, string? BannerPath,
@@ -212,7 +213,7 @@ public sealed partial class SocialAnnounceHostedService(
         {
             // The tags in the order the post lists them (PostService sorts by name, ordinal ignoring case).
             var hashtags = AnnouncementText.SelectHashtags(platform, post.CategoryHashtags ?? [],
-                post.Tags.OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase).Select(t => t.Hashtags));
+                post.Tags.OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase).Select(t => (IReadOnlyList<HashtagDto>)(t.Hashtags ?? [])));
             body = AnnouncementText.FitDefault(platform, post.Title, post.Subtitle, hashtags, url);
         }
         else
