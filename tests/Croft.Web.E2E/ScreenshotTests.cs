@@ -408,6 +408,78 @@ public class ScreenshotTests : WebTest
         }
     }
 
+    /// <summary>The announcement previews with the default text and the hashtags of the post's category (brief 12e): the editor's section, and the Tags &amp; categories row where they are edited.</summary>
+    [TestCase(1440, 900, "light")]
+    [TestCase(1440, 900, "dark")]
+    [TestCase(390, 844, "light")]
+    [TestCase(390, 844, "dark")]
+    public async Task AnnouncementHashtags(int width, int height, string theme)
+    {
+        await EnsureHashtagsAsync();
+        await CaptureAsync("announcement-hashtags", width, height, theme, "admin@example.com", async page =>
+        {
+            await page.GotoAsync($"{BaseUrl}/admin/posts/{_hashtagPostId}/edit");
+            await WaitForInteractiveAsync(page);
+            await Expect(page.Locator("#announce-preview-bluesky .announce-preview__text")).ToContainTextAsync("#Homelab #SelfHosted");
+        }, element: page => page.Locator(".post-form__announcement"));
+
+        AssertCaptureLanded("announcement-hashtags", width, theme);
+
+        await CaptureAsync("tags-hashtags", width, height, theme, "admin@example.com", async page =>
+        {
+            await page.GotoAsync($"{BaseUrl}/admin/tags");
+            await WaitForInteractiveAsync(page);
+            var search = page.GetByRole(AriaRole.Textbox, new PageGetByRoleOptions { Name = "Search categories" });
+            await search.FillAsync(_hashtagCategory);
+            await search.PressAsync("Enter");
+            var row = page.Locator("tr", new PageLocatorOptions { Has = page.Locator($"button[aria-label='Icon for {_hashtagCategory}']") });
+            await Expect(row.Locator(".hashtag-cell__text")).ToHaveTextAsync("#Homelab #SelfHosted");
+            await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = $"Edit hashtags for {_hashtagCategory}" }).ClickAsync();
+            await Expect(row.GetByLabel("Networks").Nth(1)).ToHaveValueAsync("BlueskyOnly");
+        }, element: page => page.Locator(".admin-table__scroll").First);
+
+        AssertCaptureLanded("tags-hashtags", width, theme);
+    }
+
+    private static readonly SemaphoreSlim HashtagGate = new(1, 1);
+    private static Guid _hashtagPostId;
+    private static string _hashtagCategory = string.Empty;
+
+    private async Task EnsureHashtagsAsync()
+    {
+        await HashtagGate.WaitAsync();
+        try
+        {
+            if (_hashtagPostId != Guid.Empty)
+            {
+                return;
+            }
+
+            var runId = Guid.NewGuid().ToString("N")[..12];
+            _hashtagCategory = $"Homelab capture {runId}";
+            using var client = MockIdpApi.CreateClient();
+            var token = await MockIdpApi.GetAdminAccessTokenAsync(client);
+            using var category = await MockIdpApi.PostJsonAsync(client, ApiUrl, "/api/categories", JsonSerializer.Serialize(_hashtagCategory), token);
+            var categoryId = category.RootElement.GetProperty("id").GetGuid();
+            using var update = new HttpRequestMessage(HttpMethod.Put, $"{ApiUrl}/api/categories/{categoryId}")
+            {
+                Content = new StringContent(
+                    JsonSerializer.Serialize(new { name = _hashtagCategory, hashtags = new[] { new { name = "Homelab", networks = 0 }, new { name = "SelfHosted", networks = 2 } } }),
+                    Encoding.UTF8, "application/json"),
+            };
+            update.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            using var response = await client.SendAsync(update);
+            response.EnsureSuccessStatusCode();
+            using var post = await MockIdpApi.PostJsonAsync(client, ApiUrl, "/api/posts",
+                new { title = $"Hashtag capture {runId}", markdownContent = $"A post about a homelab {runId}.", subtitle = "What a small cluster can take", categoryId }, token);
+            _hashtagPostId = post.RootElement.GetProperty("id").GetGuid();
+        }
+        finally
+        {
+            HashtagGate.Release();
+        }
+    }
+
     /// <summary>The Hidden replies page (brief 12c) with a reply block (with a note) and an account block, both made through the API as the admin.</summary>
     [TestCase(1440, 900, "light")]
     [TestCase(1440, 900, "dark")]

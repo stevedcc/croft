@@ -515,8 +515,24 @@ start showing without anyone pasting a link.
   says otherwise; the post's address (`Blog__BaseUrl` and `/post/<slug>`) is added at the end. It is composed
   when it is sent, so an edit while pending is what goes out. Limits: Mastodon 500 and Bluesky 300 characters
   (grapheme clusters; Mastodon counts any address as 23, Bluesky as written). A default that is too long is
-  shortened (the subtitle first) with "…"; a custom text that is too long is refused on save. Hashtags
+  shortened with "…" (see Hashtags below for the order); a custom text that is too long is refused on save. Hashtags
   (`#homelab`) are linked on both networks: Mastodon finds them itself, Croft marks them in the Bluesky post.
+- **Hashtags of categories and tags.** Link-only posts from a small account get little reach, and hashtags are how
+  people find posts on both networks, so on **Tags & categories** (Admin) each category and tag can carry up to 10
+  hashtags of the owner's choosing (established ones, such as `#SelfHosted`, not ones made up from the name), typed in
+  CamelCase because screen readers read it word by word and both networks match without regard to case. Each applies
+  to both networks unless marked **Mastodon only** or **Bluesky only**; a name is letters, digits and underscores
+  (1 to 64, at least one letter, not ending in an underscore), and one that differs from another only in letter case
+  is a duplicate. The default text appends **at most 3** of them, after the subtitle and a blank line, separated by
+  spaces: the category's first, then the tags' in the order the post lists its tags (by name), each network getting
+  the ones that apply to it, without duplicates: `Title`, blank line, `Subtitle`, blank line, `#Homelab #SelfHosted
+  #DotNet`, blank line, the address. A text the owner typed is sent as typed: no hashtags are added to it. The editor's
+  two previews show exactly what each network will get, with the count.
+- **Fitting a long default.** When the default is over a network's limit, it is shortened in this order until it fits:
+  the subtitle is cut (ending in "…") and the hashtags stay; then the subtitle goes and all hashtags stay; then the
+  hashtags are dropped from the end, one at a time; last, the title is cut. The hashtags go after the subtitle, never
+  before it. Content exports carry the hashtags (`hashtags` in `categories.json` and `tags.json`, optional: an older
+  archive imports with none).
 - **Bluesky** gets a link card (title, subtitle, and the banner re-encoded as a JPEG of at most 950,000 bytes,
   long side at most 1200 pixels); **Mastodon** builds its own card.
 - **Exactly once.** One outbox row per post and network; its id is Mastodon's `Idempotency-Key`. Every attempt after
