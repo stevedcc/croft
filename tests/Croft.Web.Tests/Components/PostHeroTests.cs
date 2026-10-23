@@ -63,7 +63,7 @@ public class PostHeroTests : BlogBunitContext
         });
 
         cut.Find(".post-meta__when").TextContent
-            .Should().Be("2 October 2026 · 7 min read · Updated 5 October 2026");
+            .Should().Be("Published on 2 October 2026, last updated on 5 October 2026 · 7 min read");
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public class PostHeroTests : BlogBunitContext
             ContentEditedAt = new DateTime(2026, 10, 2, 18, 0, 0, DateTimeKind.Utc)
         });
 
-        cut.Find(".post-meta__when").TextContent.Should().Be("2 October 2026 · 7 min read");
+        cut.Find(".post-meta__when").TextContent.Should().Be("Published on 2 October 2026 · 7 min read");
     }
 
     [Fact]

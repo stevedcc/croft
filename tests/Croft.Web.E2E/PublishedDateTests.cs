@@ -72,4 +72,28 @@ public class PublishedDateTests : WebTest
         Assert.That(hrefs, Is.EqualTo(new[] { $"/post/{laterSlug}", $"/post/{slug}" }),
             "the back-dated post (15 September) is listed after the post published on 20 September");
     }
+
+    [Test]
+    public async Task APostEditedOnALaterDay_ShowsTheLongLineOnItsPage_AndOnlyTheDateOnItsCard()
+    {
+        var runId = Guid.NewGuid().ToString("N")[..12];
+        var tag = $"metaline-{runId}";
+        using var client = MockIdpApi.CreateClient();
+        var token = await MockIdpApi.GetAdminAccessTokenAsync(client);
+        using var created = await MockIdpApi.PostJsonAsync(client, ApiUrl, "/api/posts",
+            new CreatePostRequest($"Meta line {runId}", "Body of the post.", Tags: [tag]), token);
+        var id = created.RootElement.GetProperty("id").GetGuid();
+        var slug = created.RootElement.GetProperty("slug").GetString()!;
+        // The edit is "now" (the API's clock); the back-dated publish puts the publication on an earlier day.
+        using var published = await MockIdpApi.PostJsonAsync(client, ApiUrl, $"/api/posts/{id}/publish", new PublishRequest(OriginalDate), token);
+        var editedAt = published.RootElement.GetProperty("contentEditedAt").GetDateTimeOffset().UtcDateTime;
+        var editedText = editedAt.ToString("d MMMM yyyy", System.Globalization.CultureInfo.GetCultureInfo("en-GB"));
+
+        await Page.GotoAsync($"{BaseUrl}/post/{slug}");
+        await Expect(MetaLine).ToHaveTextAsync($"Published on 1 October 2026, last updated on {editedText} · 1 min read");
+
+        await Page.GotoAsync($"{BaseUrl}/tag/{tag}");
+        var card = Page.Locator($"a.post-card__link[href='/post/{slug}']");
+        await Expect(card.Locator(".post-meta__when")).ToHaveTextAsync("1 October 2026 · 1 min read");
+    }
 }

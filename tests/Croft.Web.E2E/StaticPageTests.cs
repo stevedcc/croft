@@ -165,7 +165,7 @@ public class StaticPageTests : WebTest
                 client, ApiUrl, $"/api/posts/{pageId}/publish", "{}", token);
             _pageSlug = pagePublished.RootElement.GetProperty("slug").GetString()!;
             var publishedAt = pagePublished.RootElement.GetProperty("publishedAt").GetDateTimeOffset().UtcDateTime;
-            _publishedDateLine = publishedAt.ToString("d MMMM yyyy", EnGb);
+            _publishedDateLine = $"Published on {publishedAt.ToString("d MMMM yyyy", EnGb)}";
 
             var post = await MockIdpApi.PostJsonAsync(client, ApiUrl, "/api/posts", new CreatePostRequest(
                 $"Post Fixture {RunId}",

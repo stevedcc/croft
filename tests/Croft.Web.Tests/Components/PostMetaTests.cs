@@ -62,43 +62,79 @@ public class PostMetaTests : BlogBunitContext
         cut.FindAll(".status-badge").Should().BeEmpty();
     }
 
-    [Fact]
-    public void PostMeta_EditedOnALaterUtcDay_ShowsTheUpdatedDate()
-    {
-        // Brief 07g item 3's date rule: "· Updated <date>" when the content edit falls on a later
-        // calendar day (UTC) than the publication.
-        var cut = Render<PostMeta>(p => p
-            .Add(x => x.PublishedAt, new DateTime(2026, 10, 2, 9, 30, 0, DateTimeKind.Utc))
-            .Add(x => x.ReadingMinutes, 7)
-            .Add(x => x.ContentEditedAt, new DateTime(2026, 10, 5, 23, 59, 0, DateTimeKind.Utc)));
+    private static readonly DateTime Published = new(2026, 10, 18, 10, 0, 0, DateTimeKind.Utc);
 
-        cut.Find(".post-meta__when").TextContent.Should().Be("2 October 2026 · 7 min read · Updated 5 October 2026");
+    [Fact]
+    public void PostMeta_LongForm_NotEditedOnALaterDay_SaysPublishedOn()
+    {
+        var cut = Render<PostMeta>(p => p
+            .Add(x => x.LongForm, true)
+            .Add(x => x.PublishedAt, Published)
+            .Add(x => x.ReadingMinutes, 7)
+            .Add(x => x.ContentEditedAt, new DateTime(2026, 10, 18, 22, 0, 0, DateTimeKind.Utc)));
+
+        cut.Find(".post-meta__when").TextContent.Should().Be("Published on 18 October 2026 · 7 min read");
     }
 
     [Fact]
-    public void PostMeta_EditedTheSameUtcDay_ShowsNoUpdatedDate()
+    public void PostMeta_LongForm_EditedOnALaterDay_SaysLastUpdatedOn()
     {
-        // A later moment on the same UTC calendar day is not an "Updated" the reader needs.
         var cut = Render<PostMeta>(p => p
-            .Add(x => x.PublishedAt, new DateTime(2026, 10, 2, 9, 30, 0, DateTimeKind.Utc))
+            .Add(x => x.LongForm, true)
+            .Add(x => x.PublishedAt, Published)
             .Add(x => x.ReadingMinutes, 7)
-            .Add(x => x.ContentEditedAt, new DateTime(2026, 10, 2, 18, 0, 0, DateTimeKind.Utc)));
+            .Add(x => x.ContentEditedAt, new DateTime(2026, 10, 23, 0, 5, 0, DateTimeKind.Utc)));
 
-        var text = cut.Find(".post-meta__when").TextContent;
-        text.Should().Be("2 October 2026 · 7 min read");
-        text.Should().NotContain("Updated", "same-day edits are not advertised as updates");
+        cut.Find(".post-meta__when").TextContent.Should()
+            .Be("Published on 18 October 2026, last updated on 23 October 2026 · 7 min read");
     }
 
     [Fact]
-    public void PostMeta_TheDayBoundary_IsTheUtcCalendarDay()
+    public void PostMeta_LongForm_WithoutReadingMinutes_DropsThatPart()
     {
-        // 23:30 UTC on the 2nd → 00:30 UTC on the 3rd: a different UTC day, so "Updated" shows,
-        // dated in UTC.
+        var edited = Render<PostMeta>(p => p
+            .Add(x => x.LongForm, true)
+            .Add(x => x.PublishedAt, Published)
+            .Add(x => x.ContentEditedAt, new DateTime(2026, 10, 23, 0, 5, 0, DateTimeKind.Utc)));
+        var plain = Render<PostMeta>(p => p
+            .Add(x => x.LongForm, true)
+            .Add(x => x.PublishedAt, Published));
+
+        edited.Find(".post-meta__when").TextContent.Should().Be("Published on 18 October 2026, last updated on 23 October 2026");
+        plain.Find(".post-meta__when").TextContent.Should().Be("Published on 18 October 2026");
+    }
+
+    [Fact]
+    public void PostMeta_LongForm_WithoutAPublishDate_IsAsForADraft()
+    {
         var cut = Render<PostMeta>(p => p
+            .Add(x => x.LongForm, true)
+            .Add(x => x.ReadingMinutes, 3));
+
+        cut.Find(".post-meta__when").TextContent.Should().Be("3 min read");
+    }
+
+    [Fact]
+    public void PostMeta_CardForm_NeverShowsUpdated_EvenWhenEditedOnALaterDay()
+    {
+        var cut = Render<PostMeta>(p => p
+            .Add(x => x.PublishedAt, Published)
+            .Add(x => x.ReadingMinutes, 7)
+            .Add(x => x.ContentEditedAt, new DateTime(2026, 10, 23, 0, 5, 0, DateTimeKind.Utc)));
+
+        cut.Find(".post-meta__when").TextContent.Should().Be("18 October 2026 · 7 min read");
+    }
+
+    [Fact]
+    public void PostMeta_LongForm_TheDayBoundary_IsTheUtcCalendarDay()
+    {
+        var cut = Render<PostMeta>(p => p
+            .Add(x => x.LongForm, true)
             .Add(x => x.PublishedAt, new DateTime(2026, 10, 2, 23, 30, 0, DateTimeKind.Utc))
             .Add(x => x.ReadingMinutes, 7)
             .Add(x => x.ContentEditedAt, new DateTime(2026, 10, 3, 0, 30, 0, DateTimeKind.Utc)));
 
-        cut.Find(".post-meta__when").TextContent.Should().Be("2 October 2026 · 7 min read · Updated 3 October 2026");
+        cut.Find(".post-meta__when").TextContent.Should()
+            .Be("Published on 2 October 2026, last updated on 3 October 2026 · 7 min read");
     }
 }

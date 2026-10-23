@@ -509,6 +509,11 @@ public partial class PostService(BlogDbContext db, ISlugService slugService, IFi
 
         var links = await socialLinks.ResolveAsync(request.MastodonUrl, request.BlueskyUrl, nullMeansUnchanged: true, ct);
 
+        // The reader-facing "last updated" date moves only when the words the reader sees change.
+        var contentChanged = !string.Equals(post.Title, request.Title, StringComparison.Ordinal)
+            || !string.Equals(post.Subtitle, request.Subtitle, StringComparison.Ordinal)
+            || !string.Equals(post.MarkdownContent, request.MarkdownContent, StringComparison.Ordinal);
+
         post.Title = request.Title;
         post.Subtitle = request.Subtitle;
         post.MarkdownContent = request.MarkdownContent;
@@ -522,7 +527,8 @@ public partial class PostService(BlogDbContext db, ISlugService slugService, IFi
         post.AnnounceBluesky = announceBluesky;
         var now = time.GetUtcNow().UtcDateTime;
         post.UpdatedAt = now;
-        post.ContentEditedAt = now;
+        if (contentChanged)
+            post.ContentEditedAt = now;
 
         post.Tags = await ResolveTagsAsync(request.Tags, ct);
         post.Category = await ResolveCategoryAsync(request.CategoryId, ct);

@@ -36,7 +36,7 @@ public class PageSurfaceTests : BlogBunitContext
 
         cut.Find("h1").TextContent.Should().Be("About");
         cut.Find(".page-surface__subtitle").TextContent.Should().Be("Notes on the owner");
-        cut.Find(".post-meta__when").TextContent.Should().Be("2 October 2026",
+        cut.Find(".post-meta__when").TextContent.Should().Be("Published on 2 October 2026",
             "the date line is the published date — a page shows no reading time");
         cut.Find(".markdown-body").InnerHtml.Should().Contain("The hillsideword waits.");
     }
@@ -54,7 +54,7 @@ public class PageSurfaceTests : BlogBunitContext
     {
         var cut = RenderSurface(contentEditedAt: LaterDayEdit);
 
-        cut.Find(".post-meta__when").TextContent.Should().Be("2 October 2026 · Updated 5 October 2026");
+        cut.Find(".post-meta__when").TextContent.Should().Be("Published on 2 October 2026, last updated on 5 October 2026");
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public class PageSurfaceTests : BlogBunitContext
     {
         var cut = RenderSurface(contentEditedAt: SameDayEdit);
 
-        cut.Find(".post-meta__when").TextContent.Should().Be("2 October 2026");
+        cut.Find(".post-meta__when").TextContent.Should().Be("Published on 2 October 2026");
     }
 
     [Fact]
