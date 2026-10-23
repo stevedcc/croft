@@ -69,6 +69,12 @@ public class MastodonServerNameTests
     [InlineData("ex_ample.com")]
     [InlineData("m\u00fcnchen.example")]
     [InlineData("127.0.0.1")]
+    [InlineData("[::1]")]
+    [InlineData("[2001:db8::1]")]
+    [InlineData("https://[2001:db8::1]/")]
+    [InlineData("[fe80::1%25eth0]")]
+    [InlineData("fe80::1%eth0")]
+    [InlineData("[::ffff:192.0.2.1]")]
     [InlineData("<script>.example")]
     public void AnInvalidInput_IsRefused(string? input)
     {

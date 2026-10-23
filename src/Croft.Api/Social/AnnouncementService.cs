@@ -61,6 +61,11 @@ public sealed class AnnouncementService(BlogDbContext db, IOptions<SocialOptions
             throw new ConflictException($"The post is already announced on {platform}.");
         }
 
+        // A manual retry of a failed announcement starts again: a failed try then waits the first backoff step, not the sixtieth minute.
+        // The sender still looks for an earlier send before it sends (the row has been tried before: see Claim.Tried).
+        if (row.State == AnnouncementState.Failed)
+            row.Attempts = 0;
+
         row.State = AnnouncementState.Pending;
         row.QueuedAt = now;
         row.NextAttemptAt = now;

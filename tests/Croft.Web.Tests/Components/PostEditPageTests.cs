@@ -539,6 +539,18 @@ public class PostEditPageTests : BlogBunitContext
     }
 
     [Fact]
+    public async Task EditPage_Update_ALoadedLinkWithSurroundingSpaces_UnchangedInTheField_SendsNull()
+    {
+        Setup();
+        var id = SeedLinkedPost(mastodon: $"  {LoadedMastodon} ", bluesky: null);
+        var cut = Render<PostEditPage>(p => p.Add(x => x.Id, id));
+
+        var request = await SaveEditedAsync(cut);
+
+        request.MastodonUrl.Should().BeNull("the field still holds what was loaded; the stray spaces are not a change");
+    }
+
+    [Fact]
     public async Task EditPage_AfterASave_TheSavedLinkIsTheNewBaseline()
     {
         // The second save of an unchanged field must not re-send what the first save sent.

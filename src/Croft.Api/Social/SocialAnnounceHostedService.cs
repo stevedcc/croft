@@ -115,7 +115,7 @@ public sealed partial class SocialAnnounceHostedService(
                 && platforms.Contains(a.Platform) && a.Post.Status == PostStatus.Published)
             .OrderBy(a => a.NextAttemptAt).ThenBy(a => a.PostId).ThenBy(a => a.Platform)
             .Take(MaxClaimsPerTick)
-            .Select(a => new { a.Id, a.PostId, a.Platform, a.Attempts, a.QueuedAt })
+            .Select(a => new { a.Id, a.PostId, a.Platform, a.Attempts, a.QueuedAt, Tried = a.LastAttemptAt != null })
             .ToListAsync(ct);
 
         var leaseUntil = now + Lease;
@@ -128,7 +128,7 @@ public sealed partial class SocialAnnounceHostedService(
                     .SetProperty(a => a.Attempts, a => a.Attempts + 1)
                     .SetProperty(a => a.LastAttemptAt, (DateTime?)now), ct);
             if (claimed == 1)
-                claims.Add(new Claim(row.Id, row.PostId, row.Platform, row.Attempts + 1, row.QueuedAt));
+                claims.Add(new Claim(row.Id, row.PostId, row.Platform, row.Attempts + 1, row.QueuedAt, row.Tried));
         }
     }
 
@@ -162,7 +162,8 @@ public sealed partial class SocialAnnounceHostedService(
                 outcome = new AnnounceOutcome.Retry($"Unexpected error ({ex.GetType().Name})", null);
             }
 
-            LogOutcome(logger, claim.Platform, claim.PostId, claim.Attempts, outcome.GetType().Name);
+            var status = AnnounceErrors.HttpStatusOf(outcome);
+            LogOutcome(logger, claim.Platform, claim.PostId, claim.Attempts, outcome.GetType().Name, status);
             return await RecordAsync(db, claim, outcome, sent, ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -178,7 +179,7 @@ public sealed partial class SocialAnnounceHostedService(
         var announcer = _announcers[claim.Platform];
 
         // Every attempt after the first may follow one that reached the network but never reported back: look before sending.
-        if (claim.Attempts > 1)
+        if (claim.Attempts > 1 || claim.Tried)
         {
             var earlier = await gates.RunAsync(claim.Platform, () => announcer.FindEarlierAsync(message, ct), ct);
             if (earlier is not AnnounceOutcome.NotFound)
@@ -365,13 +366,14 @@ public sealed partial class SocialAnnounceHostedService(
 
     private DateTime Now() => time.GetUtcNow().UtcDateTime;
 
-    private sealed record Claim(Guid Id, Guid PostId, SocialPlatform Platform, int Attempts, DateTime QueuedAt);
+    /// <summary><c>Tried</c>: the row had an attempt before this claim, even if a manual retry has since set its attempts back to 0.</summary>
+    private sealed record Claim(Guid Id, Guid PostId, SocialPlatform Platform, int Attempts, DateTime QueuedAt, bool Tried);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The announcement tick failed ({ExceptionType}).")]
     private static partial void LogTickFailed(ILogger logger, string exceptionType);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Announcing post {PostId} on {Platform}, attempt {Attempt}: {Outcome}.")]
-    private static partial void LogOutcome(ILogger logger, SocialPlatform platform, Guid postId, int attempt, string outcome);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Announcing post {PostId} on {Platform}, attempt {Attempt}: {Outcome}{Status}.")]
+    private static partial void LogOutcome(ILogger logger, SocialPlatform platform, Guid postId, int attempt, string outcome, string status);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Storing the {Platform} announcement result of post {PostId} failed ({ExceptionType}); its lease will run out.")]
     private static partial void LogStoreFailed(ILogger logger, SocialPlatform platform, Guid postId, string exceptionType);

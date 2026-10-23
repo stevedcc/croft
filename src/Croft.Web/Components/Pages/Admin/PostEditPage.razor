@@ -601,7 +601,7 @@
     private static string? LinkChange(string entered, string? loaded)
     {
         var text = entered.Trim();
-        return string.Equals(text, loaded ?? string.Empty, StringComparison.Ordinal)
+        return string.Equals(text, loaded?.Trim() ?? string.Empty, StringComparison.Ordinal)
             ? null
             : text;
     }

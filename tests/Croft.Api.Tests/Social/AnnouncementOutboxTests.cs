@@ -254,7 +254,7 @@ public class AnnouncementOutboxTests(PostgresDatabaseFixture fixture) : IClassFi
     }
 
     [Fact]
-    public async Task Post_OnAFailedRow_IsARetry_ItKeepsTheAttempts()
+    public async Task Post_OnAFailedRow_IsARetry_ItStartsTheAttemptsAgain()
     {
         await using var factory = Factory();
         var admin = factory.CreateClient().WithRole("Admin");
@@ -267,9 +267,24 @@ public class AnnouncementOutboxTests(PostgresDatabaseFixture fixture) : IClassFi
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         var row = (await RowsAsync(factory, post.Id)).Single(r => r.Platform == SocialPlatform.Bluesky);
         row.State.Should().Be(AnnouncementState.Pending);
-        row.Attempts.Should().Be(3, "a retry checks before it sends");
+        row.Attempts.Should().Be(0, "a manual retry starts the attempts again, so a failed try waits the first backoff step");
         row.NextAttemptAt.Should().NotBeNull();
         row.QueuedAt.Should().BeAfter(DateTime.UtcNow.AddMinutes(-5), "the retry window starts again");
+    }
+
+    [Fact]
+    public async Task MastodonWithoutAnAccount_IsNotReady_NothingIsQueued_AndTheTabSaysNotSetUp()
+    {
+        await using var factory = SocialApiFactory.Create(fixture, configuration: new(Ready(bluesky: false)) { ["Social:Mastodon:Account"] = "" });
+        var admin = factory.CreateClient().WithRole("Admin");
+        var post = await CreateAsync(admin, "No account");
+
+        await PublishAsync(admin, post);
+
+        (await RowsAsync(factory, post.Id)).Should().BeEmpty("without the account the earlier-send check cannot run");
+        var dto = (await admin.GetFromJsonAsync<PostAnnouncementsDto>($"/api/posts/{post.Id}/announcements"))!;
+        dto.MastodonReady.Should().BeFalse("the Discussion tab then says \"Not set up on this site\"");
+        (await admin.PostAsync($"/api/posts/{post.Id}/announcements/mastodon", null)).StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]

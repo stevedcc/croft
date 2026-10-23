@@ -113,10 +113,25 @@ public class SocialSettingsTests
         {
             Enabled = enabled,
             BaseUrl = baseUrl ?? string.Empty,
-            Mastodon = new MastodonSocialOptions { Server = server, AccessToken = token },
+            Mastodon = new MastodonSocialOptions { Server = server, Account = "owner", AccessToken = token },
         };
 
         options.MastodonCanAnnounce.Should().Be(ready);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("  ")]
+    public void Mastodon_IsNotReady_WithoutTheAccount(string account)
+    {
+        var options = new SocialOptions
+        {
+            Enabled = true,
+            BaseUrl = "https://blog.example",
+            Mastodon = new MastodonSocialOptions { Server = "mastodon.example", Account = account, AccessToken = "tok" },
+        };
+
+        options.MastodonCanAnnounce.Should().BeFalse("the check for an earlier send needs the account");
     }
 
     [Theory]

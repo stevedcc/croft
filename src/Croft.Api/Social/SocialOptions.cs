@@ -25,8 +25,8 @@ public sealed class SocialOptions
     /// <summary>The site's address (<c>Blog:BaseUrl</c>, not a <c>Social:</c> key; the program fills it): what an announcement's post address starts with.</summary>
     public string BaseUrl { get; set; } = string.Empty;
 
-    /// <summary>Announcing on Mastodon (brief 12d): social is on, and the server, the access token and the site's address are all set. Otherwise nothing is queued or sent for it.</summary>
-    public bool MastodonCanAnnounce => Enabled && MastodonConfigured && !string.IsNullOrWhiteSpace(Mastodon.AccessToken) && !string.IsNullOrWhiteSpace(BaseUrl);
+    /// <summary>Announcing on Mastodon (brief 12d): social is on, and the server, the account (the look for an earlier send needs it), the access token and the site's address are all set. Otherwise nothing is queued or sent for it.</summary>
+    public bool MastodonCanAnnounce => Enabled && MastodonConfigured && !string.IsNullOrWhiteSpace(Mastodon.Account) && !string.IsNullOrWhiteSpace(Mastodon.AccessToken) && !string.IsNullOrWhiteSpace(BaseUrl);
 
     /// <summary>Announcing on Bluesky (brief 12d): social is on, and the DID, the app password and the site's address are all set.</summary>
     public bool BlueskyCanAnnounce => Enabled && BlueskyConfigured && !string.IsNullOrWhiteSpace(Bluesky.AppPassword) && !string.IsNullOrWhiteSpace(BaseUrl);
