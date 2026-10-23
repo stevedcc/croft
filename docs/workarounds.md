@@ -471,6 +471,13 @@ entry and a marker in the same commit (AGENTS.md, "Workarounds").
 - **Fails without it:** `SocialClientsTests.AFailingAnswer_IsNotRetried_TheScheduleRetries` and `ANetworkError_IsNotRetried` (the standard strategy would retry a 503 and a connection error three times).
 - **Upgrade check:** if the strategy accepts 0 (or the handler gets a switch to turn retries off), use it and delete the always-false predicate.
 
+### W-101: HEAD requests are answered as the GET they stand for
+
+- **Library:** ASP.NET Core routing matches a request only against endpoints that list its method. `MapGet` endpoints and the Razor components router list GET alone, so `HEAD /`, `/robots.txt`, `/feed.xml` and every other page answered an error (404 on a local instance; issue #5 saw 405 on the live site) and link checkers and uptime monitors that use HEAD reported the site as broken.
+- **Our code:** `HeadRequestMiddleware` (`Services/HeadRequestMiddleware.cs`, registered in `Program.cs` before routing): a HEAD runs the whole pipeline as a GET, so rate limiting, antiforgery, circuit admission and the output cache treat it exactly as they treat the GET (the cache stores the page the GET would have, never an empty one), and the response body is discarded.
+- **Fails without it:** `HeadRequestTests` (status, Content-Type, CSP and `Cache-Control` equal to the GET's, no body, on `/`, a post, `/robots.txt`, `/feed.xml`, `/sitemap.xml`, `/health/live`; a HEAD before a GET leaves the GET the full page).
+- **Upgrade check:** if routing or `MapGet` starts to answer HEAD for GET endpoints by itself, remove the middleware and run `HeadRequestTests`.
+
 ## Tier C: values tuned from measurements; re-measure on an upgrade
 
 ### W-052: Circuit retention (20 circuits, 60 s)
