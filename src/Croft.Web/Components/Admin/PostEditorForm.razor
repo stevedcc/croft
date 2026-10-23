@@ -7,7 +7,7 @@
 @inject NavigationManager Navigation
 
 @* The editor form (spec §6.2/§7.4): the left column's fields and the actions bar (status badge,
-   "Saved hh:mm", Save draft · Publish now · Schedule · Unpublish). The form edits the model in
+   "Saved hh:mm", Save draft · Publish now · Schedule · Set date · Unpublish). The form edits the model in
    place and reports actions; the page owns the API calls and the dialogs. *@
 <div class="post-form" data-draft-scope data-draft-key="@DraftKey" data-draft-stamp="@SavedStamp" data-draft-extra="@DraftBackup.ExtraJson(Model)">
     <div class="post-actions">
@@ -23,6 +23,11 @@
                     aria-describedby="@ContentOverLimitReason" @onclick="() => OnPublishNow.InvokeAsync()">Publish now</button>
             <button type="button" class="post-actions__button" disabled="@(!ScheduleEnabled || ContentOverLimit)"
                     aria-describedby="@ScheduleDisabledReasons" @onclick="() => OnSchedule.InvokeAsync()">Schedule</button>
+            @if (Status is PostStatus.Published)
+            {
+                <button type="button" class="post-actions__button" disabled="@(!SetDateEnabled || ContentOverLimit)"
+                        aria-describedby="@SetDateDisabledReasons" @onclick="() => OnSetDate.InvokeAsync()">Set date</button>
+            }
             @if (Status is PostStatus.Published or PostStatus.Scheduled)
             {
                 <button type="button" class="post-actions__button" disabled="@ContentOverLimit"
@@ -32,6 +37,10 @@
         @if (!ScheduleEnabled)
         {
             <span class="post-actions__hint" id="post-schedule-hint">Schedule needs a publish date and time in the future.</span>
+        }
+        @if (Status is PostStatus.Published && !SetDateEnabled)
+        {
+            <span class="post-actions__hint" id="post-set-date-hint">Set date needs a past date and time that differs from the published one.</span>
         }
     </div>
 
@@ -230,6 +239,10 @@
     [Parameter] public EventCallback OnSave { get; set; }
     [Parameter] public EventCallback OnPublishNow { get; set; }
     [Parameter] public EventCallback OnSchedule { get; set; }
+    [Parameter] public EventCallback OnSetDate { get; set; }
+
+    /// <summary>The published date the API holds; Set date is only offered for a past moment that differs from it.</summary>
+    [Parameter] public DateTime? StoredPublishedAt { get; set; }
     [Parameter] public EventCallback OnUnpublish { get; set; }
 
     /// <summary>Raised with the banner file to upload (the page calls the API and stores the asset).</summary>
@@ -259,6 +272,20 @@
             return moment > Time.GetUtcNow().UtcDateTime;
         }
     }
+
+    /// <summary>Set date back-dates a published post, so it needs a past moment that differs from the stored one.</summary>
+    private bool SetDateEnabled =>
+        UtcDateTime.Combine(Model.PublishedAtDate, Model.PublishedAtTime) is { } moment
+        && moment < Time.GetUtcNow().UtcDateTime
+        && moment != StoredPublishedAt;
+
+    private string? SetDateDisabledReasons => (SetDateEnabled, ContentOverLimit) switch
+    {
+        (true, false) => null,
+        (false, false) => "post-set-date-hint",
+        (true, true) => MarkdownEditor.OverLimitId,
+        (false, true) => $"post-set-date-hint {MarkdownEditor.OverLimitId}",
+    };
 
     /// <summary>The ids of the lines that say why Schedule is disabled (each is on the page only while its reason holds),
     /// space-separated for aria-describedby; null when the button is enabled.</summary>

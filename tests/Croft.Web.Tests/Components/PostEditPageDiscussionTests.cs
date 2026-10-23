@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Components;
 using AngleSharp.Dom;
 using AwesomeAssertions;
 using Bunit;
@@ -25,6 +26,9 @@ public class PostEditPageDiscussionTests : BlogBunitContext
         _api = Services.GetRequiredService<FakeBlogApiClient>();
         _api.PostsById[PostId] = new PostDto(PostId, "a-post", "A post", null, "Body.", null, null,
             PostStatus.Published, Now.UtcDateTime.AddDays(-2), Now.UtcDateTime, Now.UtcDateTime, "author-id", "Author", null, [], null, 1);
+
+        // The editor polls and reads the announcements only in the interactive phase (RendererInfo.IsInteractive).
+        SetRendererInfo(new RendererInfo("Server", isInteractive: true));
     }
 
     private static DiscussionReplyDto Reply(string id, string account, string html = "<p>Example reply text.</p>",

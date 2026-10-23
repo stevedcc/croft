@@ -2,7 +2,7 @@ namespace Croft.Web.Tests;
 
 /// <summary>A <see cref="TimeProvider"/> whose timers fire only when the test advances the clock,
 /// so a background loop's waits are driven by the test and nothing sleeps. A one-shot timer is
-/// enough for <c>Task.Delay(delay, timeProvider)</c>.</summary>
+/// enough for <c>Task.Delay(delay, timeProvider)</c>. A disposed timer never fires.</summary>
 internal sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider
 {
     private readonly object _gate = new();
@@ -54,7 +54,7 @@ internal sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider
         lock (_gate)
         {
             _now += by;
-            due = [.. _timers.Where(t => !t.Fired && t.Due <= _now)];
+            due = [.. _timers.Where(t => !t.Fired && !t.Disposed && t.Due <= _now)];
         }
 
         foreach (var timer in due)
@@ -71,6 +71,8 @@ internal sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider
 
         public bool Fired { get; private set; }
 
+        public bool Disposed { get; private set; }
+
         public void Fire()
         {
             Fired = true;
@@ -79,10 +81,12 @@ internal sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider
 
         public bool Change(TimeSpan dueTime, TimeSpan period) => true;
 
-        public void Dispose()
-        {
-        }
+        public void Dispose() => Disposed = true;
 
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        public ValueTask DisposeAsync()
+        {
+            Disposed = true;
+            return ValueTask.CompletedTask;
+        }
     }
 }

@@ -57,6 +57,46 @@ public class ContentEditedAtTests(PostgresDatabaseFixture fixture)
             "an update is a content edit and must move ContentEditedAt");
     }
 
+    [Fact]
+    public async Task Update_ChangingOnlyAnAnnouncementFlag_DoesNotMoveContentEditedAt_ButUpdatedAtMoves()
+    {
+        var clock = new FakeTimeProvider(Start);
+        await using var factory = CreateFactoryAsync(s => s.AddSingleton<TimeProvider>(clock));
+        var admin = factory.CreateClient().WithRole("Admin");
+        var created = await CreateAsync(admin, PostKind.Post);
+
+        clock.Advance(TimeSpan.FromDays(1));
+        var update = await admin.PutAsJsonAsync($"/api/posts/{created.Id}",
+            new UpdatePostRequest(created.Title, created.MarkdownContent, AnnounceMastodon: !created.AnnounceMastodon));
+        update.EnsureSuccessStatusCode();
+        var updated = await update.Content.ReadFromJsonAsync<PostDto>();
+
+        updated!.ContentEditedAt.Should().Be(Start.UtcDateTime, "a flag is not content the reader sees");
+        updated.UpdatedAt.Should().Be(Start.UtcDateTime.AddDays(1));
+    }
+
+    [Theory]
+    [InlineData("title")]
+    [InlineData("subtitle")]
+    [InlineData("content")]
+    public async Task Update_ChangingTitleSubtitleOrContent_MovesContentEditedAt(string field)
+    {
+        var clock = new FakeTimeProvider(Start);
+        await using var factory = CreateFactoryAsync(s => s.AddSingleton<TimeProvider>(clock));
+        var admin = factory.CreateClient().WithRole("Admin");
+        var created = await CreateAsync(admin, PostKind.Post);
+
+        clock.Advance(TimeSpan.FromDays(1));
+        var update = await admin.PutAsJsonAsync($"/api/posts/{created.Id}", new UpdatePostRequest(
+            field == "title" ? created.Title + " v2" : created.Title,
+            field == "content" ? created.MarkdownContent + " more" : created.MarkdownContent,
+            Subtitle: field == "subtitle" ? "A subtitle" : created.Subtitle));
+        update.EnsureSuccessStatusCode();
+        var updated = await update.Content.ReadFromJsonAsync<PostDto>();
+
+        updated!.ContentEditedAt.Should().Be(Start.UtcDateTime.AddDays(1));
+    }
+
     [Theory]
     [InlineData(PostKind.Post)]
     [InlineData(PostKind.Page)]

@@ -62,15 +62,7 @@
 
 @code {
     /// <summary>The first letter of the display name (of the handle when the name is empty), upper-cased.</summary>
-    private string Initial
-    {
-        get
-        {
-            var source = string.IsNullOrWhiteSpace(Reply.AuthorDisplayName) ? Reply.AuthorHandle : Reply.AuthorDisplayName;
-            var trimmed = source.TrimStart();
-            return trimmed.Length == 0 ? "?" : char.ConvertFromUtf32(char.ConvertToUtf32(trimmed, 0)).ToUpperInvariant();
-        }
-    }
+    private string Initial => AuthorInitial.Of(Reply.AuthorDisplayName, Reply.AuthorHandle);
 
     private const string Rel = "nofollow ugc noopener";
 

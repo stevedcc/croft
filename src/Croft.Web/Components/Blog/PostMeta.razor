@@ -1,11 +1,11 @@
 @using Croft.Shared.Enums
 @using System.Globalization
 @namespace Croft.Web.Components
-@* The meta line (spec §5.1): "2 October 2026 · 7 min read" (en-GB date), with an
-   optional status badge for admin/draft contexts (spec §7.3). No date (drafts)
-   means no dangling separator. When the content was edited on a later UTC calendar day than it
-   was published, the line ends with "· Updated <date>" (brief 07g item 3) — the edit moment is
-   ContentEditedAt, never UpdatedAt (which also moves on publish/unpublish/scheduling). *@
+@* The meta line (spec §5.1). The card form is "2 October 2026 · 7 min read" (en-GB date). The long form
+   (post page, static pages, editor preview) is "Published on 2 October 2026 · 7 min read", and when the
+   content was edited on a later UTC day "Published on 2 October 2026, last updated on 5 October 2026 · 7 min read";
+   the edit moment is ContentEditedAt, never UpdatedAt. An optional status badge shows in admin/draft contexts
+   (spec §7.3). No date (drafts) means no dangling separator. *@
 <div class="post-meta">
     <span class="post-meta__when">@DisplayText</span>
     @if (Status is not null)
@@ -22,7 +22,10 @@
     /// reading time (pages).</summary>
     [Parameter] public int? ReadingMinutes { get; set; }
 
-    /// <summary>The last content edit (UTC); shows an "Updated" segment when it falls on a later
+    /// <summary>The long form for a page of its own ("Published on ..., last updated on ..."); cards leave it off and show the bare date.</summary>
+    [Parameter] public bool LongForm { get; set; }
+
+    /// <summary>The last content edit (UTC); in the long form it adds "last updated on" when it falls on a later
     /// calendar day (UTC) than <see cref="PublishedAt"/>.</summary>
     [Parameter] public DateTime? ContentEditedAt { get; set; }
 
@@ -39,14 +42,20 @@
                 return ReadingMinutes is { } onlyMinutes ? $"{onlyMinutes} min read" : string.Empty;
 
             var published = UtcDay(publishedAt);
-            var text = ReadingMinutes is { } minutes
-                ? $"{published.ToString("d MMMM yyyy", EnGb)} · {minutes} min read"
-                : published.ToString("d MMMM yyyy", EnGb);
+            var text = published.ToString("d MMMM yyyy", EnGb);
 
-            // The day comparison is in UTC calendar days — the same clock the dates are
-            // formatted in — so a moment just after UTC midnight counts as a new day.
-            if (ContentEditedAt is { } editedAt && UtcDay(editedAt) > published)
-                text += $" · Updated {UtcDay(editedAt).ToString("d MMMM yyyy", EnGb)}";
+            if (LongForm)
+            {
+                text = $"Published on {text}";
+
+                // The day comparison is in UTC calendar days — the same clock the dates are
+                // formatted in — so a moment just after UTC midnight counts as a new day.
+                if (ContentEditedAt is { } editedAt && UtcDay(editedAt) > published)
+                    text += $", last updated on {UtcDay(editedAt).ToString("d MMMM yyyy", EnGb)}";
+            }
+
+            if (ReadingMinutes is { } minutes)
+                text += $" · {minutes} min read";
 
             return text;
         }

@@ -532,6 +532,10 @@ if (!app.Environment.IsDevelopment())
     });
 }
 
+// WORKAROUND(W-101, ASP.NET Core): endpoints match GET only, so HEAD runs the pipeline as the GET it stands for
+app.UseMiddleware<HeadRequestMiddleware>();
+// END WORKAROUND(W-101)
+
 app.MapStaticAssets();
 
 // A site file at a static asset's URL would never be served (the asset wins): refuse it now.

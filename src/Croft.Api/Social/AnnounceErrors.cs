@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Croft.Api.Social;
 
@@ -8,7 +9,7 @@ namespace Croft.Api.Social;
 /// the network, a status code and (for an error that cannot heal) the platform's own <c>error</c> string, capped, with the credential cut out if the
 /// platform echoed it. Never a response body beyond that string.
 /// </summary>
-internal static class AnnounceErrors
+internal static partial class AnnounceErrors
 {
     private const int MaxMessageLength = 200;
 
@@ -31,6 +32,22 @@ internal static class AnnounceErrors
         var reason = $"{network} refused the {what} (HTTP {(int)status})";
         return new AnnounceOutcome.Failed(ErrorMessage(body, secrets) is { Length: > 0 } message ? $"{reason}: {message}" : reason);
     }
+
+    /// <summary>For the outcome log line: " (HTTP 503)" when the outcome's reason names a status (the reasons <see cref="Classify"/> writes all do), else empty.
+    /// Only the number is taken from the reason; the reason itself is never logged.</summary>
+    public static string HttpStatusOf(AnnounceOutcome outcome)
+    {
+        var reason = outcome switch
+        {
+            AnnounceOutcome.Retry retry => retry.Reason,
+            AnnounceOutcome.Failed failed => failed.Reason,
+            _ => string.Empty,
+        };
+        return StatusInReason().Match(reason) is { Success: true } match ? $" (HTTP {match.Groups["status"].Value})" : string.Empty;
+    }
+
+    [GeneratedRegex(@"HTTP (?<status>[1-5][0-9]{2})\b", RegexOptions.CultureInvariant)]
+    private static partial Regex StatusInReason();
 
     /// <summary>The platform's <c>error</c> string when the body is JSON with one: single line, capped, the secrets cut out. Empty otherwise.</summary>
     public static string ErrorMessage(byte[] body, params string[] secrets)

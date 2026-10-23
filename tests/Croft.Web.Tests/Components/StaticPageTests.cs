@@ -37,7 +37,7 @@ public class StaticPageTests : BlogBunitContext
         string[] fetches = ["about"];
         api.PageSlugRequests.Should().Equal(fetches, "the page is fetched once, by its slug");
         cut.Find(".page-surface__subtitle").TextContent.Should().Be("Notes on the owner");
-        cut.Find(".post-meta__when").TextContent.Should().Be("2 October 2026 · Updated 5 October 2026",
+        cut.Find(".post-meta__when").TextContent.Should().Be("Published on 2 October 2026, last updated on 5 October 2026",
             "the page's date line carries the item's date rule");
         cut.Find(".markdown-body").InnerHtml.Should().Contain("hillsideword",
             "the Markdown body renders in the reading column");

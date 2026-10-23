@@ -48,6 +48,10 @@ public static partial class SocialLinkParser
 
     public static bool IsDid(string actor) => Did().IsMatch(actor);
 
+    /// <summary>A handle a profile link can carry: it has the handle syntax and is not Bluesky's <c>handle.invalid</c> placeholder for a handle that does not verify.</summary>
+    public static bool IsUsableHandle(string? handle) =>
+        handle is not null && !string.Equals(handle, "handle.invalid", StringComparison.OrdinalIgnoreCase) && Handle().IsMatch(handle);
+
     /// <summary>The at:// URI of a Bluesky post.</summary>
     public static string BlueskyUri(string did, string rkey) => $"at://{did}/app.bsky.feed.post/{rkey}";
 

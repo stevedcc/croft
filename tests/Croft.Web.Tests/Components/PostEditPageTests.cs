@@ -14,7 +14,7 @@ namespace Croft.Web.Tests.Components;
 
 /// <summary>
 /// PostEditPage (spec §6.2): the editor's orchestration — every action saves the form first,
-/// Publish now publishes at the clock's moment ignoring the date field, Schedule sends the
+/// Publish now sends no date, Set date sends the entered past moment, Schedule sends the
 /// entered UTC moment, and Unpublish is a save followed by the unpublish call. Errors from the
 /// API surface as the alert at the top.
 /// </summary>
@@ -88,9 +88,9 @@ public class PostEditPageTests : BlogBunitContext
     }
 
     [Fact]
-    public async Task PostEditPage_PublishNow_IgnoresTheDateField_AndSavesFirst()
+    public async Task PostEditPage_PublishNow_SendsNoDate_AndSavesFirst()
     {
-        var clock = Setup();
+        Setup();
         var cut = Render<PostEditPage>();
 
         var form = cut.FindComponent<PostEditorForm>().Instance;
@@ -106,7 +106,28 @@ public class PostEditPageTests : BlogBunitContext
             _api.Calls.Should().Equal(["create", "publish"], "every action saves the form first");
         });
         _api.PublishedPosts.Should().ContainSingle().Which.Request.PublishedAt.Should()
-            .Be(clock.GetUtcNow().UtcDateTime, "Publish now publishes at the current time, ignoring the date field");
+            .BeNull("Publish now sends no date: the API decides \"now\" for an unpublished post and keeps a published post's date");
+    }
+
+    [Fact]
+    public async Task PostEditPage_SetDate_SendsTheEnteredPastMoment_AfterSavingFirst()
+    {
+        Setup();
+        var id = Guid.CreateVersion7();
+        _api.PostsById[id] = new PostDto(id, "a-post", "A post", null, "Body.", null, null,
+            PostStatus.Published, Now.UtcDateTime.AddDays(-1), Now.UtcDateTime, Now.UtcDateTime,
+            "author-id", "Author", null, [], null, 1);
+        var cut = Render<PostEditPage>(p => p.Add(x => x.Id, id));
+        var form = cut.FindComponent<PostEditorForm>().Instance;
+        form.Model.PublishedAtDate = new DateTime(2026, 9, 15, 0, 0, 0, DateTimeKind.Utc);
+        form.Model.PublishedAtTime = new TimeSpan(8, 0, 0);
+        cut.Render();
+
+        cut.FindAll("button").Single(b => b.TextContent == "Set date").Click(new MouseEventArgs());
+
+        await cut.WaitForAssertionAsync(() => _api.Calls.Should().Equal("update", "publish"));
+        _api.PublishedPosts.Should().ContainSingle().Which.Request.PublishedAt.Should()
+            .Be(new DateTime(2026, 9, 15, 8, 0, 0, DateTimeKind.Utc));
     }
 
     [Fact]
@@ -515,6 +536,18 @@ public class PostEditPageTests : BlogBunitContext
 
         request.MastodonUrl.Should().BeNull("nothing was linked and nothing is entered: there is nothing to clear");
         request.BlueskyUrl.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task EditPage_Update_ALoadedLinkWithSurroundingSpaces_UnchangedInTheField_SendsNull()
+    {
+        Setup();
+        var id = SeedLinkedPost(mastodon: $"  {LoadedMastodon} ", bluesky: null);
+        var cut = Render<PostEditPage>(p => p.Add(x => x.Id, id));
+
+        var request = await SaveEditedAsync(cut);
+
+        request.MastodonUrl.Should().BeNull("the field still holds what was loaded; the stray spaces are not a change");
     }
 
     [Fact]

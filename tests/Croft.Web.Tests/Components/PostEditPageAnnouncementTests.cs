@@ -28,6 +28,9 @@ public class PostEditPageAnnouncementTests : BlogBunitContext
     {
         Services.AddSingleton<TimeProvider>(new FakeTimeProvider(Now));
         _api = Services.GetRequiredService<FakeBlogApiClient>();
+
+        // The editor polls and reads the announcements only in the interactive phase (RendererInfo.IsInteractive).
+        SetRendererInfo(new RendererInfo("Server", isInteractive: true));
     }
 
     private void SeedPost(PostStatus status = PostStatus.Draft, string? text = null, bool mastodon = true, bool bluesky = true, string? mastodonUrl = null, string? blueskyUrl = null) =>

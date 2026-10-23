@@ -208,6 +208,28 @@ public class AnnouncingTests : WebTest
         await Expect(bluesky).ToHaveTextAsync($"Hashtag preview\n\n{address}");
     }
 
+    [Test]
+    public async Task APendingAnnouncement_BecomesPosted_WithoutReloadingTheTab()
+    {
+        var runId = NewRunId();
+        var (id, _) = await DiscussionSeed.PublishPostAsync(ApiUrl, $"Pending then posted {runId}", $"Body {runId}.");
+        await using var db = await OpenInstanceDatabaseAsync();
+        await AnnouncementSeed.AddPendingAsync(db, id);
+
+        await LoginAsync("admin@example.com", "password");
+        await Page.GotoAsync($"{BaseUrl}/admin/posts/{id}/edit");
+        await WaitForInteractiveAsync(Page);
+        await Page.GetByRole(AriaRole.Tab, new PageGetByRoleOptions { Name = "Discussion" }).ClickAsync();
+        await Expect(Page.Locator("#announcement-mastodon .discussion-admin__announcement-text")).ToContainTextAsync("Mastodon: Pending");
+
+        await AnnouncementSeed.MarkPostedAsync(db, id, $"https://social.example/@owner/{runId}");
+
+        // The sender posted behind the page's back; the tab notices on its own, within a few polls.
+        var slow = new LocatorAssertionsToHaveAttributeOptions { Timeout = 15000 };
+        await Expect(Page.Locator("#announcement-mastodon a")).ToHaveAttributeAsync("href", $"https://social.example/@owner/{runId}", slow);
+        await Expect(Page.Locator("#announcement-mastodon .discussion-admin__announcement-text")).ToContainTextAsync("Mastodon: Posted ");
+    }
+
     // ---- accessibility ----
 
     private static async Task AssertNoSeriousAxeViolationsAsync(IPage page)
@@ -296,6 +318,34 @@ internal static class AnnouncementSeed
         failed.Parameters.AddWithValue("post", postId);
         failed.Parameters.AddWithValue("platform", Bluesky);
         await failed.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>A Pending Mastodon row, due now, as the publish queues it.</summary>
+    public static async Task AddPendingAsync(NpgsqlConnection db, Guid postId)
+    {
+        await using var command = db.CreateCommand();
+        command.CommandText = """
+            INSERT INTO "SocialAnnouncements" ("Id", "PostId", "Platform", "State", "Attempts", "QueuedAt", "NextAttemptAt")
+            VALUES (@id, @post, @platform, 1, 0, now(), now() + interval '1 hour')
+            """;
+        command.Parameters.AddWithValue("id", Guid.CreateVersion7());
+        command.Parameters.AddWithValue("post", postId);
+        command.Parameters.AddWithValue("platform", Mastodon);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>What the sender writes when it has posted: the row is Posted, with its link.</summary>
+    public static async Task MarkPostedAsync(NpgsqlConnection db, Guid postId, string url)
+    {
+        await using var command = db.CreateCommand();
+        command.CommandText = """
+            UPDATE "SocialAnnouncements" SET "State" = 2, "Attempts" = 1, "NextAttemptAt" = NULL, "LastAttemptAt" = now(),
+                "PostedAt" = now(), "RemoteId" = 'seeded', "RemoteUrl" = @url, "SentText" = 'Seeded text'
+            WHERE "PostId" = @post
+            """;
+        command.Parameters.AddWithValue("post", postId);
+        command.Parameters.AddWithValue("url", url);
+        await command.ExecuteNonQueryAsync();
     }
 
     public static async Task<long> CountAsync(NpgsqlConnection db, Guid postId)

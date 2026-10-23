@@ -26,8 +26,8 @@
 <PageHeader Title="@EditorTitle" />
 
 @* The post editor (spec §6.2): the form on the left, the Preview and Feedback tabs on the
-   right. Every action saves the form first; Publish now publishes at the clock's moment and
-   ignores the date field, Schedule publishes at the entered UTC moment. Errors from the API
+   right. Every action saves the form first; Publish now sends no date, Set date and Schedule
+   publish at the entered UTC moment. Errors from the API
    surface as the alert at the top with the problem detail text. The same component writes a
    page (/admin/pages/new, or any edit route of a page): page mode hides category, tags and
    banner and shows the navigation fields, and the Preview renders the page layout. *@
@@ -53,7 +53,7 @@
                         DraftKey="@DraftKey" SavedStamp="@_savedStamp"
                         OnTagSuggestionsRequested="LoadTagSuggestionsAsync" CategorySearch="SearchCategoriesAsync"
                         Status="_status" SavedAt="_savedAt" Announcement="@_announcement" Slug="@_post?.Slug" OnModelChanged="ModelChangedAsync"
-                        OnSave="SaveAsync" OnPublishNow="PublishNowAsync" OnSchedule="ScheduleAsync"
+                        OnSave="SaveAsync" OnPublishNow="PublishNowAsync" OnSchedule="ScheduleAsync" OnSetDate="SetDateAsync" StoredPublishedAt="@_post?.PublishedAt"
                         OnUnpublish="UnpublishAsync" OnUploadBanner="UploadBannerAsync"
                         OnChooseBannerFromLibrary="ChooseBannerAsync"
                         OnInsertImageRequested="InsertImageAsync"
@@ -181,6 +181,7 @@
     {
         _disposed = true;
         _previewTimer?.Dispose();
+        _announcementTimer?.Dispose();
         _sessionExpiryRegistration?.Dispose();
     }
 
@@ -421,10 +422,10 @@
 
     private async Task PublishNowAsync()
     {
-        // Publish now ignores the date field: the moment is the clock's (the TimeProvider rule).
+        // Publish now sends no date: the API decides "now" for an unpublished post and keeps a published post's date.
         if (await SaveCoreAsync())
         {
-            await PublishAsync(Time.GetUtcNow().UtcDateTime);
+            await PublishAsync(null);
         }
 
         NavigateIfNew();
@@ -438,6 +439,14 @@
         }
 
         NavigateIfNew();
+    }
+
+    private async Task SetDateAsync()
+    {
+        if (UtcDateTime.Combine(_model.PublishedAtDate, _model.PublishedAtTime) is { } moment && await SaveCoreAsync())
+        {
+            await PublishAsync(moment);
+        }
     }
 
     private async Task UnpublishAsync()
@@ -536,7 +545,7 @@
         }
     }
 
-    private async Task PublishAsync(DateTime publishedAt)
+    private async Task PublishAsync(DateTime? publishedAt)
     {
         try
         {
@@ -545,7 +554,7 @@
             _post = await Api.PublishPostAsync(_post!.Id, new PublishRequest(publishedAt));
             _status = _post.Status;
             _announcement = _status == PostStatus.Scheduled
-                ? $"Scheduled for {_post.PublishedAt ?? publishedAt:yyyy-MM-dd HH:mm} UTC"
+                ? $"Scheduled for {_post.PublishedAt:yyyy-MM-dd HH:mm} UTC"
                 : await PublishedTextAsync();
         }
         catch (HttpRequestException ex)
@@ -598,7 +607,7 @@
     private static string? LinkChange(string entered, string? loaded)
     {
         var text = entered.Trim();
-        return string.Equals(text, loaded ?? string.Empty, StringComparison.Ordinal)
+        return string.Equals(text, loaded?.Trim() ?? string.Empty, StringComparison.Ordinal)
             ? null
             : text;
     }
@@ -695,8 +704,14 @@
     private PostAnnouncementsDto? _announcements;
     private bool _announcing;
 
-    /// <summary>Reads the post's announcements for the tab's block. A failure keeps what was shown and says why in the tab's alert line.</summary>
-    private async Task LoadAnnouncementsAsync()
+    /// <summary>How long the tab waits before it reads the announcements again while one is still Pending.</summary>
+    private static readonly TimeSpan AnnouncementPollInterval = TimeSpan.FromSeconds(5);
+
+    private ITimer? _announcementTimer;
+
+    /// <summary>Reads the post's announcements for the tab's block. A failure keeps what was shown and says why in the tab's alert line
+    /// (<paramref name="quiet"/>: only in the log, for the background poll).</summary>
+    private async Task LoadAnnouncementsAsync(bool quiet = false)
     {
         try
         {
@@ -705,8 +720,40 @@
         catch (HttpRequestException ex)
         {
             ApiFailureLog.Failed(Logger, "loading the announcements", ex);
-            _discussionError = ex.Message;
+            if (!quiet)
+            {
+                _discussionError = ex.Message;
+            }
         }
+
+        PollAnnouncementsWhilePending();
+    }
+
+    /// <summary>The sender posts within seconds, so while a row is Pending the block is read again every few seconds; with none Pending
+    /// (or the page gone, or still in the prerender) no timer is left. A failed read leaves the rows as they were, so the poll goes on.</summary>
+    private void PollAnnouncementsWhilePending()
+    {
+        _announcementTimer?.Dispose();
+        _announcementTimer = null;
+        if (_disposed || !RendererInfo.IsInteractive
+            || _announcements?.Items.Any(item => item.State == AnnouncementState.Pending) != true)
+        {
+            return;
+        }
+
+        _announcementTimer = Time.CreateTimer(
+            _ => _ = InvokeAsync(PollAnnouncementsAsync), null, AnnouncementPollInterval, Timeout.InfiniteTimeSpan);
+    }
+
+    private async Task PollAnnouncementsAsync()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        await LoadAnnouncementsAsync(quiet: true);
+        StateHasChanged();
     }
 
     /// <summary>"Announce now" / "Retry": the API queues the announcement at once, the block is read again. A refusal (400, 409) shows in the page's error area.</summary>
@@ -742,6 +789,7 @@
             if (_discussionRequested)
             {
                 _announcements = announcements;
+                PollAnnouncementsWhilePending();
             }
 
             var pending = (announcements?.Items ?? [])

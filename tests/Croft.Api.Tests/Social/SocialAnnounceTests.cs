@@ -60,6 +60,26 @@ public class SocialAnnounceTests(PostgresDatabaseFixture fixture) : IClassFixtur
     }
 
     [Fact]
+    public async Task ABlueskyPostWithAHandle_IsLinkedByHandle_WithTheDidUriAsRemoteId_AndNoHandleLookup()
+    {
+        // The harness's handle resolver throws when called: a posted link must be applied from the remote id alone.
+        await using var h = await AnnounceHarness.CreateAsync(fixture);
+        var postId = await h.SeedPostAsync(slug: "by-handle", mastodon: false);
+        var pds = new StubHandler(request => request.RequestUri!.AbsolutePath.EndsWith("createSession", StringComparison.Ordinal)
+            ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent($$"""{"accessJwt":"test-jwt-9d2e","handle":"owner.example","did":"{{SocialTestSettings.Did}}"}""", Encoding.UTF8, "application/json") }
+            : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent($$"""{"uri":"at://{{SocialTestSettings.Did}}/app.bsky.feed.post/3m5aaaaaaaaa01","cid":"bafy"}""", Encoding.UTF8, "application/json") });
+        var bluesky = new BlueskyAnnouncer(new StubClientFactory(pds), Options.Create(h.Settings), h.Time);
+
+        await h.NewReplica(null, bluesky).TickAsync();
+
+        var row = await h.RowAsync(postId, SocialPlatform.Bluesky);
+        (row.State, row.RemoteId, row.RemoteUrl).Should().Be((AnnouncementState.Posted,
+            $"at://{SocialTestSettings.Did}/app.bsky.feed.post/3m5aaaaaaaaa01", "https://bsky.app/profile/owner.example/post/3m5aaaaaaaaa01"));
+        var post = await h.PostAsync(postId);
+        (post.BlueskyUrl, post.BlueskyUri).Should().Be(("https://bsky.app/profile/owner.example/post/3m5aaaaaaaaa01", $"at://{SocialTestSettings.Did}/app.bsky.feed.post/3m5aaaaaaaaa01"));
+    }
+
+    [Fact]
     public async Task TheText_IsComposedAtSendTime_FromThePostsCurrentFields()
     {
         await using var h = await AnnounceHarness.CreateAsync(fixture);
@@ -325,6 +345,33 @@ public class SocialAnnounceTests(PostgresDatabaseFixture fixture) : IClassFixtur
     }
 
     [Fact]
+    public async Task AManualRetry_StartsTheAttemptsAgain_SoAFailedTryWaitsTheFirstBackoffStep_ButStillChecksBeforeSending()
+    {
+        await using var h = await AnnounceHarness.CreateAsync(fixture);
+        var postId = await h.SeedPostAsync(slug: "manual-retry", bluesky: false);
+        await h.ChangeRowAsync(postId, SocialPlatform.Mastodon, r =>
+        {
+            r.State = AnnouncementState.Failed;
+            r.Attempts = 5;
+            r.NextAttemptAt = null;
+            r.LastError = "Gave up after 6 hours";
+            r.LastAttemptAt = h.Now.AddHours(-1);
+        });
+        await using (var db = h.Database.CreateContext())
+        {
+            await new AnnouncementService(db, Options.Create(h.Settings), h.Time).AnnounceAsync(postId, SocialPlatform.Mastodon, CancellationToken.None);
+        }
+
+        h.Mastodon.OnSend = (_, _) => Answer(Retry("Mastodon answered HTTP 503"));
+        await h.NewReplica().TickAsync();
+
+        var row = await h.RowAsync(postId, SocialPlatform.Mastodon);
+        (row.State, row.Attempts, row.NextAttemptAt).Should().Be((AnnouncementState.Pending, 1, h.Now.AddMinutes(1)));
+        h.Mastodon.Checks.Should().ContainSingle("an earlier try may have gone out without its answer arriving: the retry still looks before it sends");
+        h.Mastodon.Sends.Should().ContainSingle();
+    }
+
+    [Fact]
     public async Task ATroubledCheck_BacksOffInsteadOfSendingBlind()
     {
         await using var h = await AnnounceHarness.CreateAsync(fixture);
@@ -578,6 +625,36 @@ public class SocialAnnounceTests(PostgresDatabaseFixture fixture) : IClassFixtur
         foreach (var secret in new[] { token, appPassword, jwt })
             everything.Should().NotContain(secret);
         rows.Select(r => r.LastError).Should().OnlyContain(e => e!.StartsWith("Mastodon refused") || e.StartsWith("Bluesky refused"));
+    }
+
+    [Fact]
+    public async Task TheOutcomeLine_NamesTheHttpStatusWhenThereIsOne_AndNothingWhenThereIsNot()
+    {
+        await using var h = await AnnounceHarness.CreateAsync(fixture);
+        var withStatus = await h.SeedPostAsync(slug: "log-status", bluesky: false);
+        var withoutStatus = await h.SeedPostAsync(slug: "log-no-status", bluesky: false);
+        h.Mastodon.OnSend = (message, _) => Answer(message.PostUrl.EndsWith("log-status", StringComparison.Ordinal)
+            ? Retry("Mastodon answered HTTP 503")
+            : Retry("Mastodon timed out"));
+
+        await h.NewReplica().TickAsync();
+
+        h.Logs.Entries.Single(e => e.Message.Contains(withStatus.ToString(), StringComparison.Ordinal)).Message.Should().EndWith("attempt 1: Retry (HTTP 503).");
+        h.Logs.Entries.Single(e => e.Message.Contains(withoutStatus.ToString(), StringComparison.Ordinal)).Message.Should().NotContain("HTTP");
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.ServiceUnavailable, "Retry (HTTP 503)")]
+    [InlineData(HttpStatusCode.BadRequest, "Failed (HTTP 400)")]
+    public async Task TheOutcomeLine_NamesTheStatusOfARealAnnouncersAnswer_SoARewordedReasonIsCaught(HttpStatusCode status, string expected)
+    {
+        await using var h = await AnnounceHarness.CreateAsync(fixture);
+        await h.SeedPostAsync(slug: "log-real", bluesky: false);
+        var mastodon = new MastodonAnnouncer(new StubClientFactory(StubHandler.Json("{}", status)), Options.Create(h.Settings), h.Time);
+
+        await h.NewReplica(null, mastodon).TickAsync();
+
+        h.Logs.Entries.Single(e => e.Message.StartsWith("Announcing post", StringComparison.Ordinal)).Message.Should().EndWith($"attempt 1: {expected}.");
     }
 
     [Fact]
