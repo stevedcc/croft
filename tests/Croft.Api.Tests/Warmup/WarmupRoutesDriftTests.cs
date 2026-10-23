@@ -78,6 +78,7 @@ public sealed class WarmupRoutesDriftTests
         [nameof(BlogApiClient.DeletePostAsync)] = "write",
         [nameof(BlogApiClient.GetPostByIdAsync)] = "staff: the editor's read of a post by id, drafts included; the route is the one GetPostAsync warms",
         [nameof(BlogApiClient.UploadMediaAsync)] = "write",
+        [nameof(BlogApiClient.GetTagsByNamesAsync)] = "staff: the editor reads the hashtags of the tags it only knows by name; not a public page read",
         [nameof(BlogApiClient.CreateTagAsync)] = "write",
         [nameof(BlogApiClient.UpdateTagAsync)] = "write",
         [nameof(BlogApiClient.DeleteTagAsync)] = "write",

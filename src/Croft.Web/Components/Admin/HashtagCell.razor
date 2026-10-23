@@ -1,6 +1,8 @@
 @using Croft.Shared.Contracts.Social
 
-@* The hashtags cell of a category or tag row on Tags & categories (brief 12e), shared by both tables: the saved hashtags as "#A #B" text and an
+@* Save is a Func, not an EventCallback, on purpose: the cell must know whether the save worked to decide between closing the editor and keeping what the owner
+   typed, and an EventCallback returns nothing; the alternative (the parent handing a saved/failed state back through parameters) needs a second round trip of
+   state for the same answer. The hashtags cell of a category or tag row on Tags & categories (brief 12e), shared by both tables: the saved hashtags as "#A #B" text and an
    Edit button that opens the HashtagListEditor with Save and Cancel. Save is held back while a row breaks the rules. The page does the saving:
    Save is called with the list and answers whether it worked; the editor closes only then, so a refused save keeps what the owner typed. *@
 <div class="hashtag-cell">

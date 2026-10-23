@@ -1,4 +1,5 @@
 using Croft.Shared.Contracts;
+using Croft.Shared.Contracts.Social;
 using Croft.Shared.Enums;
 using Croft.Web.Components.Admin;
 using Croft.Web.Components.Pages.Admin;
@@ -128,6 +129,25 @@ public class PostEditPageDraftTests : BlogBunitContext
         // Unsaved, so the user saves: the backup is not touched.
         JSInterop.VerifyNotInvoke("blogDraft.remove", "Restore never deletes the backup");
         JSInterop.VerifyNotInvoke("blogDraft.saved", "Restore never claims a save");
+    }
+
+    [Fact]
+    public async Task Restore_OfADraftWithATagNoSuggestionHolds_LoadsItsHashtagsOnce_SoThePreviewsShowThem()
+    {
+        Setup();
+        _api.Tags.Add(new TagDto(Guid.CreateVersion7(), "kubernetes", "kubernetes", 1, true, [new HashtagDto("Kubernetes", HashtagNetworks.Both)]));
+        var id = LoadAPost();
+        _api.PostsById[id] = _api.PostsById[id] with { AnnounceMastodon = true };
+        JSInterop.Setup<DraftBackupRecord?>("blogDraft.read", _ => true)
+            .SetResult(Record("Typed title", "Typed body.") with { Version = 2, Tags = ["kubernetes", "brand-new"] });
+        var cut = Render<PostEditPage>(p => p.Add(x => x.Id, id));
+        await cut.WaitForAssertionAsync(() => cut.Find(".draft-restore__restore"));
+
+        cut.Find(".draft-restore__restore").Click(new MouseEventArgs());
+
+        await cut.WaitForAssertionAsync(() => cut.Find("#announce-preview-mastodon .announce-preview__text").TextContent.Should().Contain("#Kubernetes",
+            "the restored tag's hashtags were loaded, though no suggestion held them"));
+        _api.TagsByNamesRequests.Should().ContainSingle().Which.Should().BeEquivalentTo(["kubernetes", "brand-new"], "one call for the names it did not know");
     }
 
     [Fact]

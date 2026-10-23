@@ -295,6 +295,7 @@
             // ask, the work comes back and the page says so.
             DraftBackup.ApplyTo(_model, backup);
             _signedBackInNotice = true;
+            await EnsureTagHashtagsAsync();
         }
         else
         {
@@ -330,7 +331,7 @@
 
     /// <summary>Restore puts every field of the backup in the editor — unsaved, so the user
     /// saves; the backup keeps protecting the text until then.</summary>
-    private void RestoreDraft()
+    private async Task RestoreDraft()
     {
         if (_restore is null)
         {
@@ -339,6 +340,35 @@
 
         DraftBackup.ApplyTo(_model, _restore);
         _restore = null;
+        await EnsureTagHashtagsAsync();
+    }
+
+    /// <summary>
+    /// The announcement previews need the hashtags of every tag the post lists. The loaded post and the suggestions carry most of them; the tags a restored
+    /// draft or a hand-typed name brings are read here, in one call for the names not known yet (a name no tag has gets none). Nothing is read when none is missing,
+    /// so the form's per-edit reports cost nothing.
+    /// </summary>
+    private async Task EnsureTagHashtagsAsync()
+    {
+        var missing = _model.Tags.Where(name => !_model.TagHashtags.ContainsKey(name)).ToList();
+        if (missing.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var found = await Api.GetTagsByNamesAsync(missing);
+            foreach (var name in missing)
+            {
+                _model.TagHashtags[name] = found.FirstOrDefault(t => string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase))?.Hashtags ?? [];
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            // The previews lack those hashtags until the next edit; the post itself is not affected.
+            ApiFailureLog.Failed(Logger, "reading tag hashtags", ex);
+        }
     }
 
     /// <summary>Discard deletes the backup and leaves the saved text in the editor.</summary>
@@ -921,11 +951,12 @@
     /// <summary>The model changed (the form reports every edit). A change to the Markdown starts (or
     /// restarts) the Preview's debounce window; the Preview shows the text it last rendered until the
     /// text has been still for <see cref="PreviewDebounce"/>, so a burst of typing is one render.</summary>
-    private Task ModelChangedAsync()
+    private async Task ModelChangedAsync()
     {
+        await EnsureTagHashtagsAsync();
         if (string.Equals(_renderedFor, _model.MarkdownContent, StringComparison.Ordinal))
         {
-            return Task.CompletedTask;
+            return;
         }
 
         var version = ++_previewVersion;
@@ -933,7 +964,6 @@
         _previewTimer?.Dispose();
         _previewTimer = Time.CreateTimer(
             _ => _ = InvokeAsync(() => PreviewWindowPassed(version)), null, PreviewDebounce, Timeout.InfiniteTimeSpan);
-        return Task.CompletedTask;
     }
 
     private void PreviewWindowPassed(int version)

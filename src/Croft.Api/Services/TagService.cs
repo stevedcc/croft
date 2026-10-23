@@ -58,6 +58,25 @@ public class TagService(BlogDbContext db, ISlugService slugService, IPublicReadC
             .ToPagedResultAsync(page, pageSize, ct);
     }
 
+    public async Task<PagedResult<TagDto>> ListByNamesAsync(int page, int pageSize, IReadOnlyList<string> names, CancellationToken ct = default)
+    {
+        var lowered = names.Select(name => name.ToLowerInvariant()).ToList();
+        // Npgsql translates ToLower() to lower() and does not translate ToLowerInvariant(); the database, not the process, decides the case folding.
+#pragma warning disable CA1304, CA1311
+        var matching = db.Tags.AsNoTracking().Where(t => lowered.Contains(t.Name.ToLower()));
+#pragma warning restore CA1304, CA1311
+        return await matching
+            .OrderBy(t => t.Name)
+            .Select(t => new TagDto(
+                t.Id,
+                t.Name,
+                t.Slug,
+                t.Posts.Count(p => p.Status == PostStatus.Published),
+                t.CountsTowardsRelated,
+                t.Hashtags))
+            .ToPagedResultAsync(page, pageSize, ct);
+    }
+
     public Task<TagDto?> GetBySlugAsync(string slug, CancellationToken ct = default) =>
         CacheablePublicRead()
             ? cache.GetOrCreateAsync(CacheGroup.Tags, $"tags:slug:{slug}", token => LoadBySlugAsync(slug, token), ct)

@@ -176,6 +176,18 @@ public class BlogApiClient(
         return result ?? new PagedResult<TagDto>([], 0, page, pageSize);
     }
 
+    public async Task<IReadOnlyList<TagDto>> GetTagsByNamesAsync(IReadOnlyList<string> names, CancellationToken ct = default)
+    {
+        if (names.Count == 0)
+            return [];
+
+        var query = string.Join('&', names.Select(name => $"names={Uri.EscapeDataString(name)}"));
+        using var response = await SendAsync(http => http.GetAsync($"/api/tags?page=1&pageSize={Math.Max(names.Count, 1)}&{query}", ct), ct);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<PagedResult<TagDto>>(ct);
+        return result?.Items ?? [];
+    }
+
     public async Task<TagDto?> GetTagBySlugAsync(string slug, CancellationToken ct = default)
     {
         using var response = await SendAsync(http => http.GetAsync(PublicReadRoutes.Tag(slug), ct), ct);

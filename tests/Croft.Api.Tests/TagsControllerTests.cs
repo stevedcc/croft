@@ -385,6 +385,25 @@ public class TagsControllerTests(PostgresDatabaseFixture fixture)
         { [.. Enumerable.Range(0, 11).Select(i => new HashtagDto("Tag" + (char)('a' + i), HashtagNetworks.Both))], "Tagk" },
     };
 
+    [Fact]
+    public async Task ListTags_WithNames_ReturnsOnlyThoseTags_WithTheirHashtags()
+    {
+        await using var factory = CreateFactoryAsync();
+        var admin = factory.CreateClient().WithRole("Admin");
+        var run = Guid.NewGuid().ToString("N")[..10];
+        var wanted = await CreateTagAsync(admin, $"names-a-{run}");
+        var other = await CreateTagAsync(admin, $"names-b-{run}");
+        var third = await CreateTagAsync(admin, $"names-c-{run}");
+        (await admin.PutAsJsonAsync($"/api/tags/{wanted.Id}", new UpdateTagRequest(wanted.Name, null, [new HashtagDto("DotNet", HashtagNetworks.Both)]))).EnsureSuccessStatusCode();
+
+        var found = await admin.GetFromJsonAsync<PagedResult<TagDto>>(
+            $"/api/tags?page=1&pageSize=50&names={Uri.EscapeDataString(wanted.Name.ToUpperInvariant())}&names={Uri.EscapeDataString(third.Name)}");
+
+        found!.Items.Select(t => t.Name).Should().BeEquivalentTo([wanted.Name, third.Name], "the names match without regard to case, and the other tag is left out");
+        found.Items.Single(t => t.Id == wanted.Id).Hashtags.Should().Equal([new HashtagDto("DotNet", HashtagNetworks.Both)]);
+        found.Items.Should().NotContain(t => t.Id == other.Id);
+    }
+
     private static async Task<TagDto> CreateTagAsync(HttpClient admin, string name)
     {
         var create = await admin.PostAsJsonAsync("/api/tags", name);

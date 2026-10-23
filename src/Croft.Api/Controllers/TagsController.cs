@@ -11,8 +11,11 @@ public class TagsController(ITagService tagService) : ControllerBase
 {
     [HttpGet]
     [AllowAnonymous]
-    public async Task<IActionResult> List(int? page, int? pageSize, string? q, CancellationToken ct)
+    public async Task<IActionResult> List(int? page, int? pageSize, string? q, [FromQuery] string[]? names, CancellationToken ct)
     {
+        if (names is { Length: > 0 })
+            return Ok(await tagService.ListByNamesAsync(page ?? 1, pageSize ?? 10, names, ct));
+
         // With any of page/pageSize/q this is the paged contract (PagedResult, like the posts
         // list); without them the legacy full array (seed scripts and raw callers parse it).
         if (page.HasValue || pageSize.HasValue || q is not null)

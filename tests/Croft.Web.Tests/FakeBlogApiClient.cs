@@ -131,6 +131,15 @@ internal sealed class FakeBlogApiClient : IBlogApiClient
 
     /// <summary>Mirrors the API's paged listing: name-ordered, q filters names, then server paging.
     /// A blank q is recorded as null — the wire sends no q for it, exactly like the real client.</summary>
+    /// <summary>Every GetTagsByNamesAsync call, in order: the names it asked for.</summary>
+    public List<IReadOnlyList<string>> TagsByNamesRequests { get; } = [];
+
+    public Task<IReadOnlyList<TagDto>> GetTagsByNamesAsync(IReadOnlyList<string> names, CancellationToken ct = default)
+    {
+        TagsByNamesRequests.Add(names);
+        return Task.FromResult<IReadOnlyList<TagDto>>([.. Tags.Where(t => names.Contains(t.Name, StringComparer.OrdinalIgnoreCase))]);
+    }
+
     public Task<PagedResult<TagDto>> GetTagsAsync(int page, int pageSize, string? q = null, CancellationToken ct = default)
     {
         q = string.IsNullOrWhiteSpace(q) ? null : q;

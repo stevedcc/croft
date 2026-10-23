@@ -172,7 +172,7 @@
                              Label="Announce on Bluesky when published" id="announce-bluesky" />
                 <MudTextField @bind-Value="Model.AnnouncementText" @bind-Value:after="AnnouncementTextChangedAsync" Immediate="true"
                               Label="Announcement text" Placeholder="@AnnouncementText.Default(Model.Title, BlankToNull(Model.Subtitle))"
-                              HelperText="The post's address is added at the end. Hashtags (#homelab) are linked on both networks."
+                              HelperText="The post's address is added at the end. Hashtags (#homelab) are linked on both networks. The default text also gets the hashtags of the category and tags."
                               Error="@(Model.AnnouncementTextError is not null)" ErrorText="@Model.AnnouncementTextError"
                               Lines="4" Variant="Variant.Outlined" Class="post-form__field" id="announcement-text" />
                 <div class="post-form__previews">

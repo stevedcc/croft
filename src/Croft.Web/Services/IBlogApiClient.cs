@@ -13,6 +13,9 @@ public interface IBlogApiClient
 
     /// <summary>One page of tags (name order); <c>q</c> filters names. The suggestion lookups use it too.</summary>
     Task<PagedResult<TagDto>> GetTagsAsync(int page, int pageSize, string? q = null, CancellationToken ct = default);
+
+    /// <summary>The tags with exactly these names (case-insensitive), one call: the editor reads the hashtags of tags it only knows by name.</summary>
+    Task<IReadOnlyList<TagDto>> GetTagsByNamesAsync(IReadOnlyList<string> names, CancellationToken ct = default);
     Task<TagDto?> GetTagBySlugAsync(string slug, CancellationToken ct = default);
 
     /// <summary>One page of categories (name order); <c>q</c> filters names.</summary>
