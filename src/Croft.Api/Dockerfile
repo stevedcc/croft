@@ -1,10 +1,10 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e
 # Build from the repo ROOT: the API needs Croft.Shared and the root global.json. Cross-builds
 # without emulation: the SDK stage runs on the build machine ($BUILDPLATFORM) and
 # cross-publishes for $TARGETARCH, so both --platform linux/arm64 (the cluster) and
 # --platform linux/amd64 (local checks) work.
 
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0@sha256:747cbade5bfd918a175ac32f8f1d931edec2c7d0d5397a3de72eaef1ac1f66d2 AS build
 ARG TARGETARCH
 # The released version, from the tag (release.yml passes VERSION=<tag without the v>). Empty
 # (the default) keeps the <Version> in Directory.Build.props, as a local build does.
@@ -24,7 +24,7 @@ COPY src/Croft.Api/ src/Croft.Api/
 RUN dotnet publish src/Croft.Api/Croft.Api.csproj -c Release -a "$TARGETARCH" --self-contained false -p:PublishReadyToRun=true -o /app/publish ${VERSION:+-p:Version=$VERSION}
 # END WORKAROUND(W-088)
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:8af87eba5e7cdafb1514d7388be287365da97c132509e84dfe252ffd552398ca AS final
 WORKDIR /app
 
 COPY --from=build /app/publish .
