@@ -380,6 +380,7 @@ up() {
     # blog_ha connection string is passed via the environment. The dry run must name $HA_DB
     # exactly before anything destructive runs.
     local drop_target
+    # dotnet-ef 11 prints the dry run's message on stderr (10 used stdout): read both.
     drop_target="$(ConnectionStrings__BlogDb="$conn" \
         dotnet ef database drop --dry-run -p src/Croft.Api -s src/Croft.Api --no-build 2>&1)"
     echo "$drop_target"
@@ -410,6 +411,7 @@ up() {
         web_conn="$(ha_web_connection_string)"
         echo "Recreating Web database $HA_WEB_DB ..."
         local web_drop_target
+        # dotnet-ef 11 prints the dry run's message on stderr (10 used stdout): read both.
         web_drop_target="$(ConnectionStrings__WebDb="$web_conn" \
             dotnet ef database drop --dry-run -p src/Croft.Web -s src/Croft.Web --no-build 2>&1)"
         echo "$web_drop_target"

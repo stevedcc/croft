@@ -126,6 +126,7 @@ if [ "$MODE" = e2e ]; then
         exit 1
     fi
     echo "Recreating database $INSTANCE_WEB_DB ..."
+    # dotnet-ef 11 prints the dry run's message on stderr (10 used stdout): read both.
     web_drop_target="$(ConnectionStrings__WebDb="$INSTANCE_WEB_CONN" \
         dotnet ef database drop --dry-run -p src/Croft.Web -s src/Croft.Web --no-build 2>&1)"
     echo "$web_drop_target"

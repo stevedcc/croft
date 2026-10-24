@@ -116,6 +116,7 @@ echo "Recreating database $TARGET_DB ..."
 # database drop takes no --connection; it drops the context's configured database, so the
 # target connection string is passed via the environment. The dry run names the target and
 # must name it exactly before anything is dropped (same guarded drop as start-local.sh).
+# dotnet-ef 11 prints the dry run's message on stderr (10 used stdout): read both.
 drop_target="$(ConnectionStrings__BlogDb="$TARGET_CONN" \
     dotnet ef database drop --dry-run -p src/Croft.Api -s src/Croft.Api --no-build 2>&1)"
 echo "$drop_target"
