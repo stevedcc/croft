@@ -911,6 +911,9 @@ app.MapGet("/health/live", (HttpContext context) =>
     // especially not the API or the database: a restart cannot fix a dependency, so an outage
     // must surface as unready (no traffic), never as a restart loop.
     HealthHeaders(context);
+    // The release workflow's smoke test starts each image with no API or database and reads the
+    // version it was built as from here.
+    context.Response.Headers["X-Croft-Version"] = AppVersion.Current;
     return Results.Text("Healthy", "text/plain; charset=utf-8");
 });
 

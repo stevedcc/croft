@@ -9,6 +9,10 @@
 # ci-test or start with ci-test-), signs and attests it, and creates no Release and no X.Y or
 # latest tag.
 #
+# The images report the version they were built as (the footer, and X-Croft-Version on
+# /health/live, which the smoke job checks): VERSION=<tag without the v> for a release,
+# 0.0.0-ci-test.<short sha> for the test path, passed to the Dockerfiles as a build arg.
+#
 # The Dockerfiles cross-publish (SDK stage on $BUILDPLATFORM, `dotnet publish -a $TARGETARCH`,
 # no RUN in the final stage), so the two-platform build needs no QEMU.
 name: Release
@@ -35,8 +39,31 @@ env:
   TEST_TAG: ${{ inputs.test_tag || 'ci-test' }}
 
 jobs:
+  # The version the apps are built as: one value for every image and every smoke check.
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    outputs:
+      app: ${{ steps.version.outputs.app }}
+    steps:
+      - name: Choose the version
+        id: version
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          if [[ "$RELEASE" == 'true' ]]; then
+            app="${GITHUB_REF_NAME#v}"
+          else
+            app="0.0.0-ci-test.${SHA::7}"
+          fi
+          echo "The apps are built as $app"
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+
   image:
     name: Image (${{ matrix.image }})
+    needs: [version]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -104,6 +131,8 @@ jobs:
           # BuildKit's per-platform attestation manifests.
           provenance: false
           sbom: false
+          build-args: |
+            VERSION=${{ needs.version.outputs.app }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
@@ -160,14 +189,15 @@ jobs:
           retention-days: 7
 
   # Runs each pushed image per architecture with no database, API or IdP: /health/live answers
-  # from the process alone (both apps), /health/ready must say 503 (the API: database
+  # from the process alone (both apps) and names the version the app was built as
+  # (X-Croft-Version, which must equal the version job's), /health/ready must say 503 (the API: database
   # unreachable; the Web: still warming up, it cannot reach the API), so a 200 there would
   # mean the check is not wired. Neither app has a --version or
   # --help path; an unknown argument makes the API exit 1 by design (StartupCommand).
   # arm64 runs under QEMU; the same 90 s budget applies to both (first run: amd64 1 s, arm64 8-10 s).
   smoke:
     name: Smoke (${{ matrix.image }}, ${{ matrix.arch }})
-    needs: [image]
+    needs: [version, image]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -202,6 +232,7 @@ jobs:
         env:
           APP: ${{ matrix.image }}
           ARCH: ${{ matrix.arch }}
+          EXPECTED_VERSION: ${{ needs.version.outputs.app }}
         run: |
           IFS=$'\t' read -r image version digest < "digest/$APP.tsv"
           ref="$image@$digest"
@@ -232,11 +263,13 @@ jobs:
               echo "::error::the container exited before /health/live answered"
               exit 1
             fi
-            live=$(curl --silent --output live.txt --write-out '%{http_code}' --max-time 5 http://127.0.0.1:8080/health/live || true)
+            live=$(curl --silent --dump-header live-headers.txt --output live.txt --write-out '%{http_code}' --max-time 5 http://127.0.0.1:8080/health/live || true)
             [[ "$live" == 200 ]] && break
             sleep 1
           done
           echo "/health/live: $live '$(cat live.txt 2>/dev/null)' after $((SECONDS - started)) s"
+          reported=$(tr -d '\r' < live-headers.txt 2>/dev/null | sed -n 's/^[Xx]-[Cc]roft-[Vv]ersion: *//p' | tail -n 1)
+          echo "X-Croft-Version: '$reported' (expected '$EXPECTED_VERSION')"
           ready=$(curl --silent --output ready.txt --write-out '%{http_code}' --max-time 30 http://127.0.0.1:8080/health/ready || true)
           echo "/health/ready: $ready '$(cat ready.txt 2>/dev/null)'"
 
@@ -245,6 +278,10 @@ jobs:
           if [[ "$live" != 200 || "$(cat live.txt)" != Healthy ]]; then
             echo "::error::/health/live did not answer 200 Healthy within 90 s"
             tail -n 50 container.log
+            exit 1
+          fi
+          if [[ "$reported" != "$EXPECTED_VERSION" ]]; then
+            echo "::error::the image reports version '$reported', expected '$EXPECTED_VERSION'"
             exit 1
           fi
           if [[ "$ready" != 503 ]]; then

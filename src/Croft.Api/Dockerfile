@@ -6,6 +6,9 @@
 
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG TARGETARCH
+# The released version, from the tag (release.yml passes VERSION=<tag without the v>). Empty
+# (the default) keeps the <Version> in Directory.Build.props, as a local build does.
+ARG VERSION=
 WORKDIR /src
 
 COPY global.json Directory.Build.props .editorconfig ./
@@ -18,7 +21,7 @@ COPY src/Croft.Api/ src/Croft.Api/
 # armv8.0-a, which the Raspberry Pi 4 (Cortex-A72) supports; see docs/workarounds.md W-088 for
 # the .NET 11 check. tests/Croft.Api.Tests/ReadyToRunPublishTests.cs publishes with this very
 # line, so keep it on ONE line starting "RUN dotnet publish".
-RUN dotnet publish src/Croft.Api/Croft.Api.csproj -c Release -a "$TARGETARCH" --self-contained false -p:PublishReadyToRun=true -o /app/publish
+RUN dotnet publish src/Croft.Api/Croft.Api.csproj -c Release -a "$TARGETARCH" --self-contained false -p:PublishReadyToRun=true -o /app/publish ${VERSION:+-p:Version=$VERSION}
 # END WORKAROUND(W-088)
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final

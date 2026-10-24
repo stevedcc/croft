@@ -130,6 +130,20 @@ public class HealthEndpointTests(PostgresDatabaseFixture fixture) : IClassFixtur
     }
 
     [Fact]
+    public async Task Live_NamesTheReleasedVersion_InTheXCroftVersionHeader()
+    {
+        using var factory = CreateFactory(UnreachableWebDb,
+            new StubApiHealthHandler(_ => throw new HttpRequestException("the API is down")));
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/health/live");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Headers.GetValues("X-Croft-Version").Should().Equal([VersionFromProps()],
+            "the release smoke test reads the version an image was built as from this header, with no API or database");
+    }
+
+    [Fact]
     public async Task BothEndpoints_AreAnonymous_Plain_NeverCached_NeverIndexed()
     {
         using var factory = CreateFactory(fixture.ConnectionString,
@@ -213,4 +227,17 @@ public class HealthEndpointTests(PostgresDatabaseFixture fixture) : IClassFixtur
             builder.ConfigureServices(services =>
                 services.AddHttpClient("BlogApi").ConfigurePrimaryHttpMessageHandler(() => api));
         });
+
+    private static string VersionFromProps()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Directory.Build.props")))
+        {
+            directory = directory.Parent;
+        }
+
+        directory.Should().NotBeNull("Directory.Build.props sits at the repository root");
+        var props = XDocument.Load(Path.Combine(directory!.FullName, "Directory.Build.props"));
+        return props.Descendants("Version").Single().Value;
+    }
 }

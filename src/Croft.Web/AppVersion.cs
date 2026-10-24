@@ -2,9 +2,10 @@ using System.Reflection;
 
 namespace Croft.Web;
 
-/// <summary>The released version the footer shows ("Running on Croft v0.6.1"): the one
-/// <c>&lt;Version&gt;</c> in Directory.Build.props, read from the assembly's informational
-/// version without the <c>+commit</c> build metadata the SDK appends.</summary>
+/// <summary>The released version the footer shows ("Running on Croft v0.6.1"): the release tag
+/// (the Dockerfiles publish with <c>-p:Version</c>), or the <c>&lt;Version&gt;</c> in
+/// Directory.Build.props for a local build, read from the assembly's informational version
+/// without the <c>+commit</c> build metadata the SDK appends.</summary>
 public static class AppVersion
 {
     public static string Current { get; } = WithoutBuildMetadata(

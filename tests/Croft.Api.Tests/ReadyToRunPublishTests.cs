@@ -72,7 +72,9 @@ public class ReadyToRunPublishTests
             .Single(l => l.StartsWith("RUN dotnet publish ", StringComparison.Ordinal));
         var arguments = line["RUN ".Length..]["dotnet ".Length..]
             .Replace("\"$TARGETARCH\"", "arm64", StringComparison.Ordinal)
-            .Replace("/app/publish", $"\"{output}\"", StringComparison.Ordinal);
+            .Replace("/app/publish", $"\"{output}\"", StringComparison.Ordinal)
+            // VERSION is empty unless release.yml passes one: the expansion is then nothing.
+            .Replace(" ${VERSION:+-p:Version=$VERSION}", "", StringComparison.Ordinal);
         arguments.Should().NotContain("$", "every Dockerfile variable is substituted");
 
         var start = new ProcessStartInfo("dotnet", arguments)

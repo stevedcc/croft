@@ -2,9 +2,10 @@
   <!-- Analyzers and code style are part of the build: the house style (writing-dotnet10-code skill)
        is enforced, not just documented. -->
   <PropertyGroup>
-    <!-- The single source of the released version: the footer shows it ("Running on Croft v0.6.1"),
-         read from the assembly's informational version without the +commit suffix. The release
-         bumps it here. -->
+    <!-- The version local builds and tests carry; the footer shows it ("Running on Croft v0.6.1"),
+         read from the assembly's informational version without the +commit suffix. A released
+         image takes its version from the tag instead (release.yml passes VERSION to the
+         Dockerfiles, which publish with -p:Version), so a release needs no bump here. -->
     <Version>0.6.8</Version>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
