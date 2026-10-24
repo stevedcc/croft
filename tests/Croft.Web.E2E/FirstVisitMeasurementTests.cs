@@ -20,12 +20,16 @@ public class FirstVisitMeasurementTests : FirstVisitTest
     /// <summary>What a first visit downloaded when brief 14c was finished: total bytes, font bytes, font requests.</summary>
     private sealed record After(long TotalBytes, long FontBytes, int FontRequests);
 
+    // Brief 16a re-measured the totals on .NET 11 RC 2 (the fonts are unchanged): ASP.NET Core 11's
+    // blazor.web.js is 245,494 bytes instead of 200,645, and a Debug build (what the suite runs)
+    // now sends it as an effectively uncompressed gzip stream (245,562 bytes; .NET 10: 55,644).
+    // Brief 14c's figures were home 349,885 / 349,883 and post 492,176 / 492,177.
     private static readonly Dictionary<(string Page, int Width), After> Measured = new()
     {
-        [("home", 1440)] = new(349_885, 147_824, 5),
-        [("home", 390)] = new(349_883, 147_824, 5),
-        [("post", 1440)] = new(492_176, 183_444, 6),
-        [("post", 390)] = new(492_177, 183_444, 6),
+        [("home", 1440)] = new(440_188, 147_824, 5),
+        [("home", 390)] = new(440_175, 147_824, 5),
+        [("post", 1440)] = new(520_409, 183_444, 6),
+        [("post", 390)] = new(520_396, 183_444, 6),
     };
 
     private const long FiveKilobytes = 5 * 1024;
