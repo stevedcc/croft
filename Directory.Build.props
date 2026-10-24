@@ -5,7 +5,7 @@
     <!-- The single source of the released version: the footer shows it ("Running on Croft v0.6.1"),
          read from the assembly's informational version without the +commit suffix. The release
          bumps it here. -->
-    <Version>0.6.8</Version>
+    <Version>0.6.9</Version>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <!-- Doc files are generated only so IDE0005 (unused usings) can run during build. -->
