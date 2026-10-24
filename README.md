@@ -390,8 +390,9 @@ Running the workflow by hand on a branch (`workflow_dispatch`, input `test_tag`,
 on a `v*` tag, it is that tag's release; any other tag is refused. Pin a deployment to a version
 or a digest, not to `latest`.
 
-crawford.dev's cluster still pulls its own builds from `registry.crawford.dev` until its site
-repository switches its overlay's `images:` to the GHCR names.
+crawford.dev runs these images (`ghcr.io/stevedcc/croft-*`, since 0.6.9 on 2026-10-24): Flux image
+automation (an `ImagePolicy` of `>=0.6.9`, stable tags only) deploys a new tag within about seven
+minutes of its release.
 
 ### Building the images
 
