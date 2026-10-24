@@ -229,6 +229,22 @@ public abstract class WebTest : PageTest
         }
     }
 
+    /// <summary>
+    /// Signs out and waits until the sign-out has finished. GET /logout resolves when the
+    /// interstitial has loaded, but the sign-out continues from there by script (POST
+    /// /logout/complete, its continue page, the IdP's end-session redirect back to "/"); a test
+    /// that navigates before that last hop has its navigation interrupted by it. The gate is the
+    /// signed-out shell: the app's home with the /login control rendered (attached, as its label
+    /// is hidden in rail and phone modes).
+    /// </summary>
+    protected async Task SignOutAsync()
+    {
+        await Page.GotoAsync($"{BaseUrl}/logout");
+        await Page.WaitForURLAsync($"{BaseUrl}/", new PageWaitForURLOptions { Timeout = 10000 });
+        await Page.Locator("a[href='/login']").First
+            .WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Attached, Timeout = 10000 });
+    }
+
     protected Task LoginAsync(string email, string password) => LoginAsync(Page, email, password);
 
     /// <summary>Signs in through the mock IdP on a specific page: tests that capture or scan in

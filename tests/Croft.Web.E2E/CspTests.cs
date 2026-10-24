@@ -548,7 +548,7 @@ public class CspTests : WebTest
             _categorySlug = await SlugFromApiAsync("api/categories", "name", CategoryName);
             _tagSlug = await SlugFromApiAsync("api/tags", "name", TagName);
 
-            await Page.GotoAsync($"{BaseUrl}/logout");
+            await SignOutAsync();
             _dataReady = true;
         }
         finally

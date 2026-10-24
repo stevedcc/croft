@@ -159,10 +159,7 @@ Content for second section.";
             // Get category slug
             _categorySlug = await GetCategorySlugAsync(CategoryName);
 
-            // The sign-out continues from the interstitial by script (POST, IdP, back to "/");
-            // wait for its end, or the test's next GotoAsync is interrupted by that last hop.
-            await Page.GotoAsync($"{BaseUrl}/logout");
-            await Expect(Page.GetByText("Log in")).ToBeVisibleAsync();
+            await SignOutAsync();
             _dataReady = true;
         }
         finally
