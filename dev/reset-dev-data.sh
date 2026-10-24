@@ -117,7 +117,7 @@ echo "Recreating database $TARGET_DB ..."
 # target connection string is passed via the environment. The dry run names the target and
 # must name it exactly before anything is dropped (same guarded drop as start-local.sh).
 drop_target="$(ConnectionStrings__BlogDb="$TARGET_CONN" \
-    dotnet ef database drop --dry-run -p src/Croft.Api -s src/Croft.Api --no-build)"
+    dotnet ef database drop --dry-run -p src/Croft.Api -s src/Croft.Api --no-build 2>&1)"
 echo "$drop_target"
 if [[ "$drop_target" != *"the database '$TARGET_DB'"* ]]; then
     echo "Refusing to drop: the dry run did not name '$TARGET_DB' (got: $drop_target)" >&2

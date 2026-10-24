@@ -381,7 +381,7 @@ up() {
     # exactly before anything destructive runs.
     local drop_target
     drop_target="$(ConnectionStrings__BlogDb="$conn" \
-        dotnet ef database drop --dry-run -p src/Croft.Api -s src/Croft.Api --no-build)"
+        dotnet ef database drop --dry-run -p src/Croft.Api -s src/Croft.Api --no-build 2>&1)"
     echo "$drop_target"
     if [[ "$drop_target" != *"the database '$HA_DB'"* ]]; then
         echo "Refusing to drop: the dry run did not name '$HA_DB' (got: $drop_target)" >&2
@@ -411,7 +411,7 @@ up() {
         echo "Recreating Web database $HA_WEB_DB ..."
         local web_drop_target
         web_drop_target="$(ConnectionStrings__WebDb="$web_conn" \
-            dotnet ef database drop --dry-run -p src/Croft.Web -s src/Croft.Web --no-build)"
+            dotnet ef database drop --dry-run -p src/Croft.Web -s src/Croft.Web --no-build 2>&1)"
         echo "$web_drop_target"
         if [[ "$web_drop_target" != *"the database '$HA_WEB_DB'"* ]]; then
             echo "Refusing to drop: the dry run did not name '$HA_WEB_DB' (got: $web_drop_target)" >&2

@@ -103,9 +103,10 @@ if [ "$MODE" = e2e ]; then
     echo "Recreating database $INSTANCE_DB ..."
     # database drop takes no --connection; it drops the context's configured database, so the
     # instance connection string is passed via the environment. The dry run names the target and
-    # must name INSTANCE_DB exactly: this path must never drop the dev database.
+    # must name INSTANCE_DB exactly: this path must never drop the dev database. dotnet-ef 11
+    # prints the dry run's message on stderr (10 printed it on stdout), so both are read.
     drop_target="$(ConnectionStrings__BlogDb="$INSTANCE_CONN" \
-        dotnet ef database drop --dry-run -p src/Croft.Api -s src/Croft.Api --no-build)"
+        dotnet ef database drop --dry-run -p src/Croft.Api -s src/Croft.Api --no-build 2>&1)"
     echo "$drop_target"
     if [[ "$drop_target" != *"the database '$INSTANCE_DB'"* ]]; then
         echo "Refusing to drop: the dry run did not name '$INSTANCE_DB' (got: $drop_target)" >&2
@@ -126,7 +127,7 @@ if [ "$MODE" = e2e ]; then
     fi
     echo "Recreating database $INSTANCE_WEB_DB ..."
     web_drop_target="$(ConnectionStrings__WebDb="$INSTANCE_WEB_CONN" \
-        dotnet ef database drop --dry-run -p src/Croft.Web -s src/Croft.Web --no-build)"
+        dotnet ef database drop --dry-run -p src/Croft.Web -s src/Croft.Web --no-build 2>&1)"
     echo "$web_drop_target"
     if [[ "$web_drop_target" != *"the database '$INSTANCE_WEB_DB'"* ]]; then
         echo "Refusing to drop: the dry run did not name '$INSTANCE_WEB_DB' (got: $web_drop_target)" >&2
