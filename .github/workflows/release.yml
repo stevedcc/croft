@@ -1,0 +1,219 @@
+# Release images (brief 15b, issue #10).
+#
+# A pushed tag vX.Y.Z publishes ghcr.io/<owner>/croft-api and croft-web as one OCI index each
+# (linux/amd64 + linux/arm64) under X.Y.Z, plus X.Y and latest when the tag is not a prerelease
+# (vX.Y.Z-rc.1 gets X.Y.Z-rc.1 only). Each image is signed with cosign (keyless, GitHub OIDC),
+# gets one SLSA build provenance attestation, and the GitHub Release lists both digests.
+#
+# workflow_dispatch is the test path: it pushes ONLY <test_tag>-<short sha> (test_tag must be
+# ci-test or start with ci-test-), signs and attests it, and creates no Release and no X.Y or
+# latest tag.
+#
+# The Dockerfiles cross-publish (SDK stage on $BUILDPLATFORM, `dotnet publish -a $TARGETARCH`,
+# no RUN in the final stage), so the two-platform build needs no QEMU.
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      test_tag:
+        description: 'Test tag prefix: pushes only <test_tag>-<short sha> (must be ci-test or ci-test-...); no Release, no latest'
+        required: true
+        default: ci-test
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  # 'true' only for a pushed v* tag; everything else is a test build.
+  RELEASE: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+  # 'true' for a release tag without a prerelease suffix (v1.2.3, not v1.2.3-rc.1).
+  STABLE: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-') }}
+  TEST_TAG: ${{ inputs.test_tag || 'ci-test' }}
+
+jobs:
+  image:
+    name: Image (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    strategy:
+      matrix:
+        include:
+          - image: api
+            project: Croft.Api
+          - image: web
+            project: Croft.Web
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/croft-${{ matrix.image }}
+      # Index-level annotations too, so GHCR links the multi-arch package to this repository.
+      DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+    steps:
+      - name: Check the test tag
+        if: env.RELEASE != 'true'
+        run: |
+          if [[ ! "$TEST_TAG" =~ ^ci-test(-[a-z0-9][a-z0-9.]*)*$ ]]; then
+            echo "::error::test_tag must be 'ci-test' or start with 'ci-test-' (lower case); got '$TEST_TAG'"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image tags and labels
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}},enable=${{ env.RELEASE == 'true' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ env.STABLE == 'true' }}
+            type=raw,value=latest,enable=${{ env.STABLE == 'true' }}
+            type=sha,format=short,prefix=${{ env.TEST_TAG }}-,enable=${{ env.RELEASE != 'true' }}
+
+      - name: Build and push (linux/amd64, linux/arm64)
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: src/${{ matrix.project }}/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          # Provenance comes from actions/attest-build-provenance below (one per image), not from
+          # BuildKit's per-platform attestation manifests.
+          provenance: false
+          sbom: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Sign (keyless)
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "$IMAGE@$DIGEST"
+
+      - name: Check the pushed index and its signature
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          docker manifest inspect "$IMAGE:$VERSION" | tee manifest.json
+          platforms=$(jq -r '[.manifests[].platform | "\(.os)/\(.architecture)"] | sort | join(",")' manifest.json)
+          echo "Platforms: $platforms"
+          if [[ "$platforms" != "linux/amd64,linux/arm64" ]]; then
+            echo "::error::$IMAGE:$VERSION has platforms '$platforms', expected linux/amd64,linux/arm64"
+            exit 1
+          fi
+          cosign verify "$IMAGE@$DIGEST" \
+            --certificate-identity-regexp "^https://github\.com/${GITHUB_REPOSITORY}/\.github/workflows/release\.yml@refs/" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+      - name: Record the digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          mkdir -p digest
+          printf '%s\t%s\t%s\n' "$IMAGE" "$VERSION" "$DIGEST" > "digest/${{ matrix.image }}.tsv"
+          {
+            echo "### $IMAGE:$VERSION"
+            echo
+            echo "\`$DIGEST\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the digest
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: digest-${{ matrix.image }}
+          path: digest/${{ matrix.image }}.tsv
+          retention-days: 7
+
+  release:
+    name: GitHub Release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download the digests
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: digest-*
+          path: digest
+          merge-multiple: true
+
+      - name: Create the Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=()
+          if [[ "$STABLE" != 'true' ]]; then prerelease=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --generate-notes "${prerelease[@]}"
+
+          # gh puts --notes before the generated notes; the brief wants the images after them,
+          # so the generated body is read back and the image section appended.
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json body --jq .body > notes.md
+          {
+            echo
+            echo '## Images'
+            echo
+            echo '| Image | Digest |'
+            echo '|---|---|'
+            while IFS=$'\t' read -r image version digest; do
+              echo "| \`$image:$version\` | \`$digest\` |"
+            done < <(cat digest/api.tsv digest/web.tsv)
+            echo
+            echo 'Both are one OCI index each (`linux/amd64`, `linux/arm64`), signed with cosign (keyless,'
+            echo 'GitHub OIDC) and with a SLSA build provenance attestation. Verify a signature with:'
+            echo
+            echo '```bash'
+            while IFS=$'\t' read -r image version digest; do
+              echo "cosign verify $image@$digest \\"
+              echo "  --certificate-identity-regexp '^https://github\\.com/${GITHUB_REPOSITORY}/\\.github/workflows/release\\.yml@refs/tags/v' \\"
+              echo "  --certificate-oidc-issuer https://token.actions.githubusercontent.com"
+            done < <(cat digest/api.tsv digest/web.tsv)
+            echo '```'
+            echo
+            echo 'and the provenance with:'
+            echo
+            echo '```bash'
+            while IFS=$'\t' read -r image version digest; do
+              echo "gh attestation verify oci://$image@$digest --repo ${GITHUB_REPOSITORY}"
+            done < <(cat digest/api.tsv digest/web.tsv)
+            echo '```'
+          } >> notes.md
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --notes-file notes.md
