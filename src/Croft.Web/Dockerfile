@@ -13,7 +13,7 @@ ARG BUILDPLATFORM
 ARG TARGETARCH
 # END WORKAROUND(W-103)
 
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:11.0 AS build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:11.0@sha256:e2438fd800a09d2d761aefe4edd30675c8f1db8958e4423c0844cc9a0240e60f AS build
 ARG TARGETARCH
 # The released version, from the tag (release.yml passes VERSION=<tag without the v>). Empty
 # (the default) keeps the <Version> in Directory.Build.props, as a local build does.
@@ -34,7 +34,7 @@ COPY src/Croft.Web/ src/Croft.Web/
 RUN dotnet publish src/Croft.Web/Croft.Web.csproj -c Release -a "$TARGETARCH" --self-contained false -p:PublishReadyToRun=true -o /app/publish ${VERSION:+-p:Version=$VERSION}
 # END WORKAROUND(W-088)
 
-FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:11.0@sha256:ca60823900e34e488caed1df187266fa02e3b59d1180c8db728b6cb727212ba2 AS final
 WORKDIR /app
 
 COPY --from=build /app/publish .
