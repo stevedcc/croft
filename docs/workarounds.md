@@ -17,9 +17,12 @@ keep anyway, or an ordinary use of a documented API is not a workaround; the clo
 
 .NET 11.0.0-rc.2.26504.105 packages (SDK 11.0.100-rc.2.26504.105), MudBlazor 9.11.0,
 Npgsql.EntityFrameworkCore.PostgreSQL 11.0.0-rc.2 (Npgsql 10.0.3), Markdig 1.5.0, Playwright
-1.64.1, Testcontainers 4.16.0, bUnit 2.12.5, xUnit 2.9.3, Postgres 18. The first sweep covered
-`blog-framework` at 998583c (2026-10-16) on .NET 10.0.13 (SDK 10.0.401); brief 16a walked every
-entry on 11.0 RC 2 (each entry's "Re-checked on 11.0 RC 2" note says what was run).
+1.64.1, Testcontainers 4.16.0, bUnit 2.12.5, xunit.v3 4.0.2 (the `xunit.v3.mtp-off` package,
+runner 4.0.1), NUnit 5.0.0 (NUnit3TestAdapter 6.3.1), Microsoft.NET.Test.Sdk 18.11.0, Postgres 18.
+The first sweep covered `blog-framework` at 998583c (2026-10-16) on .NET 10.0.13 (SDK 10.0.401);
+brief 16a walked every entry on 11.0 RC 2 (each entry's "Re-checked on 11.0 RC 2" note says what
+was run); brief 16b moved the test tooling to the versions above (W-063 retired, W-062 re-checked
+on xunit.v3).
 
 ## How to use it on an upgrade
 
