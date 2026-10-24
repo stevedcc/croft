@@ -20,6 +20,11 @@
   // The moving tags (sdk:10.0, aspnet:10.0) stay; only their digests move. A major (11.0) is a brief, not a bot PR.
   packageRules: [
     {
+      description: 'Docker base images are Microsoft\'s .NET images (and dev-only compose images): a patch rebuild should deploy within hours, not wait 3 days',
+      matchDatasources: ['docker'],
+      minimumReleaseAge: null,
+    },
+    {
       description: 'Majors are planned work (a .NET version, a Playwright major): no PR until ticked on the Dependency Dashboard',
       matchUpdateTypes: ['major'],
       dependencyDashboardApproval: true,
@@ -63,6 +68,7 @@
       automerge: true,
     },
   ],
-  vulnerabilityAlerts: { enabled: true, labels: ['security'] },
+  // A fix for a known vulnerability never waits for the release age (explicit, not Renovate's default).
+  vulnerabilityAlerts: { enabled: true, labels: ['security'], minimumReleaseAge: null },
   osvVulnerabilityAlerts: true,
 }
