@@ -725,9 +725,14 @@ public class PostEditPageTests : BlogBunitContext
         cut.FindAll("button").Single(b => b.TextContent == "Save draft").Click(new MouseEventArgs());
         await cut.WaitForAssertionAsync(() => cut.Markup.Should().Contain("MastodonUrl must be a post on"));
 
-        cut.Find("#post-bluesky-url").Input("https://y.example/1");
+        // InputAsync, not Input: the Preview's debounce timer is a real one (FakeTimeProvider fakes the clock,
+        // not timers) and renders through InvokeAsync from a pool thread. When that render holds the renderer's
+        // dispatcher, the synchronous Input() only queues the event and returns, so an assertion straight after
+        // it reads the markup from before the edit (issue #51). The task completes once the event's render has.
+        await cut.Find("#post-bluesky-url").InputAsync(new ChangeEventArgs { Value = "https://y.example/1" });
+        form.Model.BlueskyUrl.Should().Be("https://y.example/1", "the edit elsewhere has been handled");
         cut.Markup.Should().Contain("MastodonUrl must be a post on", "typing elsewhere leaves the error");
-        cut.Find("#post-mastodon-url").Input("https://x.example/2");
+        await cut.Find("#post-mastodon-url").InputAsync(new ChangeEventArgs { Value = "https://x.example/2" });
 
         cut.Markup.Should().NotContain("MastodonUrl must be a post on");
     }
