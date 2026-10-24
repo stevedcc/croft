@@ -36,7 +36,18 @@
         }
 
         // Show the stored preference after reload; without JS the default "System" label stands.
-        var stored = await (await GetShellAsync()).InvokeAsync<string?>("currentMode");
+        string? stored;
+        try
+        {
+            _shell ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/shell.js");
+            stored = await _shell.InvokeAsync<string?>("currentMode");
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit is gone: there is no label left to show.
+            return;
+        }
+
         if (stored is not null && stored != _mode)
         {
             _mode = stored;
@@ -46,7 +57,18 @@
 
     private async Task CycleAsync()
     {
-        var mode = await (await GetShellAsync()).InvokeAsync<string?>("cycleTheme");
+        string? mode;
+        try
+        {
+            _shell ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/shell.js");
+            mode = await _shell.InvokeAsync<string?>("cycleTheme");
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit is gone: there is no theme left to switch.
+            return;
+        }
+
         if (mode is not null)
         {
             _mode = mode;
@@ -54,9 +76,6 @@
 
         await ThemeChanged.InvokeAsync(_mode);
     }
-
-    private async Task<IJSObjectReference> GetShellAsync() =>
-        _shell ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/shell.js");
 
     public ValueTask DisposeAsync() => JsModuleReference.DisposeAsync(_shell);
 }

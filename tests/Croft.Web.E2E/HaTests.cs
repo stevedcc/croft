@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -729,7 +728,7 @@ public class HaTests : PageTest
         {
             Timeout = TimeSpan.FromSeconds(20),
         };
-        private readonly Dictionary<string, string> _cookies = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, string> _cookies = [with(StringComparer.OrdinalIgnoreCase)];
         private readonly Lock _gate = new();
 
         public Task<HttpResponseMessage> GetAsync(string url) => SendAsync(new HttpRequestMessage(HttpMethod.Get, url));

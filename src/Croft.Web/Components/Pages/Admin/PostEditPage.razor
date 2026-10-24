@@ -174,8 +174,23 @@
         _sessionExpiryRegistration = SessionExpiry.Register(BackUpBeforeSignInAsync);
     }
 
-    private async Task<bool> BackUpBeforeSignInAsync() =>
-        RendererInfo.IsInteractive && await JS.InvokeAsync<bool>("blogDraft.flush");
+    private async Task<bool> BackUpBeforeSignInAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return false;
+        }
+
+        try
+        {
+            return await JS.InvokeAsync<bool>("blogDraft.flush");
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit is gone: there is no browser left to write the backup to.
+            return false;
+        }
+    }
 
     public void Dispose()
     {
@@ -277,15 +292,24 @@
 
         _backupChecked = true;
         var signedBackIn = TakeSignedBackInFlag();
-        var backup = await JS.InvokeAsync<DraftBackupRecord?>("blogDraft.read", DraftKey);
-        if (backup is null)
+        DraftBackupRecord? backup;
+        try
         {
-            return;
-        }
+            backup = await JS.InvokeAsync<DraftBackupRecord?>("blogDraft.read", DraftKey);
+            if (backup is null)
+            {
+                return;
+            }
 
-        if (DraftBackup.Decide(_model, backup) == DraftBackupAction.DeleteSilently)
+            if (DraftBackup.Decide(_model, backup) == DraftBackupAction.DeleteSilently)
+            {
+                await JS.InvokeVoidAsync("blogDraft.remove", DraftKey);
+                return;
+            }
+        }
+        catch (JSDisconnectedException)
         {
-            await JS.InvokeVoidAsync("blogDraft.remove", DraftKey);
+            // The circuit is gone: there is no browser left to read the backup from.
             return;
         }
 
@@ -375,7 +399,14 @@
     private async Task DiscardDraftAsync()
     {
         _restore = null;
-        await JS.InvokeVoidAsync("blogDraft.remove", DraftKey);
+        try
+        {
+            await JS.InvokeVoidAsync("blogDraft.remove", DraftKey);
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit is gone: the backup stays in the browser and is offered on the next visit.
+        }
     }
 
     /// <summary>The saved-version stamp rule: the post's edited stamp, falling back to its

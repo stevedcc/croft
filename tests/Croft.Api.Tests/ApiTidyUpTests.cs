@@ -12,7 +12,6 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using Microsoft.AspNetCore.Http;
 
 namespace Croft.Api.Tests;

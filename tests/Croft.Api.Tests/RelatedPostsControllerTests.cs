@@ -5,7 +5,6 @@ using AwesomeAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;
-using System.Net.Http.Json;
 
 namespace Croft.Api.Tests;
 

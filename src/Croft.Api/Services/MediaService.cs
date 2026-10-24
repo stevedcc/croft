@@ -12,10 +12,11 @@ public partial class MediaService(BlogDbContext db, IFileStorage fileStorage, IL
 {
     private const int MaxAltTextLength = 300;
 
-    private static readonly HashSet<string> AllowedImageExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".png", ".jpg", ".jpeg", ".gif", ".webp"
-    };
+    private static readonly HashSet<string> AllowedImageExtensions =
+    [
+        with(StringComparer.OrdinalIgnoreCase),
+        ".png", ".jpg", ".jpeg", ".gif", ".webp",
+    ];
 
     private static readonly FileExtensionContentTypeProvider ContentTypes = new();
 

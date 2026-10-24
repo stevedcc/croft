@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using AwesomeAssertions;
 using Croft.Api.Tests.Fixtures;
 using Croft.Shared.Contracts;

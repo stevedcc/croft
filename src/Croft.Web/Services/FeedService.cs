@@ -76,7 +76,7 @@ public class FeedService(IHttpClientFactory httpClientFactory, IOptions<BlogOpti
 
         // One category element per category-or-tag name; a tag named like the category is not
         // repeated.
-        HashSet<string> terms = new(StringComparer.Ordinal);
+        HashSet<string> terms = [with(StringComparer.Ordinal)];
         if (post.Category is { } category && terms.Add(category.Name))
             entry.Add(CategoryElement(category.Name));
 

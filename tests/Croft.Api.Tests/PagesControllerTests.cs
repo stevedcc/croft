@@ -3,7 +3,6 @@ using Croft.Shared.Contracts;
 using Croft.Shared.Enums;
 using AwesomeAssertions;
 using System.Net;
-using System.Net.Http.Json;
 
 namespace Croft.Api.Tests;
 

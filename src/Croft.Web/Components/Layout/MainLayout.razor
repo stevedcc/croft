@@ -132,9 +132,18 @@
             return;
         }
 
-        _shell = await JS.InvokeAsync<IJSObjectReference>("import", "./js/shell.js");
-        await _shell.InvokeVoidAsync("init");
-        _isDark = await _shell.InvokeAsync<bool>("isDark");
+        try
+        {
+            _shell = await JS.InvokeAsync<IJSObjectReference>("import", "./js/shell.js");
+            await _shell.InvokeVoidAsync("init");
+            _isDark = await _shell.InvokeAsync<bool>("isDark");
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit is gone: there is no shell left to start.
+            return;
+        }
+
         StateHasChanged();
     }
 
@@ -142,7 +151,14 @@
     {
         if (_shell is not null)
         {
-            _isDark = await _shell.InvokeAsync<bool>("isDark");
+            try
+            {
+                _isDark = await _shell.InvokeAsync<bool>("isDark");
+            }
+            catch (JSDisconnectedException)
+            {
+                // The circuit is gone: there is no theme left to follow.
+            }
         }
     }
 

@@ -8,7 +8,6 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Data.Common;
-using System.Net.Http.Json;
 
 namespace Croft.Api.Tests;
 

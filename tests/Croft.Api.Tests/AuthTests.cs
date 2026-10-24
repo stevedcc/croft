@@ -2,7 +2,6 @@ using Croft.Api.Tests.Fixtures;
 using Croft.Shared.Contracts;
 using AwesomeAssertions;
 using System.Net;
-using System.Net.Http.Json;
 
 namespace Croft.Api.Tests;
 

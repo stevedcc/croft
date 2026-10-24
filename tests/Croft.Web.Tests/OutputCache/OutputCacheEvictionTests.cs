@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Json;
 using AwesomeAssertions;
 using Croft.Shared.Contracts;
 using Croft.Shared.Enums;

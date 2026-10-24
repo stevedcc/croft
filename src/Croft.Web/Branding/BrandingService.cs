@@ -371,8 +371,8 @@ public sealed partial class BrandingService(Branding branding, IReadOnlyDictiona
         // supplied the masthead uses the fallback banner (theme.css's var() fallback).
         var mastheadBanner = MastheadBannerFiles.FirstOrDefault(supplied.Contains);
 
-        Dictionary<string, string> hashes = new(StringComparer.Ordinal);
-        Dictionary<string, string> paths = new(StringComparer.Ordinal);
+        Dictionary<string, string> hashes = [with(StringComparer.Ordinal)];
+        Dictionary<string, string> paths = [with(StringComparer.Ordinal)];
         foreach (var servedName in new[] { "logo.svg", "favicon.ico", "apple-touch-icon.png", fallback, mastheadBanner }
             .OfType<string>())
         {

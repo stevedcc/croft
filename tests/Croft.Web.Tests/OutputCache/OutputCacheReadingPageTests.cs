@@ -21,10 +21,11 @@ public class OutputCacheReadingPageTests
 
     /// <summary>What the cache itself says about the copy it serves, not what the page said: its age
     /// and the framing of the body (a rendered page streams, a stored one has a length).</summary>
-    private static readonly HashSet<string> TransportHeaders = new(StringComparer.OrdinalIgnoreCase)
-    {
+    private static readonly HashSet<string> TransportHeaders =
+    [
+        with(StringComparer.OrdinalIgnoreCase),
         "Age", "Content-Length", "Transfer-Encoding",
-    };
+    ];
 
     private static async Task<(HttpStatusCode Status, string Headers, string Body)> FetchAsync(
         HttpClient client, string path, bool staff = false, string? host = null)

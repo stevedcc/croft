@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Net;
-using System.Net.Http.Json;
 using Croft.Shared.Contracts;
 using Croft.Shared.Enums;
 using Microsoft.AspNetCore.WebUtilities;

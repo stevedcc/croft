@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using Croft.Api.Data;
 using Croft.Api.Models;
 using Croft.Shared.Contracts;

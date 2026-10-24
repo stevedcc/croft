@@ -8,7 +8,6 @@ using AwesomeAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using System.Net.Http.Json;
 
 namespace Croft.Api.Tests;
 
