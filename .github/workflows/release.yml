@@ -159,10 +159,103 @@ jobs:
           path: digest/${{ matrix.image }}.tsv
           retention-days: 7
 
+  # Runs each pushed image per architecture with no database, API or IdP: /health/live answers
+  # from the process alone (both apps), /health/ready must say 503 because the dependency is
+  # missing, so a 200 there would mean the check is not wired. Neither app has a --version or
+  # --help path; an unknown argument makes the API exit 1 by design (StartupCommand).
+  # arm64 runs under QEMU; the same 90 s budget applies to both (measured locally on amd64: ~2 s).
+  smoke:
+    name: Smoke (${{ matrix.image }}, ${{ matrix.arch }})
+    needs: [image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [api, web]
+        arch: [amd64, arm64]
+    steps:
+      - name: Download the digest
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: digest-${{ matrix.image }}
+          path: digest
+
+      - name: Set up QEMU
+        if: matrix.arch == 'arm64'
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          platforms: arm64
+
+      - name: Log in to GHCR
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run the image and probe its health endpoints
+        env:
+          APP: ${{ matrix.image }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          IFS=$'\t' read -r image version digest < "digest/$APP.tsv"
+          ref="$image@$digest"
+          docker pull --quiet --platform "linux/$ARCH" "$ref"
+          actual=$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$ref")
+          echo "Pulled $ref as $actual"
+          if [[ "$actual" != "linux/$ARCH" ]]; then
+            echo "::error::expected linux/$ARCH, got $actual"
+            exit 1
+          fi
+
+          # Dummy values for the settings each app refuses to start without outside Development;
+          # every host is unresolvable (.invalid), so nothing leaves the runner.
+          if [[ "$APP" == api ]]; then
+            settings=(-e Analytics__HashKey=smoke -e Analytics__IngestKey=smoke
+              -e Oidc__Audience=smoke -e Oidc__Authority=https://idp.invalid
+              -e 'ConnectionStrings__BlogDb=Host=db.invalid;Database=blog;Username=smoke;Password=smoke')
+          else
+            settings=(-e Analytics__IngestKey=smoke -e Blog__BaseUrl=https://blog.invalid
+              -e ApiBaseUrl=http://api.invalid:8080)
+          fi
+          docker run --rm -d --name smoke --platform "linux/$ARCH" -p 127.0.0.1:8080:8080 "${settings[@]}" "$ref"
+
+          started=$SECONDS
+          live=000
+          while (( SECONDS - started < 90 )); do
+            if [[ -z "$(docker ps --quiet --filter name=^smoke$)" ]]; then
+              echo "::error::the container exited before /health/live answered"
+              exit 1
+            fi
+            live=$(curl --silent --output live.txt --write-out '%{http_code}' --max-time 5 http://127.0.0.1:8080/health/live || true)
+            [[ "$live" == 200 ]] && break
+            sleep 1
+          done
+          echo "/health/live: $live '$(cat live.txt 2>/dev/null)' after $((SECONDS - started)) s"
+          ready=$(curl --silent --output ready.txt --write-out '%{http_code}' --max-time 30 http://127.0.0.1:8080/health/ready || true)
+          echo "/health/ready: $ready '$(cat ready.txt 2>/dev/null)'"
+
+          docker logs smoke > container.log 2>&1 || true
+          docker stop smoke > /dev/null
+          if [[ "$live" != 200 || "$(cat live.txt)" != Healthy ]]; then
+            echo "::error::/health/live did not answer 200 Healthy within 90 s"
+            tail -n 50 container.log
+            exit 1
+          fi
+          if [[ "$ready" != 503 ]]; then
+            echo "::error::/health/ready answered $ready without its dependency, expected 503"
+            tail -n 50 container.log
+            exit 1
+          fi
+
   release:
     name: GitHub Release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [image]
+    needs: [image, smoke]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
