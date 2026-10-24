@@ -1,11 +1,15 @@
 # Release images (brief 15b, issue #10).
 #
-# A pushed tag vX.Y.Z publishes ghcr.io/<owner>/croft-api and croft-web as one OCI index each
+# A tag vX.Y.Z publishes ghcr.io/<owner>/croft-api and croft-web as one OCI index each
 # (linux/amd64 + linux/arm64) under X.Y.Z, plus X.Y and latest when the tag is not a prerelease
 # (vX.Y.Z-rc.1 gets X.Y.Z-rc.1 only). Each image is signed with cosign (keyless, GitHub OIDC),
 # gets one SLSA build provenance attestation, and the GitHub Release lists both digests.
+# The ref decides, not the event: a pushed v* tag and a workflow_dispatch on a v* tag ref are
+# the same release (auto-release.yml dispatches this workflow on the tag it creates, because a
+# tag pushed with GITHUB_TOKEN triggers no push workflow). A dispatch on any other tag is
+# refused.
 #
-# workflow_dispatch is the test path: it pushes ONLY <test_tag>-<short sha> (test_tag must be
+# A workflow_dispatch on a branch is the test path: it pushes ONLY <test_tag>-<short sha> (test_tag must be
 # ci-test or start with ci-test-), signs and attests it, and creates no Release and no X.Y or
 # latest tag.
 #
@@ -32,10 +36,10 @@ permissions:
   contents: read
 
 env:
-  # 'true' only for a pushed v* tag; everything else is a test build.
-  RELEASE: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+  # 'true' when the ref is a v* tag, pushed or dispatched; a branch is a test build.
+  RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
   # 'true' for a release tag without a prerelease suffix (v1.2.3, not v1.2.3-rc.1).
-  STABLE: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-') }}
+  STABLE: ${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-') }}
   TEST_TAG: ${{ inputs.test_tag || 'ci-test' }}
 
 jobs:
@@ -53,6 +57,10 @@ jobs:
         env:
           SHA: ${{ github.sha }}
         run: |
+          if [[ "$GITHUB_REF" == refs/tags/* && ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::$GITHUB_REF_NAME is not a release tag (vX.Y.Z or vX.Y.Z-pre); only those, or a branch for the test path, can run this workflow"
+            exit 1
+          fi
           if [[ "$RELEASE" == 'true' ]]; then
             app="${GITHUB_REF_NAME#v}"
           else
@@ -292,7 +300,7 @@ jobs:
 
   release:
     name: GitHub Release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: [image, smoke]
     runs-on: ubuntu-latest
     timeout-minutes: 10
