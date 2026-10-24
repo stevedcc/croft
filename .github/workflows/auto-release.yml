@@ -1,0 +1,186 @@
+# A dependency-only merge by Renovate releases itself (brief 15c).
+#
+# When ci finishes green on a push to main, this looks at the merged commit: if every file it
+# changed (against its first parent) is on the dependency allow-list below, and Renovate wrote
+# it (author or committer renovate[bot]), it tags the commit as the next patch release
+# (highest stable vX.Y.Z + 1 on the patch) and dispatches release.yml on that tag. Anything
+# else is a code change: no release, it waits for a hand-made tag (README "Releases").
+#
+# release.yml is dispatched, not triggered by the tag: a tag pushed with GITHUB_TOKEN starts no
+# push workflow (a GitHub rule), and a dispatch needs no extra secret.
+#
+# The concurrency group serialises runs, so two quick merges get two consecutive patch tags in
+# order. GitHub keeps only one pending run per group: with three merges in quick succession the
+# middle one's run is cancelled, and its changes ship in the next tag (main is linear). A commit
+# that a stable tag already contains (an older commit whose ci finished late) is not tagged again.
+#
+# workflow_dispatch is the dry run: it takes a commit (`sha`), prints the decision and the tag
+# it would create, and tags nothing (dry_run=false is refused: tagging happens only from a
+# green ci run on main). The main-branch and ci-conclusion checks do not apply to it.
+name: auto-release
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'Commit to judge (full or short SHA)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Only print the decision and the tag (must stay true)'
+        required: true
+        default: true
+        type: boolean
+
+permissions: {}
+
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
+env:
+  # The merged commit ci ran on, or the commit a dry run judges.
+  SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.sha }}
+  DRY_RUN: ${{ github.event_name != 'workflow_run' }}
+
+jobs:
+  release:
+    name: Tag a dependency-only merge
+    # workflow_run fires for every ci run that touches main's name, pull requests from a fork's
+    # "main" included: only a green ci on a push to this repository's main counts.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Refuse a dispatch that would tag
+        if: github.event_name == 'workflow_dispatch' && !inputs.dry_run
+        run: |
+          echo "::error::a dispatch is a dry run only; tags come from a green ci run on main"
+          exit 1
+
+      - name: Check the commit
+        run: |
+          if [[ ! "$SHA" =~ ^[0-9a-f]{7,40}$ ]]; then
+            echo "::error::'$SHA' is not a commit SHA"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # All history and tags: the first parent for the diff, the tags for the next version.
+          fetch-depth: 0
+          fetch-tags: true
+          ref: ${{ env.SHA }}
+          persist-credentials: false
+
+      - name: Decide
+        id: decide
+        run: |
+          renovate='29139614+renovate[bot]@users.noreply.github.com'
+          # The dependency allow-list: project and SDK pins, Dockerfiles, compose files, workflow
+          # action pins and Renovate's own configuration. Anything else is a code change.
+          allowed='^(.+\.csproj|Directory\.Build\.props|Directory\.Packages\.props|global\.json|dotnet-tools\.json|src/[^/]+/Dockerfile|compose\.yaml|\.github/compose\.ci\.yaml|\.github/workflows/[^/]+\.yml|renovate\.json5)$'
+
+          sha=$(git rev-parse HEAD)
+          author="$(git log -1 --format='%an <%ae>')"
+          committer="$(git log -1 --format='%cn <%ce>')"
+          echo "Commit $sha: $(git log -1 --format=%s)"
+          echo "Author: $author | Committer: $committer"
+          mapfile -t files < <(git diff --name-only HEAD^ HEAD)
+          printf 'Changed: %s\n' "${files[@]}"
+
+          outside=()
+          for file in "${files[@]}"; do
+            [[ "$file" =~ $allowed ]] || outside+=("$file")
+          done
+
+          decision=''
+          if (( ${#files[@]} == 0 )); then
+            decision='not a dependency-only merge (no files changed): no release'
+          elif (( ${#outside[@]} > 0 )); then
+            decision="not a dependency-only merge (outside the allow-list: ${outside[*]}): no release"
+          elif [[ "$(git log -1 --format=%ae)" != "$renovate" && "$(git log -1 --format=%ce)" != "$renovate" ]]; then
+            decision='not a dependency-only merge (not written by renovate[bot]): no release'
+          else
+            released=$(git tag --list 'v*' --contains HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | head -n 1 || true)
+            if [[ -n "$released" ]]; then
+              decision="already released in $released: no new tag"
+            fi
+          fi
+
+          if [[ -n "$decision" ]]; then
+            echo "::notice::$decision"
+            echo "### No release" >> "$GITHUB_STEP_SUMMARY"
+            echo "\`$sha\`: $decision" >> "$GITHUB_STEP_SUMMARY"
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          latest=$(git tag --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)
+          if [[ -z "$latest" ]]; then
+            echo "::error::no stable vX.Y.Z tag to count from"
+            exit 1
+          fi
+          IFS=. read -r major minor patch <<< "${latest#v}"
+          tag="v$major.$minor.$((patch + 1))"
+          echo "Latest stable tag: $latest"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          if [[ "$DRY_RUN" == 'true' ]]; then
+            echo "::notice::dependency-only merge: would tag $tag on $sha (dry run, nothing tagged)"
+            echo "### Dry run: would tag $tag" >> "$GITHUB_STEP_SUMMARY"
+            echo "\`$sha\` is a dependency-only merge by renovate[bot]; latest stable tag $latest." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::notice::dependency-only merge: tagging $tag on $sha"
+          fi
+
+      - name: Tag and push
+        if: steps.decide.outputs.tag != '' && env.DRY_RUN != 'true'
+        env:
+          TAG: ${{ steps.decide.outputs.tag }}
+          TARGET: ${{ steps.decide.outputs.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${TAG#v}"
+          git -c user.name='github-actions[bot]' \
+            -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            tag -a "$TAG" -m "Croft $version (dependencies)" "$TARGET"
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" \
+            push "https://github.com/$GITHUB_REPOSITORY.git" "refs/tags/$TAG"
+
+      - name: Dispatch the release
+        if: steps.decide.outputs.tag != '' && env.DRY_RUN != 'true'
+        env:
+          TAG: ${{ steps.decide.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG"
+          # The dispatch returns before the run exists; wait (bounded) for it to be listed.
+          url=''
+          for _ in $(seq 1 30); do
+            url=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow release.yml --event workflow_dispatch \
+              --branch "$TAG" --limit 1 --json url --jq '.[0].url // empty')
+            [[ -n "$url" ]] && break
+            sleep 2
+          done
+          echo "Release run: ${url:-not listed yet}"
+          {
+            echo "### Released $TAG"
+            echo
+            echo "Tagged \`$TAG\` on \`$(git rev-parse "$TAG^{commit}")\` and dispatched release.yml: ${url:-the run was not listed within 60 s, see the Release workflow}"
+          } >> "$GITHUB_STEP_SUMMARY"
