@@ -18,6 +18,9 @@ on:
   schedule:
     - cron: "0 3 * * *"
   workflow_dispatch:
+  # TEMPORARY (brief 15a verification; workflow_dispatch needs the file on main): removed by the next commit.
+  push:
+    branches: [brief/15a]
 
 permissions:
   contents: read
