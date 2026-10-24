@@ -45,7 +45,7 @@ lists every place the code works around a framework or browser behaviour, and wh
 
 ## Stack
 
-- .NET 10, C# 14
+- .NET 11 (RC 2, go-live), C# 15
 - Blazor (static SSR for readers, Blazor Server for admin) + MudBlazor (admin only)
 - ASP.NET Core Web API
 - EF Core + Npgsql, PostgreSQL 18
@@ -58,8 +58,8 @@ lists every place the code works around a framework or browser behaviour, and wh
 
 ## Local development
 
-**Prerequisites:** the .NET SDK pinned in `global.json` (10.0.401 or a later 10.0.4xx; a 10.0.1xx
-SDK refuses to build), Docker or Podman with compose, and `curl`.
+**Prerequisites:** the .NET SDK pinned in `global.json` (11.0.100-rc.2.26504.105 or a later
+11.0.1xx; a .NET 10 SDK refuses to build), Docker or Podman with compose, and `curl`.
 
 1. Start PostgreSQL and the local OIDC provider:
 
