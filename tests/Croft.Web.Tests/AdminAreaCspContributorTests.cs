@@ -36,6 +36,7 @@ public class AdminAreaCspContributorTests
     [InlineData("/editor/posts/some-draft")]
     public void StaffPagePaths_AllowInlineStyleAttributes(string path)
     {
+        var unused = 42;
         var policy = StyleSrcAttr(path);
 
         policy.Should().Contain("style-src-attr 'unsafe-inline'",
