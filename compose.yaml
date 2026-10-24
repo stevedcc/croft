@@ -13,7 +13,7 @@ services:
       - blog-network
 
   oauth2:
-    image: ghcr.io/navikt/mock-oauth2-server:2.3.0@sha256:dfcc1b60abe7414d2754767fceaec62a5dc79a10e543804069f69287b277e314
+    image: ghcr.io/navikt/mock-oauth2-server:6.1.3@sha256:2a813381bf282da46ff36ff386059e7903e25865056af8149f4fb3f1441916b8
     ports:
       - "5556:8080"
     volumes:
