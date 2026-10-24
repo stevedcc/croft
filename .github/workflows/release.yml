@@ -16,9 +16,6 @@ name: Release
 on:
   push:
     tags: ['v*.*.*']
-    # TEMPORARY (brief 15b dry run): workflow_dispatch is refused until this file is on main.
-    # A branch push is a test build (RELEASE is false): ci-test-<sha> only, no Release.
-    branches: ['brief/15b']
   workflow_dispatch:
     inputs:
       test_tag:
@@ -163,10 +160,11 @@ jobs:
           retention-days: 7
 
   # Runs each pushed image per architecture with no database, API or IdP: /health/live answers
-  # from the process alone (both apps), /health/ready must say 503 because the dependency is
-  # missing, so a 200 there would mean the check is not wired. Neither app has a --version or
+  # from the process alone (both apps), /health/ready must say 503 (the API: database
+  # unreachable; the Web: still warming up, it cannot reach the API), so a 200 there would
+  # mean the check is not wired. Neither app has a --version or
   # --help path; an unknown argument makes the API exit 1 by design (StartupCommand).
-  # arm64 runs under QEMU; the same 90 s budget applies to both (measured locally on amd64: ~2 s).
+  # arm64 runs under QEMU; the same 90 s budget applies to both (first run: amd64 1 s, arm64 8-10 s).
   smoke:
     name: Smoke (${{ matrix.image }}, ${{ matrix.arch }})
     needs: [image]
