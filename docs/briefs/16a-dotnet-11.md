@@ -99,6 +99,11 @@ job). CSP snapshot unchanged.
   not committed); update the "Written against" line.
 - AGENTS.md: the SDK line (`10.0.4xx` → the 11 band), the `writing-dotnet11-code` row ("now
   applies"), the pending-contracts list untouched. README: the prerequisites.
+- AGENTS.md, the skills table: a reviewer rule next to `test-anti-patterns` / `assertion-quality`:
+  **task and final reviewers judge new or changed C# against `writing-dotnet11-code`'s defaults
+  table; an old-style construct in new code where the table names the .NET 11 form is a finding.**
+  (Owner, 2026-10-24: agents know the new features but default to the surrounding older code
+  unless something makes them choose.)
 
 ## Out of scope
 The `v0.7.0` tag (orchestrator, after verify), Renovate config, the site repo and flux repo
