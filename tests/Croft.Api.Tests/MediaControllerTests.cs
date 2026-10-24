@@ -332,7 +332,9 @@ public class MediaControllerTests(PostgresDatabaseFixture fixture)
         download.StatusCode.Should().Be(HttpStatusCode.NotFound, "a row whose file is gone is a missing image, not a server fault");
         logs.Entries.Where(e => e.Level > Microsoft.Extensions.Logging.LogLevel.Warning).Should().BeEmpty(
             "an image that is not there is not an error worth paging anyone for");
-        logs.Entries.Where(e => e.Level == Microsoft.Extensions.Logging.LogLevel.Warning).Should().ContainSingle(
+        // The download's own warning: the host's background services log on their own schedule (issue #49's pattern).
+        logs.Entries.Where(e => e.Level == Microsoft.Extensions.Logging.LogLevel.Warning
+                && e.Category == typeof(Croft.Api.Controllers.MediaController).FullName).Should().ContainSingle(
             "an operator should notice a row without its file, once").Which.Message
             .Should().Contain(asset.Id.ToString()).And.Contain(row.FilePath);
     }
