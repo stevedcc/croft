@@ -8,3 +8,13 @@
 services:
   postgres:
     volumes: !reset []
+    # Brief 15d item 3: `docker compose up --wait` in the e2e job waits on this instead of a
+    # hand-rolled 60 x 1 s pg_isready loop, which a busy runner outlasted (Postgres 18 still
+    # "rejecting connections"; ci run on PR #38). Up to 90 x 2 s, inside the step's --wait-timeout.
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "blog"]
+      interval: 2s
+      retries: 90
+  # No healthcheck for oauth2: ghcr.io/navikt/mock-oauth2-server is built by jib on
+  # gcr.io/distroless/java17-debian11 (no shell, curl or wget), so the e2e job keeps its curl loop
+  # against the discovery document from the runner.
