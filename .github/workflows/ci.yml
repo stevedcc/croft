@@ -120,7 +120,7 @@ jobs:
       - name: Start Postgres and the mock IdP
         run: |
           # --wait: until postgres's healthcheck (.github/compose.ci.yaml) passes and oauth2 runs.
-          docker compose up -d --wait --wait-timeout 1
+          docker compose up -d --wait --wait-timeout 180
           # The mock IdP image has no curl or wget for a healthcheck: poll its discovery document.
           for _ in $(seq 1 60); do
             curl -sf http://localhost:5556/default/.well-known/openid-configuration >/dev/null && break
