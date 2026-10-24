@@ -102,6 +102,9 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: read
+    env:
+      # compose.yaml plus the CI override (see that file for why).
+      COMPOSE_FILE: compose.yaml:.github/compose.ci.yaml
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

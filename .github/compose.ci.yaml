@@ -1,0 +1,10 @@
+# CI override for compose.yaml (brief 15a), used by the ci workflow's e2e job through
+# COMPOSE_FILE. The postgres:18 image refuses to start when /var/lib/postgresql/data is a mount
+# ("Error: in 18+, these Docker images are configured to store database data in a format which
+# is compatible with pg_ctlcluster ... there appears to be PostgreSQL data in
+# /var/lib/postgresql/data (unused mount/volume)"), which is what Docker on the runner reports for
+# compose.yaml's named volume (ci run 40079441308). A CI database is throwaway, so the override
+# drops the named volume and the data lives in the image's own anonymous volume.
+services:
+  postgres:
+    volumes: !reset []
