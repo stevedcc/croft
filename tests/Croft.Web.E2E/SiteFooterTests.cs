@@ -70,7 +70,7 @@ public class SiteFooterTests : StaticReadingTest
 
         var titles = await footer.Locator("a").AllTextContentsAsync();
         var mine = titles.Where(t => t.EndsWith(RunId, StringComparison.Ordinal)).ToList();
-        Assert.That(mine, Is.EqualTo(new[] { FooterFirstTitle, FooterSecondTitle }),
+        Assert.That(mine, Is.EqualTo([FooterFirstTitle, FooterSecondTitle]),
             $"the footer lists this run's footer pages by their order number on {where} at {width}px");
         Assert.That(titles, Does.Not.Contain(SidebarTitle), "a Sidebar page is not in the footer");
 
