@@ -187,6 +187,10 @@ Firefox too, for `SidebarFooterAlignmentTests` (Firefox 155.0, Playwright build 
 test fails with Playwright's "Executable doesn't exist" error when it is missing, it is never
 skipped): `node tests/Croft.Web.E2E/bin/Debug/net10.0/.playwright/package/cli.js install firefox`
 
+Releases are tags, not version bumps, and Renovate's dependency-only merges tag themselves as
+the next patch: see README "Releases" before touching `Directory.Build.props`' `<Version>`,
+`release.yml` or `auto-release.yml`.
+
 Migrations: `dotnet tool run dotnet-ef migrations add <Name> -p src/Croft.Api -s src/Croft.Api`.
 Where instances may migrate concurrently (the k8s init containers), use the API's `migrate`
 entry (`dotnet Croft.Api.dll migrate`): it serialises runs on an advisory lock — EF's own
