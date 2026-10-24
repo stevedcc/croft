@@ -20,10 +20,6 @@
 name: auto-release
 
 on:
-  # VERIFICATION ONLY (removed in the next commit): workflow_dispatch works only for files on the
-  # default branch, so the dry run is exercised on pushes to brief/15c over the matrix below.
-  push:
-    branches: [brief/15c]
   workflow_run:
     workflows: [ci]
     types: [completed]
@@ -57,7 +53,6 @@ jobs:
     # workflow_run fires for every ci run that touches main's name, pull requests from a fork's
     # "main" included: only a green ci on a push to this repository's main counts.
     if: >-
-      github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch == 'main' &&
@@ -65,12 +60,6 @@ jobs:
        github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        verify_sha: ['835afa402953d6f7854bd8685b9a4226a2aa2f03', '71e048c1888488ce4cbbdcfae5c8e692531b7c5e', 'bccb5e6d944b3aa28e2d572392f4f8268aab62c5', '3d25f836af9499694e8aa258237652030ced8c22', '313ba296258cdd19f5a97abb662a34c3405b2893']
-    env:
-      SHA: ${{ matrix.verify_sha }}
     permissions:
       contents: write
       actions: write
