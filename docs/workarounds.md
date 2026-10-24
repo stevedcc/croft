@@ -708,6 +708,13 @@ entry and a marker in the same commit (AGENTS.md, "Workarounds").
 - **Fails without it:** `MigrateContainerTests` (both) and `ApiImageSkiaSharpContainerTests` (`Category=Container`), on Podman (pre-pull) and on Docker (legacy builder, the GitHub runner's `image-tests` job).
 - **Upgrade check:** on a Testcontainers upgrade (BuildKit support, or a pre-pull that resolves build args), remove the `WithHostBuildPlatform()` calls and the global `ARG` lines and run `Category=Container` on Podman and in CI; if they pass, retire W-103.
 
+### W-104: Debug builds of the Web app leave out SDK 11's dotnet-watch browser tools
+
+- **Library:** the .NET 11 SDK (`Microsoft.NET.Sdk.StaticWebAssets.DotNetWatch.targets`, RC 2) adds build-only static web assets to every Debug build of a Blazor Web app, among them a JS initializer (`Microsoft.NET.Sdk.BlazorWeb.DotNetWatch.lib.module.js`). A full page load then ends in a `<!--Blazor-Web-Initializers:...-->` comment that an enhanced-navigation response does not carry, and every page fetches `/_framework/dotnet-browser-tools/hot-reload-settings.json` (a 404 outside `dotnet watch`). Publish output never contains them (a Release publish has no `lib.module.js` at all), so production is unaffected; the suites, which run Debug builds, would see documents production never serves.
+- **Our code:** the `CroftOmitDotNetWatchBrowserTools` target in `src/Croft.Web/Croft.Web.csproj` clears `DotNetWatchBrowserToolsAssetPrefix` before `ResolveProjectStaticWebAssets`, which skips the SDK's `_DefineDotNetWatchBrowserToolsAssetsCore` (its condition needs the prefix). `EnableHotReloadInRuntimeConfigDevFile` (the switch the SDK documents) is left alone, because it also turns off Hot Reload's runtime options. The cost: `dotnet watch` loses whatever these browser tools add for the Web app (not measured; the owner's hand testing does not use `dotnet watch`, as far as the repo shows: no script or doc runs it).
+- **Fails without it:** `OutputCacheReadingPageTests.AnEnhancedNavigationRequest_GetsTheSameResponseAsAFullLoad` (all six reading routes: "differ on line ... `<!--Blazor-Web-Initializers:WwogICJfZnJh...`").
+- **Upgrade check:** on each SDK update, delete the target and run that test; if the SDK stops emitting the initializer in Debug builds (or offers a switch for the browser tools alone), use that and retire W-104. The target relies on the SDK's private target and property names: if they change, the test fails again, which is the signal.
+
 ## Tier F: deployment and dev tooling
 
 ### W-081: Network-policy labels for K3s and Traefik

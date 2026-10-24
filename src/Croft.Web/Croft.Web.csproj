@@ -37,4 +37,20 @@
     <!-- END WORKAROUND(W-053) -->
   </PropertyGroup>
 
+  <!-- WORKAROUND(W-104, .NET SDK): SDK 11 adds a dotnet-watch JS initializer to every Debug build of a Blazor Web app -->
+  <!-- The initializer (Microsoft.NET.Sdk.BlazorWeb.DotNetWatch.lib.module.js) is a build-only
+       static web asset that never reaches publish output, but in a Debug build it makes every
+       full page load end in a Blazor-Web-Initializers comment and fetch
+       /_framework/dotnet-browser-tools/hot-reload-settings.json. The suites run Debug builds and
+       must see the documents a Release build serves. Clearing the asset prefix before the SDK
+       defines them skips only these assets (its target also runs before
+       ResolveProjectStaticWebAssets but is defined after this file, so this one runs first);
+       Hot Reload's runtime options are untouched. -->
+  <Target Name="CroftOmitDotNetWatchBrowserTools" BeforeTargets="ResolveProjectStaticWebAssets">
+    <PropertyGroup>
+      <DotNetWatchBrowserToolsAssetPrefix />
+    </PropertyGroup>
+  </Target>
+  <!-- END WORKAROUND(W-104) -->
+
 </Project>
