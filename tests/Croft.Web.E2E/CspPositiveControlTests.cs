@@ -60,7 +60,7 @@ public class CspPositiveControlTests : StaticReadingTest
         var violations = await WaitForViolationAsync(probe, directive, what);
 
         Assert.That(violations, Has.Some.Matches<CspViolation>(v =>
-                v.Directive == directive && v.Disposition == "enforce" && v.BlockedUri.Contains(blocked, StringComparison.Ordinal)),
+                v!.Directive == directive && v.Disposition == "enforce" && v.BlockedUri.Contains(blocked, StringComparison.Ordinal)),
             $"{what} must be refused by {directive} with an enforced violation; got: {string.Join("; ", violations)}");
         Assert.That(await Page.EvaluateAsync<bool>(noEffect), Is.True, $"{what} must have no effect: the policy refused it");
     }

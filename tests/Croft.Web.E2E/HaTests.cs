@@ -23,6 +23,12 @@ namespace Croft.Web.E2E;
 /// Every test creates the data it needs (the stack starts from a freshly migrated,
 /// seeded-empty database).
 /// </summary>
+// NUnit 5 marks [Order] obsolete in favour of [DependsOnTest]/[DependsOnFixture]; [Order] still
+// works. The order here is a sequence, not a dependency (every test runs even when an earlier one
+// failed, which needs DependsOnTest's AllowFailure), and brief 16b, the NUnit 5 bump, could not
+// run this category (it needs dev/ha-local.sh), so the proven [Order] stays until a brief that
+// can run it switches.
+#pragma warning disable CS0618
 [Category("HaTests")]
 [NonParallelizable] // the tests kill stack instances; they own the whole stack serially
 public class HaTests : PageTest
@@ -1008,3 +1014,4 @@ public class HaTests : PageTest
         return doc.RootElement.GetProperty("id").GetGuid();
     }
 }
+#pragma warning restore CS0618
