@@ -139,8 +139,6 @@ jobs:
           # BuildKit's per-platform attestation manifests.
           provenance: false
           sbom: false
-          build-args: |
-            VERSION=${{ needs.version.outputs.app }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
