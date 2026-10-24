@@ -6,11 +6,9 @@ on:
   schedule:
     - cron: "41 4 * * 1"
   push:
-    branches: [main]
+    # TEMPORARY brief/15a (brief 15a verification; workflow_dispatch needs the file on main): removed again before merge.
+    branches: [main, brief/15a]
   workflow_dispatch:
-  # TEMPORARY (brief 15a verification; workflow_dispatch needs the file on main): removed by the next commit.
-  push:
-    branches: [brief/15a]
 
 permissions: read-all
 
