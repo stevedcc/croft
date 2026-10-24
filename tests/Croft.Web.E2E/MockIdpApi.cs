@@ -54,7 +54,32 @@ internal static class MockIdpApi
         var tokenResponse = await client.PostAsync($"{OAuthAuthority}/token", tokenForm);
         tokenResponse.EnsureSuccessStatusCode();
         using var doc = JsonDocument.Parse(await tokenResponse.Content.ReadAsStringAsync());
-        return doc.RootElement.GetProperty("access_token").GetString()!;
+        var accessToken = doc.RootElement.GetProperty("access_token").GetString()!;
+        EnsureAdminClaims(accessToken, location);
+        return accessToken;
+    }
+
+    /// <summary>
+    /// Fails at the source when the mock IdP issued a token without the claims the login posted: a fixture's
+    /// upload was refused with 403 on CI (2 of 5 runs on PR #46, the first matrix fixture of the run), which
+    /// only an authenticated caller without the Admin role gets. This names the token's actual claims instead.
+    /// </summary>
+    private static void EnsureAdminClaims(string accessToken, Uri loginRedirect)
+    {
+        var parts = accessToken.Split('.');
+        var payload = parts.Length == 3 ? Encoding.UTF8.GetString(System.Buffers.Text.Base64Url.DecodeFromChars(parts[1])) : "(not a JWT)";
+        using var claims = parts.Length == 3 ? JsonDocument.Parse(payload) : null;
+        var root = claims?.RootElement;
+        var isAdmin = root is { } r
+            && r.TryGetProperty("sub", out var sub) && sub.GetString() == "admin-id"
+            && r.TryGetProperty("groups", out var groups) && groups.ValueKind == JsonValueKind.Array
+            && groups.EnumerateArray().Any(g => g.GetString() == "Admin");
+        if (!isAdmin)
+        {
+            throw new InvalidOperationException(
+                $"The mock IdP issued an access token without the posted admin claims (sub admin-id, groups [Admin]); " +
+                $"the login redirected to {loginRedirect}; token payload: {payload}");
+        }
     }
 
     /// <summary>POSTs raw JSON to the API with the admin's bearer token.</summary>
