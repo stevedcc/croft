@@ -164,6 +164,36 @@ public class SignOutInterstitialTests
         body.Should().NotContain("<script").And.NotContain("style=");
     }
 
+    /// <summary>
+    /// Pins a ruling: COEP goes on documents as the CSP decides them (CspDocument.KindOf, a Razor
+    /// component page), not on every text/html response. The two sign-out pages are HTML served by
+    /// minimal APIs, so they carry none; a change that keys COEP on the content type fails here.
+    /// </summary>
+    [Fact]
+    public async Task SignOutPages_AreHtmlButNotComponentDocuments_SoTheyCarryNoCoep()
+    {
+        using var factory = CreateFactory();
+        var (_, cookie) = await SignInAsync(factory);
+        var (html, antiforgeryCookie) = await GetInterstitialAsync(factory, cookie);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = false });
+
+        using var interstitial = await client.GetAsync("/logout/interstitial");
+        using var completeRequest = new HttpRequestMessage(HttpMethod.Post, "/logout/complete")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["__RequestVerificationToken"] = ExtractToken(html) }),
+        };
+        completeRequest.Headers.Add("Cookie", $"{cookie}; {antiforgeryCookie}");
+        using var complete = await client.SendAsync(completeRequest);
+
+        foreach (var (response, page) in new[] { (interstitial, "the interstitial"), (complete, "the sign-out continuation page") })
+        {
+            response.StatusCode.Should().Be(HttpStatusCode.OK, $"{page} is served");
+            response.Content.Headers.ContentType!.MediaType.Should().Be("text/html", $"{page} is HTML");
+            response.Headers.Contains("Cross-Origin-Embedder-Policy").Should().BeFalse(
+                $"{page} is not a component document by CspDocument.KindOf, the rule COEP follows");
+        }
+    }
+
     [Fact]
     public async Task Interstitial_IsNotCached()
     {

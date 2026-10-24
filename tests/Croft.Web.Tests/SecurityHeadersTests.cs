@@ -82,7 +82,7 @@ public sealed class SecurityHeadersTests : IDisposable
             response.StatusCode.Should().Be(HttpStatusCode.OK, $"{method} {shape} is served");
             response.Headers.Contains("Cross-Origin-Resource-Policy").Should().BeTrue($"{method} {shape} carries a Cross-Origin-Resource-Policy");
             response.Headers.GetValues("Cross-Origin-Resource-Policy").Should().ContainSingle(
-                $"{method} {shape} carries one Cross-Origin-Resource-Policy").Which.Should().Be(corp, $"{shape} is {corp}");
+                $"{method} {shape} carries one Cross-Origin-Resource-Policy").Which.Should().Be(corp, $"{method} {shape} is {corp}");
         }
     }
 
