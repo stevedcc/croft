@@ -123,7 +123,7 @@ public sealed class WarmupRoutesDriftTests
     [Fact]
     public void EveryPublicMethodOfTheClient_IsInTheTableOrExplicitlyNotWarmed()
     {
-        var inTable = PublicShapes.Select(row => ((string)row[0]!).Split(' ')[0]).ToHashSet();
+        var inTable = PublicShapes.Select(row => row.Data.Item1.Split(' ')[0]).ToHashSet();
         var methods = typeof(BlogApiClient).GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
             .Select(m => m.Name)
             .Where(name => !name.StartsWith("get_", StringComparison.Ordinal))
