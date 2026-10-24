@@ -69,7 +69,7 @@ public class PublishedDateTests : WebTest
 
         await Page.GotoAsync($"{BaseUrl}/tag/{tag}");
         var hrefs = await Page.Locator("a.post-card__link").EvaluateAllAsync<string[]>("els => els.map(e => e.getAttribute('href'))");
-        Assert.That(hrefs, Is.EqualTo(new[] { $"/post/{laterSlug}", $"/post/{slug}" }),
+        Assert.That(hrefs, Is.EqualTo([$"/post/{laterSlug}", $"/post/{slug}"]),
             "the back-dated post (15 September) is listed after the post published on 20 September");
     }
 
