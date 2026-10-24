@@ -290,7 +290,20 @@ app.MapControllers();
 // /health/live is the process alone (no check runs); /health/ready and its alias /health, kept for
 // older Web pods and monitors, run the database check: 503 while the primary cannot be reached.
 var readyOptions = new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") };
-app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
+// /health/live also names the version the image was built as (X-Croft-Version, without the +commit
+// build metadata): the release workflow's smoke test starts each image with no database and reads it.
+var croftVersion = ContentCommands.CroftVersion().Split('+')[0];
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false,
+    // The default writer's output (status as plain text), plus the version header.
+    ResponseWriter = (context, report) =>
+    {
+        context.Response.Headers["X-Croft-Version"] = croftVersion;
+        context.Response.ContentType = "text/plain";
+        return context.Response.WriteAsync(report.Status.ToString());
+    },
+});
 app.MapHealthChecks("/health/ready", readyOptions);
 app.MapHealthChecks("/health", readyOptions);
 

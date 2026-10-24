@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Croft.Api.Tests.Fixtures;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Configurations;
 using DotNet.Testcontainers.Containers;
@@ -20,6 +21,9 @@ public class ApiImageSkiaSharpContainerTests
             .WithName($"croft-skia-test/api:{Guid.NewGuid():N}")
             .WithDockerfileDirectory(RepoRoot())
             .WithDockerfile("src/Croft.Api/Dockerfile")
+            // WORKAROUND(W-103, Testcontainers): the base-image pre-pull reads FROM --platform=$BUILDPLATFORM literally
+            .WithHostBuildPlatform()
+            // END WORKAROUND(W-103)
             .WithDeleteIfExists(true)
             .Build();
         await image.CreateAsync();

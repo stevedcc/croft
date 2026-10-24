@@ -1,3 +1,4 @@
+using Croft.Api.Tests.Fixtures;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Configurations;
 using DotNet.Testcontainers.Containers;
@@ -35,6 +36,9 @@ public class MigrateContainerTests
             .WithName($"croft-migrate-test/{Path.GetFileName(Path.GetDirectoryName(dockerfile))!.ToLowerInvariant()}:{Guid.NewGuid():N}")
             .WithDockerfileDirectory(RepoRoot())
             .WithDockerfile(dockerfile)
+            // WORKAROUND(W-103, Testcontainers): the base-image pre-pull reads FROM --platform=$BUILDPLATFORM literally
+            .WithHostBuildPlatform()
+            // END WORKAROUND(W-103)
             .WithDeleteIfExists(true)
             .Build();
         await image.CreateAsync();
