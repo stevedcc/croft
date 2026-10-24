@@ -1,0 +1,60 @@
+{
+  // Renovate (issue #11). The hosted Mend Renovate GitHub App runs this; CI (ci.yml) must be green
+  // before anything automerges. Images are kept current on purpose: the owner prefers a break from
+  // an interface change to running an old image (issue #11).
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: [
+    'config:recommended',
+    ':dependencyDashboard',
+    ':semanticCommitsDisabled',
+    'helpers:pinGitHubActionDigests', // actions stay pinned by SHA, Renovate moves the SHA + comment
+    'docker:pinDigests',              // Dockerfile FROM lines get @sha256 digests: a .NET patch rebuilds within hours
+  ],
+  timezone: 'Europe/Berlin',
+  prConcurrentLimit: 5,
+  prHourlyLimit: 0,
+  labels: ['dependencies'],
+  // The moving tags (sdk:10.0, aspnet:10.0) stay; only their digests move. A major (11.0) is a brief, not a bot PR.
+  packageRules: [
+    {
+      description: 'The .NET platform moves together: Microsoft.*, System.*, EF Core, Npgsql EF provider',
+      matchDatasources: ['nuget'],
+      matchPackageNames: ['/^Microsoft\\./', '/^System\\./', '/^Npgsql\\.EntityFrameworkCore/'],
+      groupName: '.NET platform packages',
+      groupSlug: 'dotnet-platform',
+    },
+    {
+      description: 'Playwright: the NuGet package pins the browser builds the E2E project installs',
+      matchDatasources: ['nuget'],
+      matchPackageNames: ['/^Microsoft\\.Playwright/', '/^Deque\\.AxeCore\\.Playwright/'],
+      groupName: 'Playwright',
+    },
+    {
+      description: 'Everything else from NuGet, one PR',
+      matchDatasources: ['nuget'],
+      matchPackageNames: ['!/^Microsoft\\./', '!/^System\\./', '!/^Npgsql\\.EntityFrameworkCore/', '!/^Microsoft\\.Playwright/', '!/^Deque\\./'],
+      groupName: 'NuGet packages',
+    },
+    {
+      description: 'Automerge what CI can judge: patch, digest and pin updates. Minor and major wait for a human.',
+      matchUpdateTypes: ['patch', 'digest', 'pin', 'pinDigest'],
+      automerge: true,
+      automergeType: 'pr',
+      platformAutomerge: true,
+    },
+    {
+      description: 'global.json: follow the SDK feature band the repo is pinned to (10.0.4xx); a new band is a decision',
+      matchManagers: ['dotnet-version'],
+      matchUpdateTypes: ['patch'],
+      automerge: true,
+    },
+    {
+      description: 'Compose dev images (Postgres, mock OIDC) are dev-only: automerge minors too',
+      matchManagers: ['docker-compose'],
+      matchUpdateTypes: ['minor', 'patch', 'digest'],
+      automerge: true,
+    },
+  ],
+  vulnerabilityAlerts: { enabled: true, labels: ['security'] },
+  osvVulnerabilityAlerts: true,
+}
