@@ -55,13 +55,14 @@ public class AccessibleNamesTests : StaticReadingTest
         await Expect(blockedPage.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Contents", Exact = true, IncludeHidden = true }))
             .ToHaveCountAsync(1);
 
-        // post.js running: the visible text is the current section, the name stays "Contents".
+        // post.js running: the visible text is the current section, and the name (brief 15d item 1,
+        // axe label-content-name-mismatch) is "Contents" followed by that visible text.
         await Page.SetViewportSizeAsync(390, 844);
         await Page.GotoAsync($"{BaseUrl}/post/{post.Slug}");
         await WaitForInteractiveAsync(Page);
         await Page.EvaluateAsync("() => document.getElementById('section-4').scrollIntoView()");
         await Expect(Page.Locator(".toc-inline__row-text")).ToHaveTextAsync("Section 4");
-        await Expect(Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Contents", Exact = true })).ToBeVisibleAsync();
+        await Expect(Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Contents Section 4", Exact = true })).ToBeVisibleAsync();
     }
 
     [TestCase(1440, 900)]
