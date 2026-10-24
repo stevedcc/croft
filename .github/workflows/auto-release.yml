@@ -31,7 +31,7 @@ on:
   workflow_dispatch:
     inputs:
       sha:
-        description: 'Commit to judge (full or short SHA)'
+        description: 'Commit to judge (the full 40-character SHA)'
         required: true
         type: string
       dry_run:
@@ -68,7 +68,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        verify_sha: ['835afa402953d6f7854bd8685b9a4226a2aa2f03', '71e048c', 'f6684831b08c0ba087283d766bf186f359035569']
+        verify_sha: ['835afa402953d6f7854bd8685b9a4226a2aa2f03', '71e048c1888488ce4cbbdcfae5c8e692531b7c5e', 'bccb5e6d944b3aa28e2d572392f4f8268aab62c5', 'f6684831b08c0ba087283d766bf186f359035569']
     env:
       SHA: ${{ matrix.verify_sha }}
     permissions:
@@ -83,8 +83,9 @@ jobs:
 
       - name: Check the commit
         run: |
-          if [[ ! "$SHA" =~ ^[0-9a-f]{7,40}$ ]]; then
-            echo "::error::'$SHA' is not a commit SHA"
+          # actions/checkout takes a full SHA only (a short one is looked up as a branch or tag).
+          if [[ ! "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::'$SHA' is not a full 40-character commit SHA"
             exit 1
           fi
 
