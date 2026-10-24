@@ -7,10 +7,6 @@ on:
     - cron: "41 4 * * 1"
   push:
     branches: [main]
-  # TEMPORARY (brief 15a verification): scorecard-action refuses pushes to other branches
-  # ("Only the default branch main is supported."); a pull_request run does not publish.
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions: read-all
@@ -32,7 +28,7 @@ jobs:
         with:
           results_file: results.sarif
           results_format: sarif
-          publish_results: ${{ github.event_name != 'pull_request' }}
+          publish_results: true
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: scorecard-sarif
