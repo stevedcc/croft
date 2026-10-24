@@ -16,6 +16,9 @@ name: Release
 on:
   push:
     tags: ['v*.*.*']
+    # TEMPORARY (brief 15b dry run): workflow_dispatch is refused until this file is on main.
+    # A branch push is a test build (RELEASE is false): ci-test-<sha> only, no Release.
+    branches: ['brief/15b']
   workflow_dispatch:
     inputs:
       test_tag:
