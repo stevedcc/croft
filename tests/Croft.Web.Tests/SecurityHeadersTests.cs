@@ -25,6 +25,8 @@ public class SecurityHeadersTests
     private const string Authority = "https://idp.example.com";
     private const string ClientId = "blog-web";
 
+    private const string MediaPath = "/api/media/0199a1b2-0000-7000-8000-000000000001";
+
     [Theory]
     [InlineData("/", HttpStatusCode.OK, "the home page")]
     [InlineData("/app.css", HttpStatusCode.OK, "a static file")]
@@ -39,6 +41,37 @@ public class SecurityHeadersTests
 
         response.StatusCode.Should().Be(status, shape);
         AssertPlainSecurityHeaders(response);
+    }
+
+    [Theory]
+    [InlineData("/", false, "a static reading page")]
+    [InlineData("/admin/posts", true, "an interactive staff page")]
+    public async Task Coep_IsRequireCorp_OnEveryDocument(string path, bool signedIn, string shape)
+    {
+        using var factory = CreateFactory(signedIn: signedIn);
+        using var client = CreateClient(factory);
+        using var response = await client.GetAsync(path);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, shape);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("text/html", $"{shape} is a document");
+        AssertSingleHeader(response, "Cross-Origin-Embedder-Policy", "require-corp");
+    }
+
+    [Theory]
+    [InlineData("/robots.txt", "robots.txt")]
+    [InlineData("/feed.xml", "the feed")]
+    [InlineData(MediaPath, "a media image")]
+    [InlineData("/app.css", "a static asset")]
+    public async Task Coep_IsNotSent_OnResponsesThatAreNotDocuments(string path, string shape)
+    {
+        using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+        using var response = await client.GetAsync(path);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, shape);
+        response.Content.Headers.ContentType!.MediaType.Should().NotBe("text/html", $"{shape} is not a document");
+        response.Headers.Contains("Cross-Origin-Embedder-Policy").Should().BeFalse(
+            $"COEP governs what a document embeds; {shape} embeds nothing");
     }
 
     [Fact]
@@ -64,7 +97,7 @@ public class SecurityHeadersTests
             .Should().BeFalse("Kestrel's default Server: Kestrel names the server for no benefit");
     }
 
-    private static WebApplicationFactory<Program> CreateFactory(bool production = true) =>
+    private static WebApplicationFactory<Program> CreateFactory(bool production = true, bool signedIn = false) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseSetting("ApiBaseUrl", "http://blog-api.blog.svc.cluster.local/");
@@ -79,7 +112,13 @@ public class SecurityHeadersTests
             }
 
             builder.ConfigureServices(services =>
-                services.AddHttpClient("BlogApi").ConfigurePrimaryHttpMessageHandler(() => new StubBlogApiHandler()));
+            {
+                services.AddHttpClient("BlogApi").ConfigurePrimaryHttpMessageHandler(() => new ImageServingApi());
+                if (signedIn)
+                {
+                    Fixtures.SignedInAdmin.AddTo(services);
+                }
+            });
         });
 
     private static HttpClient CreateClient(WebApplicationFactory<Program> factory) =>
@@ -100,5 +139,29 @@ public class SecurityHeadersTests
         response.Headers.Contains(name).Should().BeTrue($"every response carries {name}");
         response.Headers.GetValues(name).Should().ContainSingle(
             $"{name} must appear exactly once").Which.Should().Be(value);
+    }
+
+    /// <summary>The stub API, plus a small PNG for the media and avatar reads the Web app proxies.</summary>
+    private sealed class ImageServingApi : DelegatingHandler
+    {
+        private static readonly byte[] Png = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+
+        public ImageServingApi() : base(new StubBlogApiHandler())
+        {
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (!path.StartsWith("/api/media/", StringComparison.Ordinal) && !path.StartsWith("/api/social/avatars/", StringComparison.Ordinal))
+            {
+                return base.SendAsync(request, cancellationToken);
+            }
+
+            var content = new ByteArrayContent(Png);
+            content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+        }
     }
 }
