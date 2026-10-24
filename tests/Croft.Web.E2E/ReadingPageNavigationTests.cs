@@ -178,7 +178,7 @@ Content for second section of post A.
             _categoryASlug = await GetCategorySlugAsync(CategoryAName);
             _categoryBSlug = await GetCategorySlugAsync(CategoryBName);
 
-            await Page.GotoAsync($"{BaseUrl}/logout");
+            await SignOutAsync();
             _dataReady = true;
         }
         finally

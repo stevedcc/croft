@@ -13,7 +13,8 @@ apply and `writing-dotnet10-code` is the rule. After the upgrade **both** apply:
 adds the .NET 11 / C# 15 defaults on top. Older-style code nearby is not a precedent; don't rewrite
 code you aren't otherwise touching.
 
-Written against .NET 11 **RC 1** (October 2026). If an API below doesn't compile on the GA SDK in
+Written against .NET 11 **RC 2** (SDK 11.0.100-rc.2.26504.105, October 2026; every API in the
+table below was compiled once on it by brief 16a). If an API below doesn't compile on the GA SDK in
 `global.json`, build first, then check [whats-new.md](whats-new.md); don't fall back to the old
 pattern because you're unsure. Never set `<LangVersion>preview</LangVersion>`, so C# 15's
 memory-safety features (pointer relaxations, `unsafe(...)` expressions) are not used here.
@@ -30,7 +31,7 @@ memory-safety features (pointer relaxations, `unsafe(...)` expressions) are not 
 | `GroupJoin` + `SelectMany` + `DefaultIfEmpty` on both sides for an outer join of two sets | `FullJoin(inner, outerKey, innerKey, (o, i) => ...)` (LINQ and EF Core 11, `FULL JOIN` in SQL); `LeftJoin`/`RightJoin` from .NET 10 for one side |
 | A hand-written `IEqualityComparer<T>` class that compares one key | `EqualityComparer<T>.Create(x => x.Key)` |
 | `modelBuilder.Entity<E>().ComplexProperty(e => e.Details).Property(d => d.X)` | `modelBuilder.Entity<E>().Property(e => e.Details.X)`; keys and indexes may use complex-type paths: `HasIndex(e => e.Address.PostalCode)` |
-| Validation that must hit the database or the API inside `IValidatableObject.Validate` (blocking) | `AsyncValidationAttribute` / `IAsyncValidatableObject`, validated by `Validator.ValidateObjectAsync`, by minimal APIs (`AddValidation()`) and by Blazor forms |
+| Validation that must hit the database or the API inside `IValidatableObject.Validate` (blocking) | `AsyncValidationAttribute` / `IAsyncValidatableObject`, validated by `Validator.ValidateObjectAsync`, by minimal APIs (`AddValidation()`) and by Blazor forms. In RC 2 an `AsyncValidationAttribute` must still override the synchronous `IsValid(object?, ValidationContext)` (abstract; throw `NotSupportedException` if only the async path may run), and `IAsyncValidatableObject` extends `IValidatableObject`, so `Validate` is implemented too |
 | `services.AddOpenTelemetry().WithTracing(t => t.AddAspNetCoreInstrumentation())` | `.AddSource("Microsoft.AspNetCore")`: ASP.NET Core 11 emits the HTTP server span with the semantic-convention attributes itself; drop `OpenTelemetry.Instrumentation.AspNetCore` once nothing else needs it. `MemoryCache` publishes its own metrics too |
 | `NavigateTo($"{currentBase}/child")` string building | `NavigateTo("child", new NavigationOptions { RelativeToCurrentUri = true })`, `<NavLink href="child" RelativeToCurrentUri="true">` |
 | Label text duplicated next to a form field | `<DisplayName For="@(() => Model.Field)" />` with `[Display(Name = ...)]` on the model (localizable) |
@@ -39,7 +40,8 @@ memory-safety features (pointer relaxations, `unsafe(...)` expressions) are not 
 
 - **Circuits on inactive tabs** can pause automatically, freeing server memory and the SignalR
   connection: package `Microsoft.AspNetCore.Components.Server.AutoPause`, then
-  `app.MapRazorComponents<App>().WithBrowserOptions(o => o.AddAutoPause(p => p.HiddenDelay = ...))`.
+  `app.MapRazorComponents<App>().WithBrowserOptions(o => o.AddAutoPause(p => p.HiddenDelay = ...))`
+  (`AddAutoPause` is in the `Microsoft.AspNetCore.Components` namespace).
   Adding a package is a brief-level decision, not something to do in passing.
 - **Server-triggered pause** (`Circuit.RequestCircuitPauseAsync`) lets a pod ask its clients to pause
   gracefully before shutdown: the right tool for rolling updates and node drains, instead of

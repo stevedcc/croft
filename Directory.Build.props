@@ -13,4 +13,14 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
+  <!-- WORKAROUND(W-088, .NET): crossgen2 11 targets armv8.0-a + LSE for linux-arm64, which the Raspberry Pi 4 lacks, so its ReadyToRun code would be rejected there -->
+  <!-- The cluster's Pi 4 nodes (Cortex-A72: fp, asimd, crc32, no atomics) run .NET 11, but an
+       image whose ReadyToRun code needs LSE ("Atomics") is rejected at start and every method
+       is JIT-compiled again. Pinned to what the Pi 4 has: AdvSimd (neon) and Crc32, LSE off
+       (crossgen2's `-lse`; without it the optimistic light-up still requires Atomics). Only
+       for linux-arm64 publishes: the amd64 image keeps the SDK default. -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'linux-arm64'">
+    <PublishReadyToRunCrossgen2ExtraArgs>--instruction-set:neon,crc,-lse</PublishReadyToRunCrossgen2ExtraArgs>
+  </PropertyGroup>
+  <!-- END WORKAROUND(W-088) -->
 </Project>

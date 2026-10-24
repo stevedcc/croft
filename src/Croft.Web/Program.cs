@@ -483,14 +483,6 @@ if (!builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(builder.Co
     throw new InvalidOperationException("Blog:BaseUrl must be configured outside Development.");
 }
 
-// WORKAROUND(W-049, Blazor): a later Blazor may materialise CircuitOptions lazily, which would move a bad-setting failure to the first circuit
-// An invalid Croft:Web:Circuits:* value fails here, naming the setting. Today the options
-// callback's own parse already fails startup (CircuitOptions is materialised during host start);
-// this line is the explicit guard, so a framework change that resolves the options lazily cannot
-// silently move the failure to the first circuit.
-CircuitSettings.Read(builder.Configuration);
-// END WORKAROUND(W-049)
-
 // An invalid Auth:SessionLifetime fails startup here, not at the first sign-in.
 AuthSettings.Read(builder.Configuration);
 
@@ -576,7 +568,7 @@ app.MapGet("/api/media/{id:guid}", async (
     var token = await tokenService.GetAccessTokenAsync(context.User, ct);
     await ApiImageProxy.ForwardAsync(context, httpClientFactory, configuration, $"/api/media/{id}", id.ToString(), token, ct);
 })
-    .WithMetadata(MediaDocumentMetadata.Instance)
+    .WithMetadata(MediaDocumentMetadata.Instance, CrossOriginResource.Instance)
     .CacheOutput(MediaCachePolicy.PolicyName);
 
 // The stored 48 x 48 avatars of the discussion's replies (brief 12b): the same proxy, anonymous. Only a
@@ -713,7 +705,7 @@ app.MapGet("/robots.txt", (IOptions<BlogOptions> blogOptions) =>
         Sitemap: {baseUrl}/sitemap.xml
 
         """, "text/plain; charset=utf-8");
-});
+}).WithMetadata(CrossOriginResource.Instance);
 
 // Crawlers read sitemap.xml from the Web host: the home page, every published post (lastmod is
 // its UpdatedAt) and every category and tag with at least one published post — no drafts, no
@@ -725,7 +717,7 @@ app.MapGet("/sitemap.xml", async (HttpContext context, ISitemapService sitemap, 
         context.Response.Headers.CacheControl = FeedCachePolicy.CacheControlValue(cacheSettings);
         return Results.Text(await sitemap.BuildXmlAsync(ct), "application/xml; charset=utf-8");
     })
-    .WithMetadata(FeedDocumentMetadata.Instance)
+    .WithMetadata(FeedDocumentMetadata.Instance, CrossOriginResource.Instance)
     .CacheOutput(FeedCachePolicy.PolicyName);
 
 // Readers and crawlers pull the Atom feed from the Web host: the 20 newest published posts,
@@ -737,7 +729,7 @@ app.MapGet("/feed.xml", async (HttpContext context, IFeedService feed, OutputCac
         context.Response.Headers.CacheControl = FeedCachePolicy.CacheControlValue(cacheSettings);
         return Results.Text(await feed.BuildXmlAsync(ct), "application/atom+xml; charset=utf-8");
     })
-    .WithMetadata(FeedDocumentMetadata.Instance)
+    .WithMetadata(FeedDocumentMetadata.Instance, CrossOriginResource.Instance)
     .CacheOutput(FeedCachePolicy.PolicyName);
 
 // The site's colours and web app manifest are generated once at startup from the branding
@@ -754,7 +746,7 @@ app.MapGet("/manifest.webmanifest", (HttpContext context, BrandingService brandi
 {
     context.Response.Headers.CacheControl = "no-store";
     return Results.Text(branding.ManifestJson, "application/manifest+json; charset=utf-8");
-});
+}).WithMetadata(CrossOriginResource.Instance);
 
 // The five branding images: the site's file if present, else the framework default from
 // wwwroot/branding-default. Only these names are served (anything else, including encoded
@@ -769,7 +761,7 @@ app.MapGet("/branding/{file}", (HttpContext context, BrandingService branding, s
 
     context.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
     return Results.File(path, BrandingContentType(path));
-});
+}).WithMetadata(CrossOriginResource.Instance);
 
 static string BrandingContentType(string path) => Path.GetExtension(path) switch
 {
@@ -851,7 +843,7 @@ if (webfingerFile is not null)
         }
 
         return Results.File(webfingerFile.Bytes, webfingerFile.ContentType);
-    }).WithMetadata(new SiteFileEndpoint());
+    }).WithMetadata(new SiteFileEndpoint(), CrossOriginResource.Instance);
 }
 
 foreach (var file in app.Services.GetRequiredService<SiteFiles>().ByPath.Values)
@@ -896,7 +888,7 @@ foreach (var file in app.Services.GetRequiredService<SiteFiles>().ByPath.Values)
     })
     // The rate limiter's exempt list keys on this metadata (IsRateLimiterExempt): site files
     // are cached, cheap and hot, so they never count against the page concurrency limit.
-    .WithMetadata(new SiteFileEndpoint());
+    .WithMetadata(new SiteFileEndpoint(), CrossOriginResource.Instance);
 }
 
 // The k8s probes' endpoints (k8s/web-deployment.yaml) and any other monitor's. Anonymous by

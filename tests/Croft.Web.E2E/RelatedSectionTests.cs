@@ -306,7 +306,7 @@ public class RelatedSectionTests : WebTest
             // same three published posts and its Related section renders.
             await CreateDraftAsync(DraftTitle, MainBody, TagName, CategoryName);
 
-            await Page.GotoAsync($"{BaseUrl}/logout");
+            await SignOutAsync();
             _dataReady = true;
         }
         finally

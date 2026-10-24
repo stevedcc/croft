@@ -270,7 +270,7 @@ public class ThemeTests : WebTest
                 new PageWaitForURLOptions { Timeout = 15000 });
             _themePostSlug = await SlugForPostAsync(PostIdFromEditorUrl());
 
-            await Page.GotoAsync($"{BaseUrl}/logout");
+            await SignOutAsync();
             return _themePostSlug;
         }
         finally

@@ -267,7 +267,7 @@ public class PostPageTests : WebTest
             _relOneSlug = await PublishPostAsync(RelOneTitle, $"Related fixture one {RunId}.", TagName, CategoryName);
             await PublishPostAsync(RelTwoTitle, $"Related fixture two {RunId}.", TagName, CategoryName);
 
-            await Page.GotoAsync($"{BaseUrl}/logout");
+            await SignOutAsync();
             _dataReady = true;
         }
         finally

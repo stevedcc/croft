@@ -35,6 +35,9 @@ dotnet_diagnostic.IDE0005.severity = warning
 # collection expression arguments ([with(comparer), ..]); IDE0410 asks for a labeled
 # break/continue instead of a flag or goto to leave nested loops.
 dotnet_diagnostic.IDE0410.severity = warning
+# New in SDK 11 RC 2, no table entry in writing-dotnet11-code: left at SDK default.
+#   BL0010-BL0016 (ASP.NET Core 11 Blazor analyzers), CA1517, CA1876, CA1877, CA2026-CA2028,
+#   ASP0033-ASP0038.
 
 [**/Migrations/*.cs]
 generated_code = true

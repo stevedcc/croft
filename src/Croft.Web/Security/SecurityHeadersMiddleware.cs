@@ -1,3 +1,5 @@
+using Croft.Web.Security.Csp;
+
 namespace Croft.Web.Security;
 
 /// <summary>
@@ -5,6 +7,11 @@ namespace Croft.Web.Security;
 /// every response whatever the scheme: TLS terminates at the ingress, so the app must not judge
 /// by the request it sees, and the value pins HTTPS for a year including subdomains. Header
 /// values are assigned, never appended, so each goes out exactly once.
+/// Cross-Origin-Embedder-Policy goes on documents only, decided by the same rule the CSP uses
+/// (<see cref="CspDocument.KindOf"/>): it governs what a document may embed, and the documents
+/// load nothing cross-origin. Cross-Origin-Resource-Policy goes on every response: cross-origin
+/// where the endpoint carries <see cref="CrossOriginResource"/> (what other sites and readers
+/// fetch), same-origin everywhere else.
 /// </summary>
 public sealed class SecurityHeadersMiddleware(RequestDelegate next, IHostEnvironment environment)
 {
@@ -15,16 +22,17 @@ public sealed class SecurityHeadersMiddleware(RequestDelegate next, IHostEnviron
         // missing from exactly those responses.
         context.Response.OnStarting(static state =>
         {
-            var (response, isDevelopment) = ((HttpResponse, bool))state;
-            Apply(response.Headers, isDevelopment);
+            var (httpContext, isDevelopment) = ((HttpContext, bool))state;
+            Apply(httpContext, isDevelopment);
             return Task.CompletedTask;
-        }, (context.Response, environment.IsDevelopment()));
+        }, (context, environment.IsDevelopment()));
 
         return next(context);
     }
 
-    private static void Apply(IHeaderDictionary headers, bool isDevelopment)
+    private static void Apply(HttpContext context, bool isDevelopment)
     {
+        var headers = context.Response.Headers;
         if (!isDevelopment)
         {
             headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains";
@@ -34,5 +42,13 @@ public sealed class SecurityHeadersMiddleware(RequestDelegate next, IHostEnviron
         headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
         headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
         headers["Cross-Origin-Opener-Policy"] = "same-origin";
+
+        headers["Cross-Origin-Resource-Policy"] =
+            context.GetEndpoint()?.Metadata.GetMetadata<CrossOriginResource>() is null ? "same-origin" : "cross-origin";
+
+        if (CspDocument.KindOf(context) is not CspDocumentKind.NotADocument)
+        {
+            headers["Cross-Origin-Embedder-Policy"] = "require-corp";
+        }
     }
 }

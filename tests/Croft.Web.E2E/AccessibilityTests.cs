@@ -515,7 +515,7 @@ public class AccessibilityTests : WebTest
             Assert.That(doc.RootElement.GetProperty("tags").GetArrayLength(), Is.EqualTo(20),
                 "The fixture post must carry all 20 tags (Review Focus 2).");
 
-            await Page.GotoAsync($"{BaseUrl}/logout");
+            await SignOutAsync();
             _dataReady = true;
         }
         finally
@@ -569,7 +569,7 @@ public class AccessibilityTests : WebTest
                 new PageWaitForURLOptions { Timeout = 15000 });
             _draftId = PostIdFromEditorUrl();
 
-            await Page.GotoAsync($"{BaseUrl}/logout");
+            await SignOutAsync();
             await LoginAsync("editor@example.com", "password");
             await Page.GotoAsync($"{BaseUrl}/editor");
             await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
@@ -580,7 +580,7 @@ public class AccessibilityTests : WebTest
             Assert.That(href, Does.StartWith("/editor/posts/"), "The Review link must lead to the draft review page.");
             _draftSlug = href!["/editor/posts/".Length..];
 
-            await Page.GotoAsync($"{BaseUrl}/logout");
+            await SignOutAsync();
             _draftReady = true;
         }
         finally
@@ -648,7 +648,7 @@ public class AccessibilityTests : WebTest
                     new PageWaitForURLOptions { Timeout = 15000 });
             }
 
-            await Page.GotoAsync($"{BaseUrl}/logout");
+            await SignOutAsync();
             _rowDataReady = true;
         }
         finally

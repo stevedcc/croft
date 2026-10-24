@@ -45,7 +45,7 @@ lists every place the code works around a framework or browser behaviour, and wh
 
 ## Stack
 
-- .NET 10, C# 14
+- .NET 11 (RC 2, go-live), C# 15
 - Blazor (static SSR for readers, Blazor Server for admin) + MudBlazor (admin only)
 - ASP.NET Core Web API
 - EF Core + Npgsql, PostgreSQL 18
@@ -58,8 +58,8 @@ lists every place the code works around a framework or browser behaviour, and wh
 
 ## Local development
 
-**Prerequisites:** the .NET SDK pinned in `global.json` (10.0.401 or a later 10.0.4xx; a 10.0.1xx
-SDK refuses to build), Docker or Podman with compose, and `curl`.
+**Prerequisites:** the .NET SDK pinned in `global.json` (11.0.100-rc.2.26504.105 or a later
+11.0.1xx; a .NET 10 SDK refuses to build), Docker or Podman with compose, and `curl`.
 
 1. Start PostgreSQL and the local OIDC provider:
 
@@ -230,6 +230,27 @@ pipeline so error paths keep them too:
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` |
 | `Cross-Origin-Opener-Policy` | `same-origin` |
+
+The Web app completes the cross-origin isolation set that COOP starts with two more headers,
+written by the same middleware (`src/Croft.Web/Security/SecurityHeadersMiddleware.cs`):
+
+- **`Cross-Origin-Embedder-Policy: require-corp`** on every HTML document (the reading pages,
+  admin and the editor, the error page), and on nothing else. "Document" is the
+  rule the CSP uses (`CspDocument.KindOf`: a Razor component page). The documents load no
+  cross-origin subresource (the CSP allows `'self'` only for images, fonts, styles and
+  connections), so the header costs nothing and stops a future change from embedding a
+  cross-origin resource that has not opted in.
+- **`Cross-Origin-Resource-Policy`** on every response, per route class. `cross-origin` on what
+  other sites and readers fetch from a browser: `/api/media/{id}`, `/feed.xml`, `/sitemap.xml`,
+  `/robots.txt`, `/.well-known/webfinger` and the other site files (`security.txt` and the rest),
+  `/manifest.webmanifest` and the `/branding/{file}` images. `same-origin` on everything else,
+  which only the site's own documents load: the documents, the static assets (`_framework/`,
+  CSS, scripts, fonts), `/social/avatar/*`, `/branding/theme.css` and `/health/*`. An endpoint
+  opts into `cross-origin` with the `CrossOriginResource` endpoint metadata.
+
+Media stays `cross-origin` because browser-based feed readers show a post's images straight from
+`/api/media/{id}` on their own origin; `same-origin` would break every image in those readers.
+Mastodon and Bluesky link cards copy the image to their own servers, so they would work either way.
 
 Each app also sends exactly one `Content-Security-Policy` header of its own (Blazor's built-in
 `frame-ancestors` header is disabled so the two never mix). The API serves JSON and media file
