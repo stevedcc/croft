@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
+using Croft.Web.Security.Csp;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -261,17 +262,22 @@ public class CspReportTests
     {
         public ConcurrentQueue<LogEntry> Entries { get; } = new();
 
+        /// <summary>
+        /// The CSP report endpoint's warnings only. The host logs warnings of its own (on a machine with no key ring yet,
+        /// Data Protection's "No XML encryptor configured" when it creates a key), so a count over every category
+        /// depends on what else the host did first (issue #49).
+        /// </summary>
         public List<LogEntry> Warnings() =>
-            [.. Entries.Where(entry => entry.Level == LogLevel.Warning)];
+            [.. Entries.Where(entry => entry.Level == LogLevel.Warning && entry.Category == typeof(CspReportEndpoint).FullName)];
 
-        public ILogger CreateLogger(string categoryName) => new Capture(Entries);
+        public ILogger CreateLogger(string categoryName) => new Capture(Entries, categoryName);
 
         public void Dispose()
         {
             GC.SuppressFinalize(this);
         }
 
-        private sealed class Capture(ConcurrentQueue<LogEntry> entries) : ILogger
+        private sealed class Capture(ConcurrentQueue<LogEntry> entries, string category) : ILogger
         {
             public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
@@ -285,10 +291,11 @@ public class CspReportTests
                 Func<TState, Exception?, string> formatter) =>
                 entries.Enqueue(new LogEntry(
                     logLevel,
+                    category,
                     state is IEnumerable<KeyValuePair<string, object?>> values ? [.. values] : [],
                     formatter(state, exception)));
         }
     }
 
-    private sealed record LogEntry(LogLevel Level, List<KeyValuePair<string, object?>> Values, string Message);
+    private sealed record LogEntry(LogLevel Level, string Category, List<KeyValuePair<string, object?>> Values, string Message);
 }
