@@ -231,6 +231,27 @@ pipeline so error paths keep them too:
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` |
 | `Cross-Origin-Opener-Policy` | `same-origin` |
 
+The Web app completes the cross-origin isolation set that COOP starts with two more headers,
+written by the same middleware (`src/Croft.Web/Security/SecurityHeadersMiddleware.cs`):
+
+- **`Cross-Origin-Embedder-Policy: require-corp`** on every HTML document (the reading pages,
+  admin and the editor, the error page), and on nothing else. "Document" is the
+  rule the CSP uses (`CspDocument.KindOf`: a Razor component page). The documents load no
+  cross-origin subresource (the CSP allows `'self'` only for images, fonts, styles and
+  connections), so the header costs nothing and stops a future change from embedding a
+  cross-origin resource that has not opted in.
+- **`Cross-Origin-Resource-Policy`** on every response, per route class. `cross-origin` on what
+  other sites and readers fetch from a browser: `/api/media/{id}`, `/feed.xml`, `/sitemap.xml`,
+  `/robots.txt`, `/.well-known/webfinger` and the other site files (`security.txt` and the rest),
+  `/manifest.webmanifest` and the `/branding/{file}` images. `same-origin` on everything else,
+  which only the site's own documents load: the documents, the static assets (`_framework/`,
+  CSS, scripts, fonts), `/social/avatar/*`, `/branding/theme.css` and `/health/*`. An endpoint
+  opts into `cross-origin` with the `CrossOriginResource` endpoint metadata.
+
+Media stays `cross-origin` because browser-based feed readers show a post's images straight from
+`/api/media/{id}` on their own origin; `same-origin` would break every image in those readers.
+Mastodon and Bluesky link cards copy the image to their own servers, so they would work either way.
+
 Each app also sends exactly one `Content-Security-Policy` header of its own (Blazor's built-in
 `frame-ancestors` header is disabled so the two never mix). The API serves JSON and media file
 downloads, never HTML, so its policy is minimal: `default-src 'none'; frame-ancestors 'none'`.
