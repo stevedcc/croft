@@ -183,7 +183,7 @@ pages are measured in Chromium and Firefox only; `CspPublicPagesTests` covers th
 documents in all three engines.
 
 E2E browsers, once: `dotnet build tests/Croft.Web.E2E && node tests/Croft.Web.E2E/bin/Debug/net10.0/.playwright/package/cli.js install chromium`
-Firefox too, for `SidebarFooterAlignmentTests` (Firefox 155.0, Playwright build firefox-1543; the
+Firefox too, for `SidebarFooterAlignmentTests` (Firefox 157.0, Playwright build firefox-1555; the
 test fails with Playwright's "Executable doesn't exist" error when it is missing, it is never
 skipped): `node tests/Croft.Web.E2E/bin/Debug/net10.0/.playwright/package/cli.js install firefox`
 

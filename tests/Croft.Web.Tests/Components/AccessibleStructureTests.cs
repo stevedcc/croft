@@ -205,12 +205,25 @@ public class AccessibleStructureTests : BlogBunitContext
     }
 
     [Fact]
-    public void ContentsToggle_HasAConstantName_WhateverTheScriptWritesIntoIt()
+    public void ContentsToggle_NameStartsWithContents_AndContainsWhatTheScriptWritesIntoIt()
     {
+        // Brief 15d item 1 (axe 4.14 label-content-name-mismatch): post.js writes the current
+        // section into the row; the accessible name must contain that visible text.
         var headings = new[] { new Heading(2, "One", "one"), new Heading(2, "Two", "two") };
         var cut = Render<ContentsPanel>(p => p.Add(x => x.Headings, headings));
+        var row = cut.Find("button.toc-inline__row");
+        row.QuerySelector(".toc-inline__row-text")!.TextContent = "Section 4";
 
-        cut.Find("button.toc-inline__row").GetAttribute("aria-label").Should().Be("Contents");
+        var text = string.Join(' ', row.TextContent.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        var ariaLabel = row.GetAttribute("aria-label");
+        var name = ariaLabel ?? text;
+
+        if (ariaLabel is not null)
+        {
+            ariaLabel.Should().Contain(text, "the button's text content must be part of its aria-label");
+        }
+
+        name.Should().StartWith("Contents").And.Contain("Section 4");
     }
 
     [Fact]
