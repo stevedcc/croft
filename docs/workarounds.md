@@ -317,13 +317,6 @@ entry and a marker in the same commit (AGENTS.md, "Workarounds").
 - **Fails without it:** `PostPartialIndexTests`, `PublicPageQueryBaselineTests`.
 - **Upgrade check:** check that the enum integers still match the filters.
 
-### W-034: Raw ADO command for `pg_try_advisory_xact_lock`
-
-- **Library:** EF's `SqlQuery` wraps SQL in a projection that a bare function call does not fit.
-- **Our code:** `BackgroundJobLock.TryAcquireAsync` uses a plain `DbCommand` on the transaction's connection.
-- **Fails without it:** `BackgroundJobLockTests`, `ScheduledPublisherTests`.
-- **Upgrade check:** EF 10 has scalar `SqlQuery<bool>`, so this is probably replaceable now; try it.
-
 ### W-035: Framework meter names subscribed by string
 
 - **Library:** OpenTelemetry subscribes to meters by name; .NET 10 added the Blazor and SignalR meters.
@@ -807,3 +800,4 @@ IDs that no longer have an entry. They are never reused. These are plain lines, 
 - W-005: the MudBlazor dark-palette append on static pages (the palette variables stayed light there) was removed when brief 09i took MudBlazor off the reading pages; `Theme/MudDarkPaletteCss.cs` is deleted and `Branding.ThemeHash` is retired.
 - W-047: the OIDC authority in `form-action` (`OidcFormActionCspContributor`) was removed in brief 10c at the owner's decision: sign-in is a 302 challenge and sign-out a GET link chain (`/logout` to `/logout/interstitial` to `/logout/complete` to a redirect), so no form of ours posts to the IdP and Chrome's form-redirect check never applied (brief 13b made `/logout/complete` a POST, so the check applies again: see W-096); `SidebarAuthLinksTests` and `DraftBackupTests.Logout_ClearsEveryDraftBackupKey` pass in Chromium and Firefox with `form-action 'self'`.
 - W-013: forwarded headers switched on by `ASPNETCORE_FORWARDEDHEADERS_ENABLED`, which clears the trusted proxies and networks and so trusted every peer, was removed in brief 13b (review 2026-10-19, finding 8): the Web calls `UseForwardedHeaders` itself, once, first in the pipeline, with `ForwardedHeaders:KnownNetworks` (the k8s base sets the k3s pod network) and `ForwardLimit` 1, and the API handles no forwarded headers; `ForwardedHeadersOnceTests` pins the single pass and the untrusted-peer case.
+- W-034: the raw ADO command for `pg_try_advisory_xact_lock` in `BackgroundJobLock` was retired in brief 16a (11.0 RC 2): EF's scalar `SqlQuery<bool>` with the column aliased `"Value"` composes the bare function call fine (`SELECT pg_try_advisory_xact_lock({jobId}) AS "Value"` on the tick's own transaction); `BackgroundJobLockTests`, `ScheduledPublisherTests` and the full API and Web suites pass with it. The probe is now an EF command, visible to command interceptors like every other.

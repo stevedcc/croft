@@ -105,10 +105,9 @@ public class PageViewRetentionTests(PostgresDatabaseFixture fixture) : IClassFix
         await AddPageViewsAsync(5, "retention-race-old", day.AddDays(-200), post.Id);
 
         // Instance 1's DELETE is held open, so its transaction keeps the job's advisory lock
-        // held while instance 2 runs — the two purges are provably simultaneous. They cannot be
-        // lined up on the lock probe itself: BackgroundJobLock.TryRunAsync probes with plain ADO
-        // (deliberately, see its doc), invisible to command interceptors, and a losing tick
-        // issues no EF command a rendezvous gate could wait for.
+        // held while instance 2 runs — the two purges are provably simultaneous. They are not
+        // lined up on the lock probe itself: a losing tick issues no command after its probe
+        // that a rendezvous gate could wait for.
         var released = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var held = new HeldDeleteInterceptor();
         held.HoldUntil(released.Task);
