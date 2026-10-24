@@ -274,7 +274,9 @@ enhanced navigation violates it (W-091), so the violations are reported to the s
 nothing is enforced yet. A reading page also sets no cookie (W-092); outside Development every
 cookie the site sets is `Secure`. `CspPolicySnapshotTests` pins the complete header of each kind
 of document, so a change to the policy is a visible change to a snapshot; loosening anything is the
-owner's decision.
+owner's decision. The admin theme's style hashes depend on the runtime's `Math.Round`: MudBlazor
+rounds the lightness of its computed palette shades with it, so a .NET release that changes its
+rounding (as .NET 11 did) changes those two hashes without any change of ours.
 
 **A site adds sources in configuration.** `Csp:Add:<directive>` is an array of sources that
 merges into the policy beside the built-in ones — additions never remove anything:
