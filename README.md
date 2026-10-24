@@ -300,6 +300,35 @@ In order: [build and push the two images](#building-the-images), create the data
 [Secrets](#what-the-app-needs), supply the [branding](#the-branding-folder), then
 `kubectl apply -k` your overlay.
 
+### Releases
+
+Pushing a tag `vX.Y.Z` runs `.github/workflows/release.yml`, which publishes both images to the
+GitHub Container Registry and creates a GitHub Release for the tag:
+
+| Image | Tags |
+|---|---|
+| `ghcr.io/stevedcc/croft-api` | `X.Y.Z`, plus `X.Y` and `latest` unless the tag is a prerelease (`vX.Y.Z-rc.1` gets `X.Y.Z-rc.1` only) |
+| `ghcr.io/stevedcc/croft-web` | the same |
+
+Each tag is one OCI index with `linux/amd64` and `linux/arm64`, signed with cosign (keyless,
+through the workflow's GitHub OIDC identity), with a SLSA build provenance attestation. Before
+anything is released, each image is started on both architectures (arm64 under QEMU) and must
+answer `/health/live`. The Release notes list both digests. Verify an image before you deploy it:
+
+```bash
+cosign verify ghcr.io/stevedcc/croft-api:X.Y.Z \
+  --certificate-identity-regexp '^https://github\.com/stevedcc/croft/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+gh attestation verify oci://ghcr.io/stevedcc/croft-api:X.Y.Z --repo stevedcc/croft
+```
+
+Running the workflow by hand (`workflow_dispatch`, input `test_tag`, default `ci-test`) is a
+test build: it pushes only `ci-test-<short sha>`, signs it, and creates no Release and no `X.Y`
+or `latest` tag. Pin a deployment to a version or a digest, not to `latest`.
+
+crawford.dev's cluster still pulls its own builds from `registry.crawford.dev` until its site
+repository switches its overlay's `images:` to the GHCR names.
+
 ### Building the images
 
 Both Dockerfiles build from the repository **root** (the apps need `Croft.Shared` and

@@ -5,6 +5,25 @@ folder>` plus patches) and sets its host, image tags, config values and whatever
 needs. The root README, "Deploying a site", covers a full deployment; this file covers what
 the base assumes about running **two of everything**.
 
+## Images
+
+The Deployments name the images by their bare names; an overlay maps them with `images:`.
+
+| Name in the base | Released image (GHCR, see the root README, "Releases") | crawford.dev today |
+|---|---|---|
+| `croft-api` | `ghcr.io/stevedcc/croft-api:X.Y.Z` | its own builds from `registry.crawford.dev`, until the site repo switches |
+| `croft-web` | `ghcr.io/stevedcc/croft-web:X.Y.Z` | the same |
+
+```yaml
+images:
+  - name: croft-api
+    newName: ghcr.io/stevedcc/croft-api
+    newTag: X.Y.Z
+  - name: croft-web
+    newName: ghcr.io/stevedcc/croft-web
+    newTag: X.Y.Z
+```
+
 ## Sticky sessions are the ingress's job
 
 Blazor Server circuits live in the Web pod's memory, so the ingress should keep a browser on
