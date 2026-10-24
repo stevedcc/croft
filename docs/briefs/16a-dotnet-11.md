@@ -29,7 +29,7 @@ migration at most; see item 3).
   `Microsoft.AspNetCore.Mvc.Testing`, `Microsoft.AspNetCore.DataProtection.EntityFrameworkCore`
   for their 11 RC 2 versions; MudBlazor stays 9.11 (a net10.0 library runs on net11.0).
 - SDK 11 RC 2 is installed in `~/dotnet` and `/opt/dotnet` by the owner before you start
-  (`~/dotnet/dotnet --list-sdks` shows 11.0.100-rc.2.x; use that exact version in `global.json`).
+  (`11.0.100-rc.2.26504.105`, the exact version for `global.json`; runtimes `11.0.0-rc.2.26504.105`).
   CI installs from `global.json` (actions/setup-dotnet resolves an exact prerelease version; if it
   does not, say so with the run output).
 - The two skills: `.claude/skills/migrate-dotnet10-to-dotnet11/` (breaking changes, written against
