@@ -42,7 +42,9 @@ A marker marks the extent of a workaround, so it can be removed or disabled mech
 - **Block:** a start line `WORKAROUND(W-NNN, <library>): <one-line behaviour>` directly above the code and an end line `END WORKAROUND(W-NNN)` directly below it, in the file's comment syntax (`//`, `@* ... *@`, `/* ... */`, `#`, `<!-- ... -->`). Everything between the two lines is the workaround, comments that explain it included.
 - **Whole file:** a file that exists only as the workaround carries `WORKAROUND-FILE(W-NNN, <library>): <behaviour>` within its first five lines and no end line.
 
-Find every site with `grep -rn "WORKAROUND" src tests k8s dev`. `WorkaroundRegisterTests` fails when
+Find every site with `grep -rn "WORKAROUND" src tests k8s dev` plus the repository root's MSBuild
+files, `grep -n "WORKAROUND" *.props *.targets` (only `Directory.Build.props` exists today; grep
+reports the missing `*.targets`). `WorkaroundRegisterTests` scans the same places and fails when
 a marker has no entry here, an entry has no marker, an ID is malformed or repeated, a marker has
 no ID, a start has no end (or an end no start), or blocks of one ID nest. New workarounds get an
 entry and a marker in the same commit (AGENTS.md, "Workarounds").
