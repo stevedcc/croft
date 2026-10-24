@@ -1,5 +1,8 @@
 # Croft
 
+[![ci](https://github.com/stevedcc/croft/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/stevedcc/croft/actions/workflows/ci.yml)
+[![codeql](https://github.com/stevedcc/croft/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/stevedcc/croft/actions/workflows/codeql.yml)
+
 A small, self-hosted blog engine for .NET: Blazor + ASP.NET Core API + PostgreSQL, with each
 site's branding supplied at deploy time. It runs [crawford.dev](https://crawford.dev) on four
 Raspberry Pis.
@@ -189,6 +192,31 @@ dotnet test tests/Croft.Web.Tests --no-build --filter "Category!=Container"
 The API suite has no such subset. With the default filter it also leaves out the opt-in
 `Category=Container` and `Category=ReadyToRun` tests (they build the images); AGENTS.md says when
 to run those.
+
+### Continuous integration
+
+GitHub Actions runs the same suites on every pull request to `main`, every push to `main`, and by
+hand (`workflow_dispatch`):
+
+| Workflow | When | What |
+|---|---|---|
+| `ci` | pull requests, pushes to `main` | `build` (Release, `-warnaserror`), `api-tests`, `web-tests` (Testcontainers on the runner's Docker), `e2e` (`dev/run-e2e.sh --instances 2` against the compose stack, Chromium and Firefox) |
+| `codeql` | pull requests, pushes to `main`, weekly | CodeQL for C# and for the workflows |
+| `scorecard` | pushes to `main`, weekly | OpenSSF Scorecard, results published |
+| `nightly` | 03:00 UTC | the `HaTests` E2E category; skipped for now with a notice, because it needs the `dev/ha-local.sh` stack (a rootless Podman socket), not the compose stack |
+
+To run the same locally (AGENTS.md, "Running things", has the details):
+
+```bash
+docker compose up -d
+dotnet tool restore
+dotnet build Croft.slnx -c Release -warnaserror   # the build job
+dotnet build Croft.slnx
+dotnet test tests/Croft.Api.Tests --no-build
+dotnet test tests/Croft.Web.Tests --no-build
+dev/run-e2e.sh --instances 2
+dev/run-ha-e2e.sh                                  # the HaTests category
+```
 
 ## Security headers and Content Security Policy
 

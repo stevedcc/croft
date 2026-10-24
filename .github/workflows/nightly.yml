@@ -1,0 +1,36 @@
+# Nightly: the E2E HaTests category (brief 15a item 2).
+#
+# NOT RUN YET, on purpose. The HaTests category does not run against the compose stack and
+# dev/run-e2e.sh: it needs the local HA stack of dev/ha-local.sh (driven by dev/run-ha-e2e.sh),
+# which on top of the compose Postgres starts
+#   - its own Traefik container and its own mock IdP container through `podman --remote`
+#     (the current user's rootless Podman socket, W-084), reaching the host processes through
+#     rootless Podman's host.containers.internal alias,
+#   - two API and two Web instances on ports 5300-5315 and an OIDC counting proxy
+#     (dev/ha-oidc-proxy.cs).
+# The ubuntu-latest runner has Docker, not a rootless Podman socket, so running it here would
+# mean either changing dev/ha-local.sh (out of scope for brief 15a) or setting up a Podman
+# socket on the runner untested. Until a brief decides that, the job reports the skip instead of
+# guessing.
+name: nightly
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ha-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: HaTests skipped (needs the dev/ha-local.sh stack)
+        run: |
+          msg="HaTests skipped: the category needs the dev/ha-local.sh HA stack (Traefik and a second mock IdP through a rootless Podman socket, two API and two Web instances), not the compose stack; see the comment at the top of .github/workflows/nightly.yml."
+          echo "::notice title=HaTests skipped::$msg"
+          echo "$msg" >> "$GITHUB_STEP_SUMMARY"
