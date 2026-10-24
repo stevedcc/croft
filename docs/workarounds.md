@@ -408,13 +408,6 @@ entry and a marker in the same commit (AGENTS.md, "Workarounds").
 - **Fails without it:** E2E `SchedulingTests` (ISO dates through the pickers); no unit test is known to depend on it.
 - **Upgrade check:** also relevant to ICU data changes.
 
-### W-049: The second, explicit circuit-settings parse at start-up
-
-- **Library:** Blazor may in future materialise `CircuitOptions` lazily, which would move a bad-setting failure from start-up to the first circuit.
-- **Our code:** `Program.cs` calls `CircuitSettings.Read` once more after the app is built, as a redundant explicit parse.
-- **Fails without it:** `CircuitLimitTests` (an invalid value fails start-up); per the comment in `Program.cs` it passes without the call today, because the options callback already parses the value, so the call only guards against a future change.
-- **Upgrade check:** delete the call only if `CircuitLimitTests` still passes without it.
-
 ### W-050: Filtering on the post count before projecting
 
 - **Library:** EF cannot compose a `Where` over a projected DTO's computed `PostCount`. Verified on 2026-10-16 with a probe against the shipped packages: `Select(new CategoryDto(...)).Where(d => d.PostCount > 0)` throws "The LINQ expression ... could not be translated".
@@ -801,3 +794,4 @@ IDs that no longer have an entry. They are never reused. These are plain lines, 
 - W-047: the OIDC authority in `form-action` (`OidcFormActionCspContributor`) was removed in brief 10c at the owner's decision: sign-in is a 302 challenge and sign-out a GET link chain (`/logout` to `/logout/interstitial` to `/logout/complete` to a redirect), so no form of ours posts to the IdP and Chrome's form-redirect check never applied (brief 13b made `/logout/complete` a POST, so the check applies again: see W-096); `SidebarAuthLinksTests` and `DraftBackupTests.Logout_ClearsEveryDraftBackupKey` pass in Chromium and Firefox with `form-action 'self'`.
 - W-013: forwarded headers switched on by `ASPNETCORE_FORWARDEDHEADERS_ENABLED`, which clears the trusted proxies and networks and so trusted every peer, was removed in brief 13b (review 2026-10-19, finding 8): the Web calls `UseForwardedHeaders` itself, once, first in the pipeline, with `ForwardedHeaders:KnownNetworks` (the k8s base sets the k3s pod network) and `ForwardLimit` 1, and the API handles no forwarded headers; `ForwardedHeadersOnceTests` pins the single pass and the untrusted-peer case.
 - W-034: the raw ADO command for `pg_try_advisory_xact_lock` in `BackgroundJobLock` was retired in brief 16a (11.0 RC 2): EF's scalar `SqlQuery<bool>` with the column aliased `"Value"` composes the bare function call fine (`SELECT pg_try_advisory_xact_lock({jobId}) AS "Value"` on the tick's own transaction); `BackgroundJobLockTests`, `ScheduledPublisherTests` and the full API and Web suites pass with it. The probe is now an EF command, visible to command interceptors like every other.
+- W-049: the second, explicit `CircuitSettings.Read` call in the Web's `Program.cs` was retired in brief 16a (11.0 RC 2), as its upgrade check says: `CircuitLimitTests` (an invalid `Croft:Web:Circuits:*` value fails start-up) passes without it, because ASP.NET Core 11 still materialises `CircuitOptions` during host start and the options callback's own `CircuitSettings.Read` throws there.
