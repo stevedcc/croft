@@ -330,8 +330,41 @@ In order: [build and push the two images](#building-the-images), create the data
 
 ### Releases
 
-Pushing a tag `vX.Y.Z` runs `.github/workflows/release.yml`, which publishes both images to the
-GitHub Container Registry and creates a GitHub Release for the tag:
+A release is a tag. There is no version-bump commit: the images are built as the tag's version
+(the Dockerfiles take a `VERSION` build argument), so the footer of a `v0.7.0` image says
+"Running on Croft v0.7.0". The whole manual release is
+
+```bash
+git tag -a v0.7.0 -m "Croft 0.7.0" && git push origin v0.7.0
+```
+
+on a commit of `main` whose `ci` passed. `<Version>` in `Directory.Build.props` is only what local
+builds and tests carry.
+
+Versions are three-part semver. **A feature release bumps the minor** (0.7.0); **a dependency or
+fix release bumps the patch** (0.6.10, 0.6.11, …). Prereleases (`vX.Y.Z-rc.1`) are possible; a
+Flux `ImagePolicy` semver range skips them, so they deploy nowhere unless pinned.
+
+**Dependency merges release themselves.** When `ci` passes on a push to `main`,
+`.github/workflows/auto-release.yml` looks at the merged commit. If Renovate wrote it (author or
+committer `renovate[bot]`) and every file it changed is on the allow-list (`**/*.csproj`,
+`Directory.Build.props`, `Directory.Packages.props`, `global.json`, `dotnet-tools.json`,
+`src/*/Dockerfile`, `compose.yaml`, `.github/compose.ci.yaml`, `.github/workflows/*.yml`,
+`renovate.json5`), it tags the commit as the next patch (the highest stable `vX.Y.Z` plus one)
+and dispatches `release.yml` on that tag; from there Flux's image automation rolls the site out.
+Any other merge waits for a hand-made tag. Merges are tagged one at a time, in order; a commit an
+existing stable tag already contains is not tagged again (of several merges in quick succession,
+one may be skipped, and its changes ship in the next tag). Running `auto-release.yml` by hand
+(inputs `sha`, the full commit SHA, and `dry_run`, which must stay `true`) prints the decision
+and the tag it would create, and tags nothing.
+
+To hold a dependency release back: close (or don't merge) the Renovate PR; Renovate automerges
+only patch, digest and pin updates (and dev-only compose image minors) once `ci` is green. To
+stop new releases reaching the cluster whatever is tagged, suspend the site's Flux image update
+automation (`flux suspend image update <name>`, `flux resume image update <name>` afterwards).
+
+Each `v*` tag, pushed or dispatched, runs `.github/workflows/release.yml`, which publishes both
+images to the GitHub Container Registry and creates a GitHub Release for the tag:
 
 | Image | Tags |
 |---|---|
@@ -341,7 +374,8 @@ GitHub Container Registry and creates a GitHub Release for the tag:
 Each tag is one OCI index with `linux/amd64` and `linux/arm64`, signed with cosign (keyless,
 through the workflow's GitHub OIDC identity), with a SLSA build provenance attestation. Before
 anything is released, each image is started on both architectures (arm64 under QEMU) and must
-answer `/health/live`. The Release notes list both digests. Verify an image before you deploy it:
+answer `/health/live` with the version it was built as (the `X-Croft-Version` header). The
+Release notes list both digests. Verify an image before you deploy it:
 
 ```bash
 cosign verify ghcr.io/stevedcc/croft-api:X.Y.Z \
@@ -350,12 +384,15 @@ cosign verify ghcr.io/stevedcc/croft-api:X.Y.Z \
 gh attestation verify oci://ghcr.io/stevedcc/croft-api:X.Y.Z --repo stevedcc/croft
 ```
 
-Running the workflow by hand (`workflow_dispatch`, input `test_tag`, default `ci-test`) is a
-test build: it pushes only `ci-test-<short sha>`, signs it, and creates no Release and no `X.Y`
-or `latest` tag. Pin a deployment to a version or a digest, not to `latest`.
+Running the workflow by hand on a branch (`workflow_dispatch`, input `test_tag`, default
+`ci-test`) is a test build: it pushes only `ci-test-<short sha>` (built as version
+`0.0.0-ci-test.<short sha>`), signs it, and creates no Release and no `X.Y` or `latest` tag. Run
+on a `v*` tag, it is that tag's release; any other tag is refused. Pin a deployment to a version
+or a digest, not to `latest`.
 
-crawford.dev's cluster still pulls its own builds from `registry.crawford.dev` until its site
-repository switches its overlay's `images:` to the GHCR names.
+crawford.dev runs these images (`ghcr.io/stevedcc/croft-*`, since 0.6.9 on 2026-10-24): Flux image
+automation (an `ImagePolicy` of `>=0.6.9`, stable tags only) deploys a new tag within about seven
+minutes of its release.
 
 ### Building the images
 
@@ -370,11 +407,12 @@ podman push registry.example.com/croft-api:0.6.3
 podman push registry.example.com/croft-web:0.6.3
 ```
 
-(`docker build` takes the same arguments.) The SDK stage runs on your build machine and
-cross-publishes for the target, so `--platform linux/arm64` (Raspberry Pi and other Arm nodes)
-and `--platform linux/amd64` both build without emulation; for a mixed cluster build both and
-publish a manifest list (`podman manifest`, or `docker buildx build --platform
-linux/amd64,linux/arm64 --push`). The base's Deployments name the images `croft-api` and
+(`docker build` takes the same arguments.) Add `--build-arg VERSION=0.6.3` to stamp the version
+the footer shows; without it the image carries the `<Version>` in `Directory.Build.props`. The
+SDK stage runs on your build machine and cross-publishes for the target, so `--platform
+linux/arm64` (Raspberry Pi and other Arm nodes) and `--platform linux/amd64` both build without
+emulation; for a mixed cluster build both and publish a manifest list (`podman manifest`, or
+`docker buildx build --platform linux/amd64,linux/arm64 --push`). The base's Deployments name the images `croft-api` and
 `croft-web`; your overlay points them at your registry with `images:` (see
 [Supplying the branding](#supplying-the-branding)) and the tag you pushed.
 

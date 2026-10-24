@@ -4,6 +4,7 @@ using Croft.Api.Tests.Fixtures;
 using AwesomeAssertions;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using System.Xml.Linq;
 using Npgsql;
 
 namespace Croft.Api.Tests;
@@ -57,6 +58,19 @@ public class ApiHealthTests(PostgresDatabaseFixture fixture) : IClassFixture<Pos
     }
 
     [Fact]
+    public async Task Live_NamesTheReleasedVersion_InTheXCroftVersionHeader()
+    {
+        await using var factory = CreateFactory(UnreachableDatabase);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/health/live");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Headers.GetValues("X-Croft-Version").Should().Equal([VersionFromProps()],
+            "the release smoke test reads the version an image was built as from this header, with no database");
+    }
+
+    [Fact]
     public async Task ADatabaseThatNeverAnswers_MakesReadyUnhealthyWithinItsShortTimeout()
     {
         using var silent = new TcpListener(IPAddress.Loopback, 0);
@@ -103,5 +117,18 @@ public class ApiHealthTests(PostgresDatabaseFixture fixture) : IClassFixture<Pos
             connectionString,
             storagePath,
             configureServices: services => services.RemoveAll<IHostedService>());
+    }
+
+    private static string VersionFromProps()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Directory.Build.props")))
+        {
+            directory = directory.Parent;
+        }
+
+        directory.Should().NotBeNull("Directory.Build.props sits at the repository root");
+        var props = XDocument.Load(Path.Combine(directory!.FullName, "Directory.Build.props"));
+        return props.Descendants("Version").Single().Value;
     }
 }

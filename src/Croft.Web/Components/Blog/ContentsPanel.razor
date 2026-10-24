@@ -16,7 +16,11 @@
 @if (Headings is { Count: >= 2 })
 {
     <section class="toc-inline">
-        <button type="button" class="toc-inline__row" aria-label="Contents" aria-expanded="false" aria-controls="toc-inline-body">
+        @* Named by its content, not an aria-label: "Contents" for assistive technology, then the
+           current section post.js writes into the row, so the name always contains the visible
+           text (axe label-content-name-mismatch, brief 15d item 1). *@
+        <button type="button" class="toc-inline__row" aria-expanded="false" aria-controls="toc-inline-body">
+            <span class="visually-hidden">Contents</span>
             <span class="toc-inline__row-text"></span>
             <span class="toc-inline__handle" aria-hidden="true">
                 <svg class="toc-inline__chevron" viewBox="0 0 24 24" width="20" height="20">

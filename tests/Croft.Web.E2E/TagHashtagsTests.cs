@@ -68,7 +68,7 @@ public class TagHashtagsTests : WebTest
         // Outcome: what the API stored, and what the page shows again after a full reload.
         await OpenFilteredAsync(name);
         await Expect(RowOf(name).Locator(".hashtag-cell__text")).ToHaveTextAsync("#Homelab #SelfHosted");
-        Assert.That(await StoredHashtagsAsync(name), Is.EqualTo(new[] { ("Homelab", 0), ("SelfHosted", 2) }), "Both = 0, Bluesky only = 2");
+        Assert.That(await StoredHashtagsAsync(name), Is.EqualTo([("Homelab", 0), ("SelfHosted", 2)]), "Both = 0, Bluesky only = 2");
         await RowOf(name).GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = $"Edit hashtags for {name}" }).ClickAsync();
         await Expect(RowOf(name).GetByLabel("Networks").Nth(0)).ToHaveValueAsync("Both");
         await Expect(RowOf(name).GetByLabel("Networks").Nth(1)).ToHaveValueAsync("BlueskyOnly");
@@ -84,7 +84,7 @@ public class TagHashtagsTests : WebTest
 
         await OpenFilteredAsync(renamed);
         await Expect(RowOf(renamed).Locator(".hashtag-cell__text")).ToHaveTextAsync("#Homelab #SelfHosted");
-        Assert.That(await StoredHashtagsAsync(renamed), Is.EqualTo(new[] { ("Homelab", 0), ("SelfHosted", 2) }), "the rename kept the list");
+        Assert.That(await StoredHashtagsAsync(renamed), Is.EqualTo([("Homelab", 0), ("SelfHosted", 2)]), "the rename kept the list");
     }
 
     private async Task<(string Name, int Networks)[]> StoredHashtagsAsync(string categoryName)

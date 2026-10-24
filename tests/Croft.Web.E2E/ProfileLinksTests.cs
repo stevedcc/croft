@@ -26,7 +26,7 @@ public class ProfileLinksTests : WebTest
         var hrefs = await ProfileHrefsAsync();
         Assert.That(hrefs, Is.EqualTo(ExampleProfileUrls),
             "the home page's head carries one rel=me link per profile, in the owner's order");
-        Assert.That(await CreatorHandlesAsync(), Is.EqualTo(new[] { "@someone@example.social" }),
+        Assert.That(await CreatorHandlesAsync(), Is.EqualTo(["@someone@example.social"]),
             "the home page's head carries the branding's fediverse:creator handle, exactly once");
     }
 
@@ -42,7 +42,7 @@ public class ProfileLinksTests : WebTest
         var hrefs = await ProfileHrefsAsync();
         Assert.That(hrefs, Is.EqualTo(ExampleProfileUrls),
             "an interactive admin page carries the same links, from the same document shell");
-        Assert.That(await CreatorHandlesAsync(), Is.EqualTo(new[] { "@someone@example.social" }),
+        Assert.That(await CreatorHandlesAsync(), Is.EqualTo(["@someone@example.social"]),
             "exactly one fediverse:creator meta, even after the interactive render");
     }
 
