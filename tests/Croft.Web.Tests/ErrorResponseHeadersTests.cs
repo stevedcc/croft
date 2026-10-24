@@ -72,6 +72,7 @@ public class ErrorResponseHeadersTests
         AssertOnce(response, "Permissions-Policy", "camera=(), microphone=(), geolocation=()");
         AssertOnce(response, "Cross-Origin-Opener-Policy", "same-origin");
         AssertOnce(response, "Cross-Origin-Embedder-Policy", "require-corp");
+        AssertOnce(response, "Cross-Origin-Resource-Policy", "same-origin");
         AssertOnce(response, "Content-Security-Policy", CspSnapshots.For("error page"));
         AssertOnce(response, "Reporting-Endpoints", "csp=\"/csp-report\"");
     }

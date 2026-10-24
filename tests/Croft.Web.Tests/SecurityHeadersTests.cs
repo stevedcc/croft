@@ -17,7 +17,7 @@ namespace Croft.Web.Tests;
 /// frame-ancestors header is the framing guard until the app's own policy replaces it in a
 /// later change, and that change asserts the header's name, count and value itself.
 /// </summary>
-public class SecurityHeadersTests
+public sealed class SecurityHeadersTests : IDisposable
 {
     // The sign-out redirect exists only when OIDC is configured; nothing ever talks to this
     // IdP. HTTPS because the scheme's post-configure refuses a plain-HTTP authority outside
@@ -26,6 +26,65 @@ public class SecurityHeadersTests
     private const string ClientId = "blog-web";
 
     private const string MediaPath = "/api/media/0199a1b2-0000-7000-8000-000000000001";
+
+    private readonly string _siteFiles = Path.Combine(Path.GetTempPath(), $"blog-security-headers-{Guid.NewGuid():N}");
+
+    public SecurityHeadersTests()
+    {
+        Directory.CreateDirectory(Path.Combine(_siteFiles, ".well-known"));
+        File.WriteAllText(Path.Combine(_siteFiles, ".well-known", "webfinger"),
+            """{ "subject": "acct:steve@example.net" }""");
+        File.WriteAllText(Path.Combine(_siteFiles, ".well-known", "security.txt"),
+            "Contact: mailto:security@example.net\nExpires: 2099-01-01T00:00:00Z\n");
+    }
+
+    public void Dispose() => Directory.Delete(_siteFiles, recursive: true);
+
+    /// <summary>
+    /// Every route class with the Cross-Origin-Resource-Policy it gets: same-origin for what only
+    /// this site's own documents load (the documents, the static assets, the avatars, theme.css,
+    /// the probes); cross-origin for what other sites and browser-based readers fetch (the media
+    /// images, the feed, the sitemap, robots.txt, the well-known files, the manifest and the
+    /// branding images).
+    /// </summary>
+    public static TheoryData<string, bool, string, string> CorpRoutes => new()
+    {
+        { "/", false, "same-origin", "a static reading page" },
+        { "/admin/posts", true, "same-origin", "an interactive staff page" },
+        { "/app.css", false, "same-origin", "a static stylesheet" },
+        { "/js/static-glue.js", false, "same-origin", "a static script" },
+        { "/fonts/CroftSans-Regular.woff2", false, "same-origin", "a font" },
+        { $"/social/avatar/{new string('a', 64)}.webp", false, "same-origin", "a social avatar" },
+        { "/branding/theme.css", false, "same-origin", "the theme stylesheet" },
+        { "/health/live", false, "same-origin", "the liveness probe" },
+        { MediaPath, false, "cross-origin", "a media image" },
+        { "/feed.xml", false, "cross-origin", "the feed" },
+        { "/sitemap.xml", false, "cross-origin", "the sitemap" },
+        { "/robots.txt", false, "cross-origin", "robots.txt" },
+        { "/.well-known/webfinger?resource=acct:steve@example.net", false, "cross-origin", "WebFinger" },
+        { "/.well-known/security.txt", false, "cross-origin", "security.txt" },
+        { "/manifest.webmanifest", false, "cross-origin", "the web app manifest" },
+        { "/branding/logo.svg", false, "cross-origin", "a branding image" },
+    };
+
+    [Theory]
+    [MemberData(nameof(CorpRoutes))]
+    public async Task Corp_HasTheExactValueOfItsRouteClass_OnGetAndHead(string path, bool signedIn, string corp, string shape)
+    {
+        using var factory = CreateFactory(signedIn: signedIn, siteFiles: _siteFiles);
+        using var client = CreateClient(factory);
+
+        foreach (var method in new[] { HttpMethod.Get, HttpMethod.Head })
+        {
+            using var request = new HttpRequestMessage(method, path);
+            using var response = await client.SendAsync(request);
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK, $"{method} {shape} is served");
+            response.Headers.Contains("Cross-Origin-Resource-Policy").Should().BeTrue($"{method} {shape} carries a Cross-Origin-Resource-Policy");
+            response.Headers.GetValues("Cross-Origin-Resource-Policy").Should().ContainSingle(
+                $"{method} {shape} carries one Cross-Origin-Resource-Policy").Which.Should().Be(corp, $"{shape} is {corp}");
+        }
+    }
 
     [Theory]
     [InlineData("/", HttpStatusCode.OK, "the home page")]
@@ -97,7 +156,7 @@ public class SecurityHeadersTests
             .Should().BeFalse("Kestrel's default Server: Kestrel names the server for no benefit");
     }
 
-    private static WebApplicationFactory<Program> CreateFactory(bool production = true, bool signedIn = false) =>
+    private static WebApplicationFactory<Program> CreateFactory(bool production = true, bool signedIn = false, string? siteFiles = null) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseSetting("ApiBaseUrl", "http://blog-api.blog.svc.cluster.local/");
@@ -106,6 +165,10 @@ public class SecurityHeadersTests
             builder.UseSetting("Analytics:IngestKey", "test-ingest-key");
             builder.UseSetting("Oidc:Authority", Authority);
             builder.UseSetting("Oidc:ClientId", ClientId);
+            if (siteFiles is not null)
+            {
+                builder.UseSetting("Blog:SiteFilesPath", siteFiles);
+            }
             if (production)
             {
                 builder.UseEnvironment("Production");
@@ -131,6 +194,7 @@ public class SecurityHeadersTests
         AssertSingleHeader(response, "Referrer-Policy", "strict-origin-when-cross-origin");
         AssertSingleHeader(response, "Permissions-Policy", "camera=(), microphone=(), geolocation=()");
         AssertSingleHeader(response, "Cross-Origin-Opener-Policy", "same-origin");
+        AssertSingleHeader(response, "Cross-Origin-Resource-Policy", "same-origin");
         response.Headers.Contains("Server").Should().BeFalse("the server must not be named");
     }
 
