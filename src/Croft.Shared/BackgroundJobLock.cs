@@ -63,7 +63,7 @@ public static class BackgroundJobLock
                 // Released here even when the work failed. A connection that died takes the
                 // session lock with it; a failed unlock on a live connection surfaces as the
                 // migrate entry's failure instead of a silently leaked lock.
-                await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_unlock({jobId})", ct);
+                await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_unlock({jobId})", ct);
             }
         }
         finally
@@ -85,7 +85,7 @@ public static class BackgroundJobLock
         db.Database.SetCommandTimeout(0);
         try
         {
-            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_lock({jobId})", ct);
+            await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_lock({jobId})", ct);
         }
         finally
         {

@@ -85,7 +85,7 @@ public class SessionLifetimeTests(PostgresDatabaseFixture fixture) : IClassFixtu
         const string previous = "20261012060542_AddDataProtectionKeys";
 
         await migrator.MigrateAsync(previous);
-        await db.Database.ExecuteSqlInterpolatedAsync($"""
+        await db.Database.ExecuteSqlAsync($"""
             INSERT INTO "UserSessions" ("SessionId", "AccessToken", "ExpiresAt")
             VALUES ({sessionId}, 'at-existing', {accessTokenExpiry})
             """);

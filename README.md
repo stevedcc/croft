@@ -158,7 +158,7 @@ The E2E suite uses [Playwright](https://playwright.dev/dotnet/) and the local mo
 
 ```bash
 dotnet build tests/Croft.Web.E2E
-node tests/Croft.Web.E2E/bin/Debug/net10.0/.playwright/package/cli.js install chromium firefox
+node tests/Croft.Web.E2E/bin/Debug/net11.0/.playwright/package/cli.js install chromium firefox
 ```
 
 Then run the suite with the script that owns the whole cycle:

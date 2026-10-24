@@ -79,7 +79,7 @@ public sealed class PostgresTokenStore(
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
         var row = await db.UserSessions
-            .FromSqlInterpolated($"""
+            .FromSql($"""
                 SELECT * FROM "UserSessions" WHERE "SessionId" = {sessionId} FOR UPDATE
                 """)
             .AsNoTracking()
@@ -140,7 +140,7 @@ public sealed class PostgresTokenStore(
         var accessToken = _protector.Protect(entry.AccessToken);
         var refreshToken = entry.RefreshToken is null ? null : _protector.Protect(entry.RefreshToken);
         var idToken = entry.IdToken is null ? null : _protector.Protect(entry.IdToken);
-        return db.Database.ExecuteSqlInterpolatedAsync($"""
+        return db.Database.ExecuteSqlAsync($"""
             INSERT INTO "UserSessions" ("SessionId", "Sid", "Sub", "AccessToken", "RefreshToken", "IdToken", "ExpiresAt", "SessionExpiresAt")
             VALUES ({sessionId}, {entry.Sid}, {entry.Sub}, {accessToken}, {refreshToken}, {idToken}, {entry.ExpiresAt}, {entry.SessionExpiresAt})
             ON CONFLICT ("SessionId") DO UPDATE SET

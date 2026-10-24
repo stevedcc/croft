@@ -43,7 +43,7 @@ public class CircuitAdmissionTests : WebTest
         var port = 5400 + InstanceNumberFor(BaseUrl);
         _limitedBase = $"http://localhost:{port}";
         var repoRoot = RepoRoot();
-        var dll = Path.Combine(repoRoot, "src", "Croft.Web", "bin", "Debug", "net10.0", "Croft.Web.dll");
+        var dll = Path.Combine(repoRoot, "src", "Croft.Web", "bin", "Debug", "net11.0", "Croft.Web.dll");
         Assert.That(File.Exists(dll), Is.True,
             $"{dll} is missing — the suite runs against a built tree (dev/run-e2e.sh builds first).");
 
