@@ -106,7 +106,7 @@ internal static class BlueskyThreadBuilder
     };
 
     public static JsonArray Labels(params string[] values) =>
-        new([.. values.Select(v => (JsonNode)new JsonObject { ["val"] = v, ["src"] = "did:plc:labeler" })]);
+        [.. values.Select(v => (JsonNode)new JsonObject { ["val"] = v, ["src"] = "did:plc:labeler" })];
 
     /// <summary>The whole answer: the owner's root post with these top-level replies, optionally with the owner's hidden replies in the thread gate.</summary>
     public static string Thread(JsonObject[] replies, params string[] hiddenReplies)

@@ -4,7 +4,6 @@ using Croft.Shared.Contracts.Social;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
-using System.Net.Http.Json;
 
 namespace Croft.Api.Tests;
 

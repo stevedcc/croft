@@ -2,7 +2,7 @@
    keeps each font for a year (the build serves those URLs immutable) and fetches it again only when
    the file changes. This stylesheet is not processed by the build, so the fingerprints are written
    here by hand: they are the "fingerprint" values of the fonts/ routes in
-   Croft.Web.staticwebassets.endpoints.json (src/Croft.Web/bin/<configuration>/net10.0/, after a
+   Croft.Web.staticwebassets.endpoints.json (src/Croft.Web/bin/<configuration>/net11.0/, after a
    build). When a font file changes, its old URL answers 404 and FontFilesTests
    (EveryFontUrlInAppCss_Answers200_AndIsCachedForAYear) fails naming the rule: put the new
    fingerprint here. App.razor preloads the same URLs through @Assets, so the two always agree. */

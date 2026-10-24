@@ -25,7 +25,7 @@ public class BrandingManifestTests
     };
 
     private static JsonElement Manifest() =>
-        JsonDocument.Parse(new BrandingService(Known).ManifestJson).RootElement;
+        JsonElement.Parse(new BrandingService(Known).ManifestJson);
 
     [Fact]
     public void Manifest_NamesTheSite()

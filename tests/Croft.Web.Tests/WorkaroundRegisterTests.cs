@@ -30,6 +30,10 @@ public partial class WorkaroundRegisterTests
 
     private static readonly string[] ScannedRoots = ["src", "tests", "k8s", "dev"];
 
+    // The repository root's own MSBuild files (Directory.Build.props and the like), not the root
+    // folder recursively: the extension filter below still applies to them.
+    private static readonly string[] RootFilePatterns = ["*.props", "*.targets"];
+
     private static readonly string[] TextExtensions =
         [".cs", ".razor", ".js", ".css", ".yaml", ".yml", ".sh", ".csproj", ".props", ".targets", ".xml", ".html", ".cshtml"];
 
@@ -171,32 +175,32 @@ public partial class WorkaroundRegisterTests
         var root = RepoRoot.Find();
 
         List<Occurrence> markers = [];
-        foreach (var directory in ScannedRoots.Select(name => Path.Combine(root, name)).Where(Directory.Exists))
+        var files = ScannedRoots.Select(name => Path.Combine(root, name)).Where(Directory.Exists)
+            .SelectMany(directory => Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+            .Concat(RootFilePatterns.SelectMany(pattern => Directory.EnumerateFiles(root, pattern, SearchOption.TopDirectoryOnly)));
+        foreach (var file in files)
         {
-            foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+            var relative = Path.GetRelativePath(root, file).Replace(Path.DirectorySeparatorChar, '/');
+            if (!IsScanned(relative))
             {
-                var relative = Path.GetRelativePath(root, file).Replace(Path.DirectorySeparatorChar, '/');
-                if (!IsScanned(relative))
+                continue;
+            }
+
+            var lines = File.ReadAllLines(file);
+            for (var index = 0; index < lines.Length; index++)
+            {
+                var line = lines[index];
+                var (kind, pattern) = line.Contains(EndWord, StringComparison.Ordinal) ? (MarkerKind.End, EndId())
+                    : line.Contains(FileWord, StringComparison.Ordinal) ? (MarkerKind.File, FileId())
+                    : line.Contains(StartWord, StringComparison.Ordinal) ? (MarkerKind.Start, StartId())
+                    : (MarkerKind.Start, null);
+                if (pattern is null)
                 {
                     continue;
                 }
 
-                var lines = File.ReadAllLines(file);
-                for (var index = 0; index < lines.Length; index++)
-                {
-                    var line = lines[index];
-                    var (kind, pattern) = line.Contains(EndWord, StringComparison.Ordinal) ? (MarkerKind.End, EndId())
-                        : line.Contains(FileWord, StringComparison.Ordinal) ? (MarkerKind.File, FileId())
-                        : line.Contains(StartWord, StringComparison.Ordinal) ? (MarkerKind.Start, StartId())
-                        : (MarkerKind.Start, null);
-                    if (pattern is null)
-                    {
-                        continue;
-                    }
-
-                    var match = pattern.Match(line);
-                    markers.Add(new Occurrence(relative, index + 1, match.Success ? match.Groups["id"].Value : null, line, kind));
-                }
+                var match = pattern.Match(line);
+                markers.Add(new Occurrence(relative, index + 1, match.Success ? match.Groups["id"].Value : null, line, kind));
             }
         }
 

@@ -328,7 +328,7 @@ public class HomeTests : WebTest
             _pageCatSlug = await CategorySlugAsync(PageCatName);
             _tagSlug = await TagSlugAsync(TagName);
 
-            await Page.GotoAsync($"{BaseUrl}/logout");
+            await SignOutAsync();
             _dataReady = true;
         }
         finally

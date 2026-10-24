@@ -28,7 +28,7 @@ public sealed class PostEditModel
     public List<string> Tags { get; set; } = [];
 
     /// <summary>The hashtags of the tags in <see cref="Tags"/>, by tag name: loaded with the post or taken from the suggestion when the tag was added. Not part of the draft backup.</summary>
-    public Dictionary<string, IReadOnlyList<HashtagDto>> TagHashtags { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, IReadOnlyList<HashtagDto>> TagHashtags { get; } = [with(StringComparer.OrdinalIgnoreCase)];
 
     public MediaAssetDto? Banner { get; set; }
 

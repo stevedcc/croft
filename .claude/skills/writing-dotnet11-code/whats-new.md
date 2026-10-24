@@ -1,6 +1,7 @@
 # What changed in .NET 11
 
-Summary of the features relevant to this repo, as of .NET 11 RC 1 (GA expected November 2026).
+Summary of the features relevant to this repo, as of .NET 11 RC 2 (GA expected November 2026;
+corrected against the RC 2 SDK by brief 16a).
 The official pages are authoritative; recheck them at GA:
 
 - C# 15: https://learn.microsoft.com/en-us/dotnet/csharp/whats-new/csharp-15
@@ -30,7 +31,9 @@ The official pages are authoritative; recheck them at GA:
   ReadyToRun (precompiled) target becomes armv8.0 + LSE. The cluster's Raspberry Pi 4s (Cortex-A72,
   `/proc/cpuinfo` features `fp asimd evtstrm crc32 cpuid`, no `atomics`) run .NET 11 but can't use the
   precompiled framework code: expect more JIT work at start-up, so slower pod readiness during
-  rollouts. Measure start-up to ready before and after the upgrade.
+  rollouts. Measure start-up to ready before and after the upgrade. Croft's own assemblies are
+  pinned with crossgen2's `--instruction-set:neon,crc,-lse` (`Directory.Build.props`, W-088); the
+  `-lse` is needed, `armv8-a` or `neon,crc` alone still lets the optimistic light-up require LSE.
 - LINQ: `FullJoin`, tuple-returning `Join`/`GroupJoin` overloads (Enumerable, Queryable,
   AsyncEnumerable).
 - `EqualityComparer<T>.Create(keySelector)`; generic `Random.NextInteger<T>`.
@@ -47,8 +50,17 @@ The official pages are authoritative; recheck them at GA:
   server-triggered circuit pause (`Circuit.RequestCircuitPauseAsync`), circuits pick up refreshed
   authentication, `DisplayName` component, relative `NavigateTo`/`NavLink`, `Virtualize` can scroll to
   an item, `CacheView` for static SSR subtrees, `EnvironmentView`, static SSR client-side and async
-  form validation, `[SupplyParameterFromSession]`, antiforgery middleware optional, QuickGrid
-  pagination and sorting improvements.
+  form validation, `[SupplyParameterFromSession]` and `[SupplyParameterFromTempData]` (namespace
+  `Microsoft.AspNetCore.Components.Web`), antiforgery middleware optional (automatic cross-origin
+  CSRF protection is on by default), QuickGrid pagination and sorting improvements.
+- **Analyzers new in the SDK:** BL0010-BL0016 (among them BL0016: every JS interop call guarded by a
+  `try`/`catch`, here `catch (JSDisconnectedException)`; BL0013: a service reading
+  `AuthenticationStateProvider` without following `AuthenticationStateChanged`), CA1517, CA1876,
+  CA1877, CA2026, CA2027, CA2028, ASP0033-ASP0038; IDE0028 now proposes collection expression
+  arguments. `System.Net.Http.Json` is an implicit using.
+- **Static assets in Development:** `MapStaticAssets` answers a revalidation (`If-None-Match`) with
+  304 (10 always sent 200); a Debug build sends `blazor.web.js` as an effectively uncompressed gzip
+  stream.
 - **Minimal APIs:** async validation, validation attributes no longer experimental, built-in
   validation localization, union types as body/response types, short-circuit endpoints by attribute.
 - **OpenAPI 3.2 by default** (breaking for consumers expecting 3.1), Server-Sent Events described.

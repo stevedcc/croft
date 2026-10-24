@@ -34,6 +34,11 @@ public class BlogApiClient(
     /// 401 is the only sign the session is gone. Anonymous 401s (and other status codes) fall
     /// through untouched.
     /// </summary>
+    // BL0013 (new in ASP.NET Core 11) warns about a service that keeps an authentication state
+    // without following AuthenticationStateChanged. Nothing is kept here: the state is read afresh
+    // for every call, so a refreshed principal is always the one used.
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "BL0013",
+        Justification = "The authentication state is read for every request and never cached.")]
     private async Task<HttpResponseMessage> SendAsync(
         Func<ApiCaller, Task<HttpResponseMessage>> send, CancellationToken ct)
     {

@@ -32,6 +32,15 @@ public class ReadyToRunPublishTests
         {
             Publish(root, dockerfile, output);
 
+            // Brief 16a: the SDK 11 parses the value of --self-contained (the migration notes say
+            // earlier SDKs read the bare flag as true); the image runs on the aspnet runtime image,
+            // so the publish must stay framework-dependent: no runtime of its own, and a
+            // runtimeconfig that names the shared framework.
+            File.Exists(Path.Combine(output, "libcoreclr.so")).Should()
+                .BeFalse("the image's runtime comes from the aspnet base image (--self-contained false)");
+            File.ReadAllText(Path.Combine(output, Path.ChangeExtension(appAssembly, ".runtimeconfig.json"))).Should()
+                .Contain("\"Microsoft.AspNetCore.App\"", "a framework-dependent app names the shared framework it runs on");
+
             if (appAssembly == "Croft.Api.dll")
             {
                 // Brief 12a: the avatar library's native part must travel with the API image, for the cluster's CPU.

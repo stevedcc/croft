@@ -27,7 +27,7 @@ public class StaticAssetTests : WebTest
         // MudBlazor's stylesheet (the interactive documents still do: next test).
         var responses = await LoadHomePageAsync();
 
-        AssertServedWith200(responses, "app stylesheet", AppStylesheetPath);
+        await AssertServedWith200Async(responses, "app stylesheet", AppStylesheetPath);
         Assert.That(responses.Where(r => MudBlazorStylesheetPath.IsMatch(UrlPath(r))).Select(r => r.Url), Is.Empty,
             "the home page must not fetch MudBlazor's stylesheet.");
     }
@@ -50,8 +50,8 @@ public class StaticAssetTests : WebTest
             Page.Response -= Collect;
         }
 
-        AssertServedWith200(responses, "app stylesheet", AppStylesheetPath);
-        AssertServedWith200(responses, "MudBlazor stylesheet", MudBlazorStylesheetPath);
+        await AssertServedWith200Async(responses, "app stylesheet", AppStylesheetPath);
+        await AssertServedWith200Async(responses, "MudBlazor stylesheet", MudBlazorStylesheetPath);
     }
 
     [Test]
@@ -95,8 +95,11 @@ public class StaticAssetTests : WebTest
         {
             var matches = responses.Where(r => UrlPath(r).Contains(expected, StringComparison.Ordinal)).ToList();
             Assert.That(matches, Is.Not.Empty, $"the post page must request the asset {expected}");
-            Assert.That(matches.Select(r => r.Status), Is.All.EqualTo(200),
-                $"every {expected} response must be served with 200");
+            foreach (var match in matches)
+            {
+                Assert.That(await FreshStatusAsync(match.Url), Is.EqualTo(200),
+                    $"every {expected} response must be served with 200. URL: {match.Url}");
+            }
         }
     }
 
@@ -122,11 +125,23 @@ public class StaticAssetTests : WebTest
         return await SlugForPostAsync(PostIdFromEditorUrl());
     }
 
-    private static void AssertServedWith200(List<IResponse> responses, string label, Regex pathPattern)
+    private async Task AssertServedWith200Async(List<IResponse> responses, string label, Regex pathPattern)
     {
         var matches = responses.Where(r => pathPattern.IsMatch(UrlPath(r))).ToList();
         Assert.That(matches, Has.Count.EqualTo(1), $"The page must fetch exactly one {label}.");
-        Assert.That(matches[0].Status, Is.EqualTo(200), $"The {label} must be served with 200. URL: {matches[0].Url}");
+        Assert.That(await FreshStatusAsync(matches[0].Url), Is.EqualTo(200), $"The {label} must be served with 200. URL: {matches[0].Url}");
+    }
+
+    /// <summary>
+    /// The status of a delivery of the URL the page requested, fetched again without the browser's
+    /// cache. The page's own response can be a 304 when the browser revalidates an asset it already
+    /// holds (Development serves static assets with no-cache, and .NET 11's MapStaticAssets answers
+    /// If-None-Match; .NET 10 always sent 200), which proves nothing about the asset being served.
+    /// </summary>
+    private async Task<int> FreshStatusAsync(string url)
+    {
+        await using var response = await Page.APIRequest.GetAsync(url);
+        return response.Status;
     }
 
     /// <summary>The home page and every network response its load triggers (stylesheets included).</summary>

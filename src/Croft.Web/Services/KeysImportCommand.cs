@@ -17,7 +17,7 @@ public static class KeysImportCommand
     {
         if (args is not ["keys", "import", var directory])
         {
-            await error.WriteLineAsync("usage: dotnet Croft.Web.dll keys import <directory>");
+            await error.WriteLineAsync("usage: dotnet Croft.Web.dll keys import <directory>", ct);
             return 1;
         }
 
@@ -25,23 +25,23 @@ public static class KeysImportCommand
         if (scope.ServiceProvider.GetService<CroftWebDbContext>() is not { } db)
         {
             await error.WriteLineAsync(
-                "keys import requires ConnectionStrings:WebDb: without a Web database there is no key ring to import into.");
+                "keys import requires ConnectionStrings:WebDb: without a Web database there is no key ring to import into.", ct);
             return 1;
         }
 
         if (!Directory.Exists(directory))
         {
-            await error.WriteLineAsync($"keys import: no such directory: {directory}");
+            await error.WriteLineAsync($"keys import: no such directory: {directory}", ct);
             return 1;
         }
 
         var result = await DataProtectionKeyImporter.ImportAsync(db, directory, ct);
         await output.WriteLineAsync(result.Imported.Count > 0
             ? $"Imported {result.Imported.Count} key(s): {string.Join(", ", result.Imported)}."
-            : "Imported 0 key(s).");
+            : "Imported 0 key(s).", ct);
         await output.WriteLineAsync(result.Skipped.Count > 0
             ? $"Skipped {result.Skipped.Count} key(s) already in the database: {string.Join(", ", result.Skipped)}."
-            : "Skipped 0 key(s) already in the database.");
+            : "Skipped 0 key(s) already in the database.", ct);
         return 0;
     }
 }

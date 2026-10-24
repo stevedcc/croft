@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Croft.Shared;
 
@@ -23,7 +22,9 @@ public static class BackgroundJobLock
         DbContext db, long jobId, Func<CancellationToken, Task> work, CancellationToken ct = default)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        if (!await TryAcquireAsync(transaction, jobId, ct))
+        // pg_try_advisory_xact_lock never blocks: an instance either gets the lock or skips the
+        // tick right away. The probe runs on the tick's own transaction (EF enlists it).
+        if (!await db.Database.SqlQuery<bool>($"SELECT pg_try_advisory_xact_lock({jobId}) AS \"Value\"").SingleAsync(ct))
         {
             await transaction.RollbackAsync(ct);
             return false;
@@ -63,7 +64,7 @@ public static class BackgroundJobLock
                 // Released here even when the work failed. A connection that died takes the
                 // session lock with it; a failed unlock on a live connection surfaces as the
                 // migrate entry's failure instead of a silently leaked lock.
-                await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_unlock({jobId})", ct);
+                await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_unlock({jobId})", ct);
             }
         }
         finally
@@ -85,7 +86,7 @@ public static class BackgroundJobLock
         db.Database.SetCommandTimeout(0);
         try
         {
-            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_lock({jobId})", ct);
+            await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_lock({jobId})", ct);
         }
         finally
         {
@@ -93,22 +94,4 @@ public static class BackgroundJobLock
         }
     }
     // END WORKAROUND(W-021)
-
-    // WORKAROUND(W-034, EF Core): EF's SqlQuery wraps SQL in a projection a bare function call does not fit, so this is plain ADO
-    private static async Task<bool> TryAcquireAsync(IDbContextTransaction transaction, long jobId, CancellationToken ct)
-    {
-        // pg_try_advisory_xact_lock never blocks: an instance either gets the lock or skips the
-        // tick right away. Plain ADO on the tick's own transaction: EF's SqlQuery wraps its SQL
-        // in a projection that a bare pg_try_advisory_xact_lock call does not fit.
-        var dbTransaction = transaction.GetDbTransaction();
-        await using var command = dbTransaction.Connection!.CreateCommand();
-        command.Transaction = dbTransaction;
-        command.CommandText = "SELECT pg_try_advisory_xact_lock(@jobId)";
-        var parameter = command.CreateParameter();
-        parameter.ParameterName = "@jobId";
-        parameter.Value = jobId;
-        command.Parameters.Add(parameter);
-        return (bool)(await command.ExecuteScalarAsync(ct) ?? false);
-    }
-    // END WORKAROUND(W-034)
 }

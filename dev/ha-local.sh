@@ -109,7 +109,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-# global.json pins SDK 10.0.4xx. Fedora ships 10.0.1xx in /usr/bin, so prefer ~/dotnet when present.
+# global.json pins SDK 11.0.100 (RC 2). Fedora ships 10.0.1xx in /usr/bin, so prefer ~/dotnet when present.
 if [ -x "$HOME/dotnet/dotnet" ]; then
     export DOTNET_ROOT="$HOME/dotnet"
     export PATH="$HOME/dotnet:$PATH"
@@ -266,7 +266,7 @@ start_app() {  # start_app api|web N conn [web-conn]
             Analytics__IngestKey="${Analytics__IngestKey:-}" \
             Analytics__HashKey="${Analytics__HashKey:-}" \
             "Logging__LogLevel__Microsoft.AspNetCore=Information" \
-            dotnet "$ROOT/src/Croft.Api/bin/Debug/net10.0/Croft.Api.dll" \
+            dotnet "$ROOT/src/Croft.Api/bin/Debug/net11.0/Croft.Api.dll" \
                 --urls "http://0.0.0.0:$port" >"$log" 2>&1 &
         # END WORKAROUND(W-084)
     else
@@ -286,7 +286,7 @@ start_app() {  # start_app api|web N conn [web-conn]
             Oidc__ClientId="$Oidc__ClientId" \
             Oidc__ClientSecret="$Oidc__ClientSecret" \
             Analytics__IngestKey="${Analytics__IngestKey:-}" \
-            dotnet "$ROOT/src/Croft.Web/bin/Debug/net10.0/Croft.Web.dll" \
+            dotnet "$ROOT/src/Croft.Web/bin/Debug/net11.0/Croft.Web.dll" \
                 --urls "http://0.0.0.0:$port" >"$log" 2>&1 &
         # END WORKAROUND(W-084)
     fi
@@ -380,8 +380,9 @@ up() {
     # blog_ha connection string is passed via the environment. The dry run must name $HA_DB
     # exactly before anything destructive runs.
     local drop_target
+    # dotnet-ef 11 prints the dry run's message on stderr (10 used stdout): read both.
     drop_target="$(ConnectionStrings__BlogDb="$conn" \
-        dotnet ef database drop --dry-run -p src/Croft.Api -s src/Croft.Api --no-build)"
+        dotnet ef database drop --dry-run -p src/Croft.Api -s src/Croft.Api --no-build 2>&1)"
     echo "$drop_target"
     if [[ "$drop_target" != *"the database '$HA_DB'"* ]]; then
         echo "Refusing to drop: the dry run did not name '$HA_DB' (got: $drop_target)" >&2
@@ -410,8 +411,9 @@ up() {
         web_conn="$(ha_web_connection_string)"
         echo "Recreating Web database $HA_WEB_DB ..."
         local web_drop_target
+        # dotnet-ef 11 prints the dry run's message on stderr (10 used stdout): read both.
         web_drop_target="$(ConnectionStrings__WebDb="$web_conn" \
-            dotnet ef database drop --dry-run -p src/Croft.Web -s src/Croft.Web --no-build)"
+            dotnet ef database drop --dry-run -p src/Croft.Web -s src/Croft.Web --no-build 2>&1)"
         echo "$web_drop_target"
         if [[ "$web_drop_target" != *"the database '$HA_WEB_DB'"* ]]; then
             echo "Refusing to drop: the dry run did not name '$HA_WEB_DB' (got: $web_drop_target)" >&2
@@ -426,7 +428,7 @@ up() {
 
         echo "Applying Web database migrations (once, via the migrate entry) ..."
         ConnectionStrings__WebDb="$web_conn" \
-            dotnet "$ROOT/src/Croft.Web/bin/Debug/net10.0/Croft.Web.dll" migrate
+            dotnet "$ROOT/src/Croft.Web/bin/Debug/net11.0/Croft.Web.dll" migrate
     fi
 
     # One shared media folder for both API instances (the RWX stand-in). Emptied on every up

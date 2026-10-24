@@ -258,11 +258,21 @@
         }
     }
 
-    private async Task CopyMarkdownAsync(Tile tile) =>
-        await JS.InvokeVoidAsync("navigator.clipboard.writeText", $"![{tile.Alt}]({tile.Asset.Url})");
+    private Task CopyMarkdownAsync(Tile tile) => CopyAsync($"![{tile.Alt}]({tile.Asset.Url})");
 
-    private async Task CopyUrlAsync(Tile tile) =>
-        await JS.InvokeVoidAsync("navigator.clipboard.writeText", tile.Asset.Url);
+    private Task CopyUrlAsync(Tile tile) => CopyAsync(tile.Asset.Url);
+
+    private async Task CopyAsync(string text)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", text);
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit is gone: there is no clipboard left to write to.
+        }
+    }
 
     private void AskDelete(Tile tile)
     {

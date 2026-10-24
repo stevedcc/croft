@@ -76,15 +76,22 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_focusField && _editing)
+        try
         {
-            _focusField = false;
-            await JS.InvokeVoidAsync("blogEditor.focusIn", _hostId, "input");
+            if (_focusField && _editing)
+            {
+                _focusField = false;
+                await JS.InvokeVoidAsync("blogEditor.focusIn", _hostId, "input");
+            }
+            else if (_focusRename && !_editing)
+            {
+                _focusRename = false;
+                await JS.InvokeVoidAsync("blogEditor.focusIn", _hostId, "button");
+            }
         }
-        else if (_focusRename && !_editing)
+        catch (JSDisconnectedException)
         {
-            _focusRename = false;
-            await JS.InvokeVoidAsync("blogEditor.focusIn", _hostId, "button");
+            // The circuit is gone: there is no field left to focus.
         }
     }
 }

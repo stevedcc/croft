@@ -25,7 +25,7 @@ public sealed class CspPolicy
     public static bool IsKnownDirective(string directive)
         => KnownDirectives.Contains(directive, StringComparer.Ordinal);
 
-    private readonly Dictionary<string, List<string>> _sources = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, List<string>> _sources = [with(StringComparer.Ordinal)];
 
     public event Action? Changed;
 

@@ -8,7 +8,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using System.Net;
-using System.Net.Http.Json;
 
 namespace Croft.Api.Tests;
 

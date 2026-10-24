@@ -723,7 +723,7 @@ public class ScreenshotTests : WebTest
             // The draft's slug comes from the Editor list's Review link — the public API cannot see
             // drafts anonymously — so the id-routed editor and the slug-routed review page address
             // the same draft.
-            await Page.GotoAsync($"{BaseUrl}/logout");
+            await SignOutAsync();
             await LoginAsync("editor@example.com", "password");
             await Page.GotoAsync($"{BaseUrl}/editor");
             await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
@@ -734,7 +734,7 @@ public class ScreenshotTests : WebTest
             Assert.That(href, Does.StartWith("/editor/posts/"), "The Review link must lead to the draft review page.");
             _draftSlug = href!["/editor/posts/".Length..];
 
-            await Page.GotoAsync($"{BaseUrl}/logout");
+            await SignOutAsync();
             _dataReady = true;
         }
         finally

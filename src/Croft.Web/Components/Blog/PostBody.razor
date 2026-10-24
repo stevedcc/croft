@@ -24,9 +24,16 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        _postModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/post.js");
-        await JS.InvokeVoidAsync("blogPost.highlightAll", _body);
-        await JS.InvokeVoidAsync("blogPost.decorateImages", _body);
+        try
+        {
+            _postModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/post.js");
+            await JS.InvokeVoidAsync("blogPost.highlightAll", _body);
+            await JS.InvokeVoidAsync("blogPost.decorateImages", _body);
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit is gone: there is no page left to decorate.
+        }
     }
 
     public ValueTask DisposeAsync() => JsModuleReference.DisposeAsync(_postModule);

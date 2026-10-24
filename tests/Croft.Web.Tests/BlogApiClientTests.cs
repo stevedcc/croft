@@ -5,7 +5,6 @@ using AwesomeAssertions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 
 namespace Croft.Web.Tests;
 

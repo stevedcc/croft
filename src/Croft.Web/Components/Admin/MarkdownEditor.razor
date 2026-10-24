@@ -90,7 +90,17 @@
         // The textarea DOM owns the caret, so the splice happens in JS; the helper returns the
         // textarea's new value. Without script (and under loose JS interop in tests) fall back to
         // appending, so the inserted text is never silently dropped.
-        var value = await JS.InvokeAsync<string?>("blogEditor.insertAtCursor", _textarea, text);
+        string? value;
+        try
+        {
+            value = await JS.InvokeAsync<string?>("blogEditor.insertAtCursor", _textarea, text);
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit is gone: there is no textarea left to insert into.
+            return;
+        }
+
         Value = value ?? Value + text;
         _producedValue = Value;
         await ValueChanged.InvokeAsync(Value);

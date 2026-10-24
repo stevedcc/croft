@@ -483,14 +483,6 @@ if (!builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(builder.Co
     throw new InvalidOperationException("Blog:BaseUrl must be configured outside Development.");
 }
 
-// WORKAROUND(W-049, Blazor): a later Blazor may materialise CircuitOptions lazily, which would move a bad-setting failure to the first circuit
-// An invalid Croft:Web:Circuits:* value fails here, naming the setting. Today the options
-// callback's own parse already fails startup (CircuitOptions is materialised during host start);
-// this line is the explicit guard, so a framework change that resolves the options lazily cannot
-// silently move the failure to the first circuit.
-CircuitSettings.Read(builder.Configuration);
-// END WORKAROUND(W-049)
-
 // An invalid Auth:SessionLifetime fails startup here, not at the first sign-in.
 AuthSettings.Read(builder.Configuration);
 

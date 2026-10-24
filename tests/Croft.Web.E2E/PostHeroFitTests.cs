@@ -312,7 +312,7 @@ public class PostHeroFitTests : WebTest
                 new PageWaitForURLOptions { Timeout = 30000 });
             _longSlug = await SlugForPostAsync(PostIdFromEditorUrl());
 
-            await Page.GotoAsync($"{BaseUrl}/logout");
+            await SignOutAsync();
             _dataReady = true;
         }
         finally

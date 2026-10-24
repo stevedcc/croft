@@ -45,7 +45,7 @@ lists every place the code works around a framework or browser behaviour, and wh
 
 ## Stack
 
-- .NET 10, C# 14
+- .NET 11 (RC 2, go-live), C# 15
 - Blazor (static SSR for readers, Blazor Server for admin) + MudBlazor (admin only)
 - ASP.NET Core Web API
 - EF Core + Npgsql, PostgreSQL 18
@@ -58,8 +58,8 @@ lists every place the code works around a framework or browser behaviour, and wh
 
 ## Local development
 
-**Prerequisites:** the .NET SDK pinned in `global.json` (10.0.401 or a later 10.0.4xx; a 10.0.1xx
-SDK refuses to build), Docker or Podman with compose, and `curl`.
+**Prerequisites:** the .NET SDK pinned in `global.json` (11.0.100-rc.2.26504.105 or a later
+11.0.1xx; a .NET 10 SDK refuses to build), Docker or Podman with compose, and `curl`.
 
 1. Start PostgreSQL and the local OIDC provider:
 
@@ -158,7 +158,7 @@ The E2E suite uses [Playwright](https://playwright.dev/dotnet/) and the local mo
 
 ```bash
 dotnet build tests/Croft.Web.E2E
-node tests/Croft.Web.E2E/bin/Debug/net10.0/.playwright/package/cli.js install chromium firefox
+node tests/Croft.Web.E2E/bin/Debug/net11.0/.playwright/package/cli.js install chromium firefox
 ```
 
 Then run the suite with the script that owns the whole cycle:
@@ -295,7 +295,9 @@ enhanced navigation violates it (W-091), so the violations are reported to the s
 nothing is enforced yet. A reading page also sets no cookie (W-092); outside Development every
 cookie the site sets is `Secure`. `CspPolicySnapshotTests` pins the complete header of each kind
 of document, so a change to the policy is a visible change to a snapshot; loosening anything is the
-owner's decision.
+owner's decision. The admin theme's style hashes depend on the runtime's `Math.Round`: MudBlazor
+rounds the lightness of its computed palette shades with it, so a .NET release that changes its
+rounding (as .NET 11 did) changes those two hashes without any change of ours.
 
 **A site adds sources in configuration.** `Csp:Add:<directive>` is an array of sources that
 merges into the policy beside the built-in ones — additions never remove anything:

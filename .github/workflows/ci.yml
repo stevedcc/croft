@@ -161,7 +161,7 @@ jobs:
       - run: dotnet tool restore
       - run: dotnet build Croft.slnx
       - name: Install Playwright browsers (chromium, firefox)
-        run: node tests/Croft.Web.E2E/bin/Debug/net10.0/.playwright/package/cli.js install --with-deps chromium firefox
+        run: node tests/Croft.Web.E2E/bin/Debug/net11.0/.playwright/package/cli.js install --with-deps chromium firefox
       # Two instances on the 4-vCPU runner; a plain run also does the DefaultBranding and
       # OutputCache passes.
       - run: dev/run-e2e.sh --instances 2
@@ -177,6 +177,6 @@ jobs:
           path: |
             /tmp/blog-e2e-*.log
             /tmp/diag-*.png
-            tests/Croft.Web.E2E/bin/Debug/net10.0/screenshots
+            tests/Croft.Web.E2E/bin/Debug/net11.0/screenshots
             tests/Croft.Web.E2E/TestResults
           if-no-files-found: ignore

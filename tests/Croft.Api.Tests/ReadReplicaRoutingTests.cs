@@ -18,7 +18,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 
 namespace Croft.Api.Tests;
 

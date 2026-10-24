@@ -159,7 +159,7 @@ Content for second section.";
             // Get category slug
             _categorySlug = await GetCategorySlugAsync(CategoryName);
 
-            await Page.GotoAsync($"{BaseUrl}/logout");
+            await SignOutAsync();
             _dataReady = true;
         }
         finally

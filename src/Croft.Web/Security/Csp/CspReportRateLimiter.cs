@@ -20,7 +20,7 @@ public sealed class CspReportRateLimiter(IOptions<CspOptions> options, TimeProvi
     private static readonly TimeSpan Window = TimeSpan.FromMinutes(1);
 
     private readonly Lock _gate = new();
-    private readonly Dictionary<string, Queue<DateTimeOffset>> _buckets = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Queue<DateTimeOffset>> _buckets = [with(StringComparer.Ordinal)];
     private readonly Queue<DateTimeOffset> _all = new();
     private readonly int _limit = options.Value.ReportRateLimitPerMinute;
     private readonly int _maxClients = options.Value.ReportMaxClients;

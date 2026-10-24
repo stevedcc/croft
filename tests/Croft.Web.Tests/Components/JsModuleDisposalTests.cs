@@ -14,11 +14,11 @@ namespace Croft.Web.Tests.Components;
 /// </summary>
 public class JsModuleDisposalTests : BlogBunitContext
 {
-    private readonly RecordingJsRuntime _js = new();
+    private readonly ModuleImports _js = new();
 
     public JsModuleDisposalTests()
     {
-        Services.AddSingleton<IJSRuntime>(_js);
+        Services.AddSingleton<IJSRuntime>(new RecordingJsRuntime(_js));
         Services.AddSingleton(new MudBlazor.MudTheme());
     }
 
@@ -26,33 +26,33 @@ public class JsModuleDisposalTests : BlogBunitContext
     public async Task PostBody_DisposesItsPostModule()
     {
         Render<PostBody>(p => p.Add(x => x.Markdown, new RenderedMarkdown("<p>x</p>", [])));
-        _js.ModulesFor("./js/post.js").Should().NotBeEmpty().And.OnlyContain(m => !m.Disposed, "the module is in use while the body is shown");
+        _js.For("./js/post.js").Should().NotBeEmpty().And.OnlyContain(m => !m.Disposed, "the module is in use while the body is shown");
 
         await DisposeComponentsAsync();
 
-        _js.ModulesFor("./js/post.js").Should().OnlyContain(m => m.Disposed);
+        _js.For("./js/post.js").Should().OnlyContain(m => m.Disposed);
     }
 
     [Fact]
     public async Task ThemeSwitch_DisposesItsShellModule()
     {
         Render<ThemeSwitch>();
-        _js.ModulesFor("./js/shell.js").Should().NotBeEmpty().And.OnlyContain(m => !m.Disposed);
+        _js.For("./js/shell.js").Should().NotBeEmpty().And.OnlyContain(m => !m.Disposed);
 
         await DisposeComponentsAsync();
 
-        _js.ModulesFor("./js/shell.js").Should().OnlyContain(m => m.Disposed, "every reference the component took is released");
+        _js.For("./js/shell.js").Should().OnlyContain(m => m.Disposed, "every reference the component took is released");
     }
 
     [Fact]
     public async Task MainLayout_DisposesItsShellModule()
     {
         Render<MainLayout>();
-        _js.ModulesFor("./js/shell.js").Should().NotBeEmpty().And.OnlyContain(m => !m.Disposed);
+        _js.For("./js/shell.js").Should().NotBeEmpty().And.OnlyContain(m => !m.Disposed);
 
         await DisposeComponentsAsync();
 
-        _js.ModulesFor("./js/shell.js").Should().OnlyContain(m => m.Disposed, "every reference the component took is released");
+        _js.For("./js/shell.js").Should().OnlyContain(m => m.Disposed, "every reference the component took is released");
     }
 
     [Fact]
@@ -65,22 +65,21 @@ public class JsModuleDisposalTests : BlogBunitContext
         var dispose = async () => await DisposeComponentsAsync();
 
         await dispose.Should().NotThrowAsync();
-        _js.ModulesFor("./js/post.js").Should().NotBeEmpty().And.OnlyContain(m => m.DisposeAttempted, "the dispose was tried and its disconnect swallowed");
+        _js.For("./js/post.js").Should().NotBeEmpty().And.OnlyContain(m => m.DisposeAttempted, "the dispose was tried and its disconnect swallowed");
     }
 
-    private sealed class RecordingJsRuntime : IJSRuntime
+    // The record lives outside the IJSRuntime double: the Blazor analyzer (BL0016) treats every
+    // call on an IJSRuntime as JS interop, and a test reads the record without any interop.
+    private sealed class ModuleImports
     {
         private readonly Dictionary<string, List<RecordingModule>> _modules = [];
 
         public Exception? DisposeFailure { get; set; }
 
         /// <summary>Every reference imported for the path: each import is a new reference, as in the browser.</summary>
-        public IReadOnlyList<RecordingModule> ModulesFor(string path) => _modules.TryGetValue(path, out var list) ? list : [];
+        public IReadOnlyList<RecordingModule> For(string path) => _modules.TryGetValue(path, out var list) ? list : [];
 
-        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) =>
-            InvokeAsync<TValue>(identifier, CancellationToken.None, args);
-
-        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args)
+        public ValueTask<TValue> Invoke<TValue>(string identifier, object?[]? args)
         {
             if (identifier == "import" && typeof(TValue) == typeof(IJSObjectReference))
             {
@@ -92,7 +91,6 @@ public class JsModuleDisposalTests : BlogBunitContext
                 }
 
                 list.Add(module);
-
                 return ValueTask.FromResult((TValue)(object)module);
             }
 
@@ -100,7 +98,16 @@ public class JsModuleDisposalTests : BlogBunitContext
         }
     }
 
-    private sealed class RecordingModule(RecordingJsRuntime runtime) : IJSObjectReference
+    private sealed class RecordingJsRuntime(ModuleImports imports) : IJSRuntime
+    {
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) =>
+            imports.Invoke<TValue>(identifier, args);
+
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args) =>
+            imports.Invoke<TValue>(identifier, args);
+    }
+
+    private sealed class RecordingModule(ModuleImports imports) : IJSObjectReference
     {
         public bool Disposed { get; private set; }
 
@@ -115,7 +122,7 @@ public class JsModuleDisposalTests : BlogBunitContext
         public ValueTask DisposeAsync()
         {
             DisposeAttempted = true;
-            if (runtime.DisposeFailure is { } failure)
+            if (imports.DisposeFailure is { } failure)
             {
                 throw failure;
             }

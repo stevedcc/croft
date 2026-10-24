@@ -8,7 +8,6 @@ using Croft.Shared.Contracts;
 using Croft.Web.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using System.Net.Http.Json;
 
 namespace Croft.Api.Tests.Warmup;
 

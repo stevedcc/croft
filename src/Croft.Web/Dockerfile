@@ -13,7 +13,7 @@ ARG BUILDPLATFORM
 ARG TARGETARCH
 # END WORKAROUND(W-103)
 
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0@sha256:747cbade5bfd918a175ac32f8f1d931edec2c7d0d5397a3de72eaef1ac1f66d2 AS build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 ARG TARGETARCH
 # The released version, from the tag (release.yml passes VERSION=<tag without the v>). Empty
 # (the default) keeps the <Version> in Directory.Build.props, as a local build does.
@@ -24,16 +24,17 @@ COPY global.json Directory.Build.props .editorconfig ./
 COPY src/Croft.Shared/ src/Croft.Shared/
 COPY src/Croft.Web/ src/Croft.Web/
 
-# WORKAROUND(W-088, .NET): precompiled (ReadyToRun) code, so a new pod does not spend minutes JIT-recompiling hot paths; the .NET 10 arm64 target is armv8.0-a
+# WORKAROUND(W-088, .NET): precompiled (ReadyToRun) code, so a new pod does not spend minutes JIT-recompiling hot paths; the arm64 instruction sets are pinned to the Pi 4's
 # ReadyToRun: crossgen2 (from the SDK's normal restore) precompiles the assemblies for
-# $TARGETARCH, cross-compiling from the build platform. The .NET 10 linux-arm64 target is
-# armv8.0-a, which the Raspberry Pi 4 (Cortex-A72) supports; see docs/workarounds.md W-088 for
-# the .NET 11 check. tests/Croft.Api.Tests/ReadyToRunPublishTests.cs publishes with this very
-# line, so keep it on ONE line starting "RUN dotnet publish".
+# $TARGETARCH, cross-compiling from the build platform. .NET 11's linux-arm64 target needs LSE,
+# which the Raspberry Pi 4 (Cortex-A72) lacks, so Directory.Build.props (copied above) pins the
+# instruction sets for linux-arm64; see docs/workarounds.md W-088.
+# tests/Croft.Api.Tests/ReadyToRunPublishTests.cs publishes with this very line, so keep it on
+# ONE line starting "RUN dotnet publish".
 RUN dotnet publish src/Croft.Web/Croft.Web.csproj -c Release -a "$TARGETARCH" --self-contained false -p:PublishReadyToRun=true -o /app/publish ${VERSION:+-p:Version=$VERSION}
 # END WORKAROUND(W-088)
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:8af87eba5e7cdafb1514d7388be287365da97c132509e84dfe252ffd552398ca AS final
+FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS final
 WORKDIR /app
 
 COPY --from=build /app/publish .

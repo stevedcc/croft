@@ -40,7 +40,7 @@ public class StructuredDataTests : StaticReadingTest
 
         // Find each by @type so the assertion is independent of emission order.
         var types = blocks
-            .Select(block => JsonDocument.Parse(block).RootElement.GetProperty("@type").GetString())
+            .Select(block => JsonElement.Parse(block).GetProperty("@type").GetString())
             .ToList();
         Assert.That(types, Does.Contain("BlogPosting"),
             "the post page must declare a BlogPosting JSON-LD");
@@ -49,7 +49,7 @@ public class StructuredDataTests : StaticReadingTest
 
         // Each block parses without error and the BreadcrumbList has at least Home + Post.
         var breadcrumb = JsonDocument.Parse(blocks.Single(b =>
-            JsonDocument.Parse(b).RootElement.GetProperty("@type").GetString() == "BreadcrumbList"));
+            JsonElement.Parse(b).GetProperty("@type").GetString() == "BreadcrumbList"));
         var items = breadcrumb.RootElement.GetProperty("itemListElement").EnumerateArray().ToArray();
         Assert.That(items.Length, Is.GreaterThanOrEqualTo(2),
             "the BreadcrumbList must list at least the Home entry and the Post entry");

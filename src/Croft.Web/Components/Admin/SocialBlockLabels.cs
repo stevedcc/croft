@@ -41,7 +41,7 @@ public static partial class SocialBlockLabels
                 return kept + "…";
             }
 
-            kept.Append(rune.ToString());
+            kept.Append(rune);
             count++;
         }
 

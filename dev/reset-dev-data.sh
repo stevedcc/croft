@@ -22,7 +22,7 @@ DEV="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$DEV/.." && pwd)"
 cd "$ROOT"
 
-# global.json pins SDK 10.0.4xx. Fedora ships 10.0.1xx in /usr/bin, so prefer ~/dotnet when present.
+# global.json pins SDK 11.0.100 (RC 2). Fedora ships 10.0.1xx in /usr/bin, so prefer ~/dotnet when present.
 if [ -x "$HOME/dotnet/dotnet" ]; then
     export DOTNET_ROOT="$HOME/dotnet"
     export PATH="$HOME/dotnet:$PATH"
@@ -116,8 +116,9 @@ echo "Recreating database $TARGET_DB ..."
 # database drop takes no --connection; it drops the context's configured database, so the
 # target connection string is passed via the environment. The dry run names the target and
 # must name it exactly before anything is dropped (same guarded drop as start-local.sh).
+# dotnet-ef 11 prints the dry run's message on stderr (10 used stdout): read both.
 drop_target="$(ConnectionStrings__BlogDb="$TARGET_CONN" \
-    dotnet ef database drop --dry-run -p src/Croft.Api -s src/Croft.Api --no-build)"
+    dotnet ef database drop --dry-run -p src/Croft.Api -s src/Croft.Api --no-build 2>&1)"
 echo "$drop_target"
 if [[ "$drop_target" != *"the database '$TARGET_DB'"* ]]; then
     echo "Refusing to drop: the dry run did not name '$TARGET_DB' (got: $drop_target)" >&2

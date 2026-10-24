@@ -131,10 +131,11 @@ public static class ReadingPageCompression
 /// </summary>
 public sealed class ReadingPageCompressionProvider(IEnumerable<ICompressionProvider> providers) : IResponseCompressionProvider
 {
-    private static readonly HashSet<string> MediaTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
+    private static readonly HashSet<string> MediaTypes =
+    [
+        with(StringComparer.OrdinalIgnoreCase),
         "text/html", "application/xml", "application/atom+xml",
-    };
+    ];
 
     public bool CheckRequestAcceptsCompression(HttpContext context) =>
         ReadingPageCompression.EncodingOf(context) != ReadingPageCompression.Identity;

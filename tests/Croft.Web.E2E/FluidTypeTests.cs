@@ -172,7 +172,7 @@ public class FluidTypeTests : WebTest
 
             _slug = await SlugForPostAsync(PostIdFromEditorUrl());
 
-            await Page.GotoAsync($"{BaseUrl}/logout");
+            await SignOutAsync();
             _dataReady = true;
         }
         finally

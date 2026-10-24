@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Json;
 using AwesomeAssertions;
 using Croft.Api.Data;
 using Croft.Api.Tests.Fixtures;
