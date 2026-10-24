@@ -11,11 +11,19 @@
     'docker:pinDigests',              // Dockerfile FROM lines get @sha256 digests: a .NET patch rebuilds within hours
   ],
   timezone: 'Europe/Berlin',
+  // A release must be at least this old before a PR (supply-chain guard: yanked or compromised
+  // releases are usually withdrawn within days); automerge simply waits.
+  minimumReleaseAge: '3 days',
   prConcurrentLimit: 5,
   prHourlyLimit: 0,
   labels: ['dependencies'],
   // The moving tags (sdk:10.0, aspnet:10.0) stay; only their digests move. A major (11.0) is a brief, not a bot PR.
   packageRules: [
+    {
+      description: 'Majors are planned work (a .NET version, a Playwright major): no PR until ticked on the Dependency Dashboard',
+      matchUpdateTypes: ['major'],
+      dependencyDashboardApproval: true,
+    },
     {
       description: 'The .NET platform moves together: Microsoft.*, System.*, EF Core, Npgsql EF provider',
       matchDatasources: ['nuget'],
