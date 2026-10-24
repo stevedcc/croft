@@ -701,12 +701,12 @@ entry and a marker in the same commit (AGENTS.md, "Workarounds").
 - **Fails without it:** `ApiTelemetryTests`, `WebTelemetryTests`.
 - **Upgrade check:** re-run after an OpenTelemetry upgrade.
 
-### W-103: Image-building tests pass BUILDPLATFORM to Testcontainers
+### W-103: Image-building tests pass BUILDPLATFORM and TARGETARCH to Testcontainers
 
-- **Library:** Testcontainers' `ImageFromDockerfileBuilder` pulls the Dockerfile's base images itself before building, and substitutes only the build arguments passed to it. For the digest-pinned `FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0@sha256:…` (Renovate's pins) it asks the engine for OS "$BUILDPLATFORM": "no image found in manifest list for architecture "amd64", variant "", OS "$BUILDPLATFORM"". BuildKit sets BUILDPLATFORM itself; the pre-pull does not.
-- **Our code:** `Fixtures/DockerfileBuildPlatform` (`WithHostBuildPlatform()`, `linux/` plus the host's architecture), called by `MigrateContainerTests` and `ApiImageSkiaSharpContainerTests`.
-- **Fails without it:** `MigrateContainerTests` (both) and `ApiImageSkiaSharpContainerTests` (`Category=Container`).
-- **Upgrade check:** on a Testcontainers upgrade, remove the `WithHostBuildPlatform()` calls and run `Category=Container`; if they pass, retire W-103.
+- **Library:** Testcontainers' `ImageFromDockerfileBuilder` (1) pulls the Dockerfile's base images itself before building, substituting only the build arguments passed to it: for the digest-pinned `FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0@sha256:…` (Renovate's pins) it asks the engine for OS "$BUILDPLATFORM" ("no image found in manifest list for architecture "amd64", variant "", OS "$BUILDPLATFORM"", on Podman); and (2) builds through the Docker Engine API's legacy builder, which, unlike BuildKit and buildah, predefines neither BUILDPLATFORM nor TARGETARCH, so `--platform=$BUILDPLATFORM` expands to nothing ("failed to parse platform : "" is an invalid OS component of """, on Docker) and `publish -a "$TARGETARCH"` would get an empty architecture.
+- **Our code:** `Fixtures/DockerfileBuildPlatform` (`WithHostBuildPlatform()`: BUILDPLATFORM `linux/<arch>` and TARGETARCH `<arch>`, the host's amd64 or arm64), called by `MigrateContainerTests` and `ApiImageSkiaSharpContainerTests`; both Dockerfiles declare `ARG BUILDPLATFORM` and `ARG TARGETARCH` before the first `FROM` (global args: BuildKit keeps its automatic values, the legacy builder takes the build arguments).
+- **Fails without it:** `MigrateContainerTests` (both) and `ApiImageSkiaSharpContainerTests` (`Category=Container`), on Podman (pre-pull) and on Docker (legacy builder, the GitHub runner's `image-tests` job).
+- **Upgrade check:** on a Testcontainers upgrade (BuildKit support, or a pre-pull that resolves build args), remove the `WithHostBuildPlatform()` calls and the global `ARG` lines and run `Category=Container` on Podman and in CI; if they pass, retire W-103.
 
 ## Tier F: deployment and dev tooling
 

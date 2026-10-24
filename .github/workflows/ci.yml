@@ -1,5 +1,5 @@
 # CI on every pull request to main, every push to main, and by hand (brief 15a, issue #9).
-# Four jobs, each building what it needs: `build` is the Release build that keeps the repo
+# Five jobs, each building what it needs: `build` is the Release build that keeps the repo
 # warning-free; the test jobs build Debug, because the suites run --no-build against the Debug
 # output that dev/run-e2e.sh also uses (AGENTS.md "Running things").
 name: ci
@@ -97,6 +97,37 @@ jobs:
           path: TestResults/web
           if-no-files-found: ignore
 
+  # The API suite's opt-in categories (AGENTS.md "Opt-in tests"): Container builds both
+  # Dockerfiles and runs `migrate` in the images, ReadyToRun publishes both apps for linux-arm64
+  # with the Dockerfiles' flags. On every run, no path filter (brief 15d): Renovate's digest-pin
+  # PR #35 passed the other jobs and broke these tests on main.
+  image-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props', 'dotnet-tools.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - run: dotnet build Croft.slnx
+      # Testcontainers builds the images with the runner's Docker; nothing to configure.
+      - run: dotnet test tests/Croft.Api.Tests --no-build --filter "Category=Container|Category=ReadyToRun" --logger trx --results-directory TestResults/image
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: image-tests-trx
+          path: TestResults/image
+          if-no-files-found: ignore
+
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -119,17 +150,14 @@ jobs:
           restore-keys: nuget-${{ runner.os }}-
       - name: Start Postgres and the mock IdP
         run: |
-          docker compose up -d
+          # --wait: until postgres's healthcheck (.github/compose.ci.yaml) passes and oauth2 runs.
+          docker compose up -d --wait --wait-timeout 180
+          # The mock IdP image has no curl or wget for a healthcheck: poll its discovery document.
           for _ in $(seq 1 60); do
             curl -sf http://localhost:5556/default/.well-known/openid-configuration >/dev/null && break
             sleep 1
           done
           curl -sf http://localhost:5556/default/.well-known/openid-configuration >/dev/null
-          for _ in $(seq 1 60); do
-            docker compose exec -T postgres pg_isready -U blog >/dev/null 2>&1 && break
-            sleep 1
-          done
-          docker compose exec -T postgres pg_isready -U blog
       - run: dotnet tool restore
       - run: dotnet build Croft.slnx
       - name: Install Playwright browsers (chromium, firefox)

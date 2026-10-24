@@ -4,6 +4,15 @@
 # cross-publishes for $TARGETARCH, so both --platform linux/arm64 (the cluster) and
 # --platform linux/amd64 (local checks) work.
 
+# WORKAROUND(W-103, Testcontainers): the Engine API's legacy builder predefines no BUILDPLATFORM or TARGETARCH
+# Global platform args. BuildKit and buildah fill them in automatically and keep doing so; the
+# Docker Engine's legacy builder (which Testcontainers builds through) predefines neither, so
+# `FROM --platform=$BUILDPLATFORM` would be empty there. Declared here, the legacy builder takes
+# them from build arguments (the image tests pass both, see docs/workarounds.md W-103).
+ARG BUILDPLATFORM
+ARG TARGETARCH
+# END WORKAROUND(W-103)
+
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0@sha256:747cbade5bfd918a175ac32f8f1d931edec2c7d0d5397a3de72eaef1ac1f66d2 AS build
 ARG TARGETARCH
 # The released version, from the tag (release.yml passes VERSION=<tag without the v>). Empty
