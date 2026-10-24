@@ -533,11 +533,16 @@ public class AdminTests : WebTest
         await Page.WaitForURLAsync(
             url => url.EndsWith("/admin/posts"),
             new PageWaitForURLOptions { Timeout = 15000 });
+        // The list prerenders: a chip clicked before the circuit's first render has no handler and the
+        // click is lost, leaving the unfiltered list (issue #43).
+        await WaitForInteractiveAsync(Page);
 
         // Rule 7 outcome: the filter changes the rows — the listed titles actually match it. The
         // status filters are also how each fixture reaches page 1: the shared dev DB holds posts
         // scheduled far in the future, which sort above everything on the unfiltered list.
-        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Draft", Exact = true }).ClickAsync();
+        var draftChip = Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Draft", Exact = true });
+        await draftChip.ClickAsync();
+        await Expect(draftChip).ToHaveAttributeAsync("aria-pressed", "true");
         await Expect(RowFor(draftTitle)).ToBeVisibleAsync();
         await Expect(RowFor(publishedTitle)).ToHaveCountAsync(0);
 
