@@ -701,6 +701,13 @@ entry and a marker in the same commit (AGENTS.md, "Workarounds").
 - **Fails without it:** `ApiTelemetryTests`, `WebTelemetryTests`.
 - **Upgrade check:** re-run after an OpenTelemetry upgrade.
 
+### W-103: Image-building tests pass BUILDPLATFORM to Testcontainers
+
+- **Library:** Testcontainers' `ImageFromDockerfileBuilder` pulls the Dockerfile's base images itself before building, and substitutes only the build arguments passed to it. For the digest-pinned `FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0@sha256:…` (Renovate's pins) it asks the engine for OS "$BUILDPLATFORM": "no image found in manifest list for architecture "amd64", variant "", OS "$BUILDPLATFORM"". BuildKit sets BUILDPLATFORM itself; the pre-pull does not.
+- **Our code:** `Fixtures/DockerfileBuildPlatform` (`WithHostBuildPlatform()`, `linux/` plus the host's architecture), called by `MigrateContainerTests` and `ApiImageSkiaSharpContainerTests`.
+- **Fails without it:** `MigrateContainerTests` (both) and `ApiImageSkiaSharpContainerTests` (`Category=Container`).
+- **Upgrade check:** on a Testcontainers upgrade, remove the `WithHostBuildPlatform()` calls and run `Category=Container`; if they pass, retire W-103.
+
 ## Tier F: deployment and dev tooling
 
 ### W-081: Network-policy labels for K3s and Traefik
