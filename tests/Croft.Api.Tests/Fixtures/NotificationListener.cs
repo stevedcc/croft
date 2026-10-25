@@ -22,11 +22,16 @@ internal sealed class NotificationListener : IAsyncDisposable
     {
         _connectionString = connectionString;
         _channel = channel;
-        // Unpooled: a pooled connection keeps LISTENing after it goes back to the pool (Npgsql
-        // resets it only on its next use), buffers what arrives meanwhile, and hands it to the
-        // next listener that gets that connection.
-        _connection = new NpgsqlConnection(new NpgsqlConnectionStringBuilder(connectionString) { Pooling = false }.ConnectionString);
+        _connection = new NpgsqlConnection(BuildConnectionString(connectionString));
     }
+
+    /// <summary>
+    /// The listener's own connection string: unpooled. A pooled connection keeps LISTENing after
+    /// it goes back to the pool (Npgsql resets it only on its next use), buffers what arrives
+    /// meanwhile, and hands it to the next listener that gets that connection.
+    /// </summary>
+    internal static string BuildConnectionString(string connectionString) =>
+        new NpgsqlConnectionStringBuilder(connectionString) { Pooling = false }.ConnectionString;
 
     public static async Task<NotificationListener> StartAsync(string connectionString, string channel)
     {
