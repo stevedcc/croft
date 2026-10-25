@@ -66,7 +66,7 @@ public static class ReplyTree
     {
         var found = new List<SocialReply>();
         var queue = new Queue<SocialReply>(Direct(row, children));
-        var seen = new HashSet<string>(StringComparer.Ordinal) { row.ExternalId };
+        HashSet<string> seen = [with(StringComparer.Ordinal), row.ExternalId];
         while (queue.Count > 0)
         {
             var next = queue.Dequeue();

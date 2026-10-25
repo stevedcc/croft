@@ -210,7 +210,7 @@ public sealed class DiscussionService(
                 .ToListAsync(ct);
             var answers = all.Where(r => r.ParentExternalId is not null).ToLookup(r => r.ParentExternalId!, r => r.ExternalId, StringComparer.Ordinal);
 
-            var doomed = new HashSet<string>(post.Select(s => s.ExternalId), StringComparer.Ordinal);
+            HashSet<string> doomed = [with(StringComparer.Ordinal), ..post.Select(s => s.ExternalId)];
             var queue = new Queue<string>(doomed);
             while (queue.Count > 0)
             {

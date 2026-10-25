@@ -9,7 +9,7 @@ namespace Croft.Api.Social;
 public sealed record SocialClaim(Guid PostId, SocialPlatform Platform, string RemoteId, DateTime Anchor);
 
 /// <summary>What asking a platform for a thread came to.</summary>
-public abstract record SocialFetchOutcome
+public closed record SocialFetchOutcome
 {
     /// <summary>The thread, filtered. <c>PlatformBusyUntil</c> is set when the answer itself said the rate limit is used up: no further request before then.</summary>
     public sealed record Fetched(IReadOnlyList<IngestedReply> Replies, DateTime? PlatformBusyUntil = null) : SocialFetchOutcome;

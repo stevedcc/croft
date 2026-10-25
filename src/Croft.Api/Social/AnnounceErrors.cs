@@ -41,7 +41,7 @@ internal static partial class AnnounceErrors
         {
             AnnounceOutcome.Retry retry => retry.Reason,
             AnnounceOutcome.Failed failed => failed.Reason,
-            _ => string.Empty,
+            AnnounceOutcome.Posted or AnnounceOutcome.NotFound or null => string.Empty,
         };
         return StatusInReason().Match(reason) is { Success: true } match ? $" (HTTP {match.Groups["status"].Value})" : string.Empty;
     }

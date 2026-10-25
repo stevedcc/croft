@@ -31,8 +31,7 @@ internal sealed class FakeTimerTimeProvider(DateTimeOffset utcNow) : TimeProvide
             var target = _now + delta;
             while (_timers
                     .Where(t => !t.Disposed && t.Due <= target)
-                    .OrderBy(t => t.Due)
-                    .FirstOrDefault() is { } next)
+                    .MinBy(t => t.Due) is { } next)
             {
                 // The clock passes through the due instant, exactly as real time would.
                 _now = next.Due;

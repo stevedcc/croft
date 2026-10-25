@@ -206,7 +206,7 @@ internal sealed class LoopbackApiBridge : IAsyncDisposable
     private static (string StartLine, Dictionary<string, string> Headers) ParseHead(string head)
     {
         var lines = head.Split("\r\n");
-        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> headers = [with(StringComparer.OrdinalIgnoreCase)];
         foreach (var line in lines.Skip(1))
         {
             var separator = line.IndexOf(':');

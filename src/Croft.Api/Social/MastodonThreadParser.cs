@@ -22,7 +22,7 @@ public static class MastodonThreadParser
             throw new SocialParseException("The Mastodon context answer has no descendants.");
 
         var candidates = new List<IngestedReply>();
-        var seen = new HashSet<string>(StringComparer.Ordinal);
+        HashSet<string> seen = [with(StringComparer.Ordinal)];
         foreach (var status in descendants.EnumerateArray())
         {
             if (TryRead(status, rootStatusId, server, blocks) is { } reply && seen.Add(reply.ExternalId))
@@ -84,7 +84,7 @@ public static class MastodonThreadParser
     private static List<IngestedReply> ReachableFromRoot(List<IngestedReply> candidates)
     {
         var children = candidates.ToLookup(r => r.ParentExternalId, StringComparer.Ordinal);
-        var reachable = new HashSet<string>(StringComparer.Ordinal);
+        HashSet<string> reachable = [with(StringComparer.Ordinal)];
         var queue = new Queue<string?>();
         queue.Enqueue(null);
         while (queue.Count > 0)
