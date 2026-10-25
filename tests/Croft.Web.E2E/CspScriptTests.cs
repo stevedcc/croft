@@ -100,7 +100,7 @@ public class CspScriptTests : StaticReadingTest
         var violations = await probe.DrainAsync();
 
         Assert.That(violations, Has.Some.Matches<CspViolation>(v =>
-                v.Directive == "script-src-elem" && v.BlockedUri.Contains(url, StringComparison.Ordinal)),
+                v!.Directive == "script-src-elem" && v.BlockedUri.Contains(url, StringComparison.Ordinal)),
             $"the injected {what} must raise a script-src-elem violation; got: {string.Join("; ", violations)}");
         Assert.That(await Page.EvaluateAsync<bool>("() => typeof window.MudBlazor !== 'undefined'"), Is.False,
             "the refused script did not run");

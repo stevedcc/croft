@@ -17,9 +17,12 @@ keep anyway, or an ordinary use of a documented API is not a workaround; the clo
 
 .NET 11.0.0-rc.2.26504.105 packages (SDK 11.0.100-rc.2.26504.105), MudBlazor 9.11.0,
 Npgsql.EntityFrameworkCore.PostgreSQL 11.0.0-rc.2 (Npgsql 10.0.3), Markdig 1.5.0, Playwright
-1.64.1, Testcontainers 4.16.0, bUnit 2.12.5, xUnit 2.9.3, Postgres 18. The first sweep covered
-`blog-framework` at 998583c (2026-10-16) on .NET 10.0.13 (SDK 10.0.401); brief 16a walked every
-entry on 11.0 RC 2 (each entry's "Re-checked on 11.0 RC 2" note says what was run).
+1.64.1, Testcontainers 4.16.0, bUnit 2.12.5, xunit.v3 4.0.2 (the `xunit.v3.mtp-off` package,
+runner 4.0.1), NUnit 5.0.0 (NUnit3TestAdapter 6.3.1), Microsoft.NET.Test.Sdk 18.11.0, Postgres 18.
+The first sweep covered `blog-framework` at 998583c (2026-10-16) on .NET 10.0.13 (SDK 10.0.401);
+brief 16a walked every entry on 11.0 RC 2 (each entry's "Re-checked on 11.0 RC 2" note says what
+was run); brief 16b moved the test tooling to the versions above (W-063 retired, W-062 re-checked
+on xunit.v3).
 
 ## How to use it on an upgrade
 
@@ -560,17 +563,10 @@ entry and a marker in the same commit (AGENTS.md, "Workarounds").
 
 ### W-062: The reference-counted shared Postgres container
 
-- **Library:** xUnit v2 has no assembly-level fixture.
+- **Library:** xUnit v2 had no assembly-level fixture. xunit.v3 has one (`[assembly: AssemblyFixture]`), but it is created for every run of the assembly, also a filtered run that selects no database test (brief 16b checked it with a probe on 4.0.2: a run filtered to a class that does not take the fixture still constructed it); the Web suite's `Category!=Container` run on a machine without a container runtime and the API's opt-in image run would then start (or fail to start) a container they do not use.
 - **Our code:** `SharedPostgresContainer` (API and Web test projects) starts the container for the first class and disposes it after the last; the image tag mirrors `compose.yaml`.
 - **Fails without it:** every database test class.
-- **Upgrade check:** with xUnit v3, switch to an assembly fixture. **Re-checked on 11.0 RC 2 (16a):** xUnit 2.9 is not part of this upgrade (unchanged); the suites of brief 16a pass with it on 11.0 RC 2.
-
-### W-063: Async disposal of the bUnit context
-
-- **Library:** xUnit 2 disposes tests through `IDisposable`, which calls the bUnit context's synchronous dispose, while MudBlazor dialog services are `IAsyncDisposable` only.
-- **Our code:** `BlogBunitContext` implements `IAsyncLifetime` and disposes asynchronously.
-- **Fails without it:** any bUnit dialog test.
-- **Upgrade check:** may go away with xUnit v3. **Re-checked on 11.0 RC 2 (16a):** xUnit 2.9 and bUnit 2.12 is not part of this upgrade (unchanged); the suites of brief 16a pass with it on 11.0 RC 2.
+- **Upgrade check:** switch to an assembly fixture once xunit creates one only for runs that select a test using it.
 
 ### W-064: E2E instance mapping from NUnit worker numbers
 
@@ -796,6 +792,7 @@ IDs that no longer have an entry. They are never reused. These are plain lines, 
 
 - W-005: the MudBlazor dark-palette append on static pages (the palette variables stayed light there) was removed when brief 09i took MudBlazor off the reading pages; `Theme/MudDarkPaletteCss.cs` is deleted and `Branding.ThemeHash` is retired.
 - W-047: the OIDC authority in `form-action` (`OidcFormActionCspContributor`) was removed in brief 10c at the owner's decision: sign-in is a 302 challenge and sign-out a GET link chain (`/logout` to `/logout/interstitial` to `/logout/complete` to a redirect), so no form of ours posts to the IdP and Chrome's form-redirect check never applied (brief 13b made `/logout/complete` a POST, so the check applies again: see W-096); `SidebarAuthLinksTests` and `DraftBackupTests.Logout_ClearsEveryDraftBackupKey` pass in Chromium and Firefox with `form-action 'self'`.
+- W-063: `BlogBunitContext`'s `IAsyncLifetime` (xUnit 2 disposed a test class through `IDisposable`, the bUnit context's synchronous dispose, while MudBlazor's dialog services are `IAsyncDisposable` only) was removed in brief 16b: xunit.v3 disposes a test class through `IAsyncDisposable` when it implements it, and `BunitContext` does, so the bUnit dialog tests pass with the context's own `DisposeAsync`.
 - W-013: forwarded headers switched on by `ASPNETCORE_FORWARDEDHEADERS_ENABLED`, which clears the trusted proxies and networks and so trusted every peer, was removed in brief 13b (review 2026-10-19, finding 8): the Web calls `UseForwardedHeaders` itself, once, first in the pipeline, with `ForwardedHeaders:KnownNetworks` (the k8s base sets the k3s pod network) and `ForwardLimit` 1, and the API handles no forwarded headers; `ForwardedHeadersOnceTests` pins the single pass and the untrusted-peer case.
 - W-034: the raw ADO command for `pg_try_advisory_xact_lock` in `BackgroundJobLock` was retired in brief 16a (11.0 RC 2): EF's scalar `SqlQuery<bool>` with the column aliased `"Value"` composes the bare function call fine (`SELECT pg_try_advisory_xact_lock({jobId}) AS "Value"` on the tick's own transaction); `BackgroundJobLockTests`, `ScheduledPublisherTests` and the full API and Web suites pass with it. The probe is now an EF command, visible to command interceptors like every other.
 - W-049: the second, explicit `CircuitSettings.Read` call in the Web's `Program.cs` was retired in brief 16a (11.0 RC 2), as its upgrade check says: `CircuitLimitTests` (an invalid `Croft:Web:Circuits:*` value fails start-up) passes without it, because ASP.NET Core 11 still materialises `CircuitOptions` during host start and the options callback's own `CircuitSettings.Read` throws there.

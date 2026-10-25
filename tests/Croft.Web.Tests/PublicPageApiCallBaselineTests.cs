@@ -4,7 +4,6 @@ using Croft.Shared.Enums;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Xunit.Abstractions;
 
 namespace Croft.Web.Tests;
 

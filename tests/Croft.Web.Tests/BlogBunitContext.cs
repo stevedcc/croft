@@ -16,7 +16,7 @@ namespace Croft.Web.Tests;
 /// <see cref="BlogOptions"/> and bUnit's authorization test doubles — e.g.
 /// <c>Auth.SetRoles("Admin")</c> before rendering.
 /// </summary>
-public abstract class BlogBunitContext : BunitContext, IAsyncLifetime
+public abstract class BlogBunitContext : BunitContext
 {
     /// <summary>bUnit's test double for <see cref="Microsoft.AspNetCore.Components.PersistentComponentState"/>,
     /// used to verify [PersistentState] restoration in tests.</summary>
@@ -71,13 +71,4 @@ public abstract class BlogBunitContext : BunitContext, IAsyncLifetime
 
     /// <summary>bUnit's authorization test double; configure with <c>SetRoles(...)</c> etc.</summary>
     protected BunitAuthorizationContext Auth { get; }
-
-    // WORKAROUND(W-063, bUnit): xUnit 2 disposes synchronously but MudBlazor dialog services are IAsyncDisposable only
-    // xunit 2 disposes test classes through IDisposable, which calls BunitContext.Dispose() and
-    // with it a synchronous service-provider dispose. MudBlazor's dialog services implement
-    // IAsyncDisposable only, so dispose the context asynchronously (IAsyncLifetime runs first).
-    Task IAsyncLifetime.InitializeAsync() => Task.CompletedTask;
-
-    Task IAsyncLifetime.DisposeAsync() => DisposeAsync().AsTask();
-    // END WORKAROUND(W-063)
 }

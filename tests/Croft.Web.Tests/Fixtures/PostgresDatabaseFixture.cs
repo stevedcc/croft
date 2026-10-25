@@ -19,9 +19,12 @@ public sealed class PostgresDatabaseFixture : IAsyncLifetime
     public string ConnectionString => _connectionString
         ?? throw new InvalidOperationException("The class database has not been created.");
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
-        var containerConnectionString = await SharedPostgresContainer.AcquireAsync();
+        // The run's cancellation (xunit.v3): an aborted run stops waiting for the container
+        // start and the migrations instead of finishing them first.
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var containerConnectionString = await SharedPostgresContainer.AcquireAsync(cancellationToken);
         _leased = true;
         try
         {
@@ -31,7 +34,7 @@ public sealed class PostgresDatabaseFixture : IAsyncLifetime
                 .UseNpgsql(_connectionString)
                 .Options;
             await using var db = new CroftWebDbContext(options);
-            await db.Database.MigrateAsync();
+            await db.Database.MigrateAsync(cancellationToken);
         }
         catch
         {
@@ -45,7 +48,7 @@ public sealed class PostgresDatabaseFixture : IAsyncLifetime
         }
     }
 
-    public Task DisposeAsync() => TeardownAsync();
+    public ValueTask DisposeAsync() => new(TeardownAsync());
 
     private async Task TeardownAsync()
     {

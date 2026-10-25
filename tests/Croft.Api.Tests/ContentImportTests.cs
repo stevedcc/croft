@@ -27,14 +27,14 @@ public sealed class ContentImportTests(PostgresDatabaseFixture fixture)
     private readonly List<ScratchDatabase> _databases = [];
     private ScratchDatabase _source = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _source = await NewDatabaseAsync();
         await using var db = _source.CreateContext();
         await ContentSeed.SeedAsync(db);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         foreach (var database in _databases)
             await database.DisposeAsync();

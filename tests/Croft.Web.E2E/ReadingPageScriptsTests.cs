@@ -90,9 +90,9 @@ public class ReadingPageScriptsTests : StaticReadingTest
         await Page.WaitForURLAsync(url => url.EndsWith("/admin/posts/new"));
         await WaitForInteractiveAsync(Page);
 
-        Assert.That(requests, Has.Some.Matches<string>(url => url.Contains("/js/editor.")),
+        Assert.That(requests, Has.Some.Matches<string>(url => url!.Contains("/js/editor.")),
             "the editor document must load editor.js.");
-        Assert.That(requests, Has.Some.Matches<string>(url => url.Contains("/js/draft-backup.")),
+        Assert.That(requests, Has.Some.Matches<string>(url => url!.Contains("/js/draft-backup.")),
             "the editor document must load draft-backup.js.");
         Assert.That(await Page.EvaluateAsync<string>("() => typeof window.blogDraft?.flush + '/' + typeof window.blogEditor?.insertAtCursor"),
             Is.EqualTo("function/function"), "both scripts ran and registered their helpers.");
@@ -119,7 +119,7 @@ public class ReadingPageScriptsTests : StaticReadingTest
 
         Assert.That(requests.Where(IsStaffScript), Is.Empty,
             $"{path} requested staff-only scripts: {string.Join(", ", requests.Where(IsStaffScript))}.");
-        Assert.That(requests, Has.Some.Matches<string>(url => url.Contains("/js/static-glue")),
+        Assert.That(requests, Has.Some.Matches<string>(url => url!.Contains("/js/static-glue")),
             "the page's own script did load (the log is live).");
     }
 

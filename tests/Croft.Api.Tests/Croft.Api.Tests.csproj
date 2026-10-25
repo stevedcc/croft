@@ -5,6 +5,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <!-- xunit.v3 test projects are executables (the xunit v2 to v3 migration guide). -->
+    <OutputType>Exe</OutputType>
   </PropertyGroup>
 
   <!-- The default test filter (the same mechanism as tests/Croft.Web.E2E): the Container category
@@ -18,16 +20,21 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="coverlet.collector" Version="10.1.0" />
     <PackageReference Include="AwesomeAssertions" Version="9.6.0" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="11.0.0-rc.2.26504.105" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="11.0.0-rc.2.26504.105" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="11.0.0-rc.2.26504.105" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <PackageReference Include="OpenTelemetry.Exporter.InMemory" Version="1.20.1" />
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.16.0" />
-    <PackageReference Include="xunit" Version="2.9.3" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <!-- xunit.v3 with its Microsoft.Testing.Platform integration left out (the mtp-off flavour
+         of the xunit.v3 package, xunit's documented choice): the default flavour pulls in the
+         MTP v2 MSBuild targets, which refuse `dotnet test`'s VSTest mode on SDK 10 and later
+         ("Testing with VSTest target is no longer supported"). This repository runs every
+         suite through VSTest (xunit.runner.visualstudio, the default VSTestTestCaseFilter). -->
+    <PackageReference Include="xunit.v3.mtp-off" Version="4.0.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1" />
   </ItemGroup>
 
   <!-- Brief 12a: the anonymised platform answers (copies of docs/briefs/12a-fixtures) the social tests build their cases from. -->
