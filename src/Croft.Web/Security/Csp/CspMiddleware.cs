@@ -41,8 +41,8 @@ public sealed class CspMiddleware(
         ? ReportOnlyHeaderName
         : "Content-Security-Policy";
 
-    private readonly ConcurrentDictionary<string, (CspPolicy Policy, CspPolicy ReportOnlyPolicy)> _startSnapshots = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, HeaderValues> _atStart = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, (CspPolicy Policy, CspPolicy ReportOnlyPolicy)> _startSnapshots = [with(StringComparer.Ordinal)];
+    private readonly ConcurrentDictionary<string, HeaderValues> _atStart = [with(StringComparer.Ordinal)];
     private readonly ConcurrentDictionary<(string StartKey, CspDocumentKind Kind, string DocumentKey), FinalHeaders> _atResponseStart = new();
 
     /// <summary>The finished value of the enforced header, and of the second (report-only) one when there is one.</summary>

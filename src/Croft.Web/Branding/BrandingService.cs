@@ -353,7 +353,7 @@ public sealed partial class BrandingService(Branding branding, IReadOnlyDictiona
     private static (Branding Branding, IReadOnlyDictionary<string, string> Paths) ResolveImageFiles(
         Branding branding, string? folderPath, string? defaultFilesPath)
     {
-        var supplied = new HashSet<string>(StringComparer.Ordinal);
+        HashSet<string> supplied = [with(StringComparer.Ordinal)];
         if (!string.IsNullOrWhiteSpace(folderPath) && Directory.Exists(folderPath))
         {
             foreach (var file in ImageFiles)

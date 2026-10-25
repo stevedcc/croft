@@ -47,7 +47,7 @@ public static partial class Hashtags
     /// </summary>
     public static IReadOnlyList<string?> RowProblems(IReadOnlyList<HashtagDto> hashtags)
     {
-        var seen = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> seen = [with(StringComparer.OrdinalIgnoreCase)];
         var problems = new string?[hashtags.Count];
         for (var i = 0; i < hashtags.Count; i++)
         {

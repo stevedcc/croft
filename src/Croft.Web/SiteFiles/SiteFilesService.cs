@@ -84,7 +84,7 @@ public static class SiteFilesService
             return SiteFiles.Empty;
         }
 
-        var byPath = new Dictionary<string, SiteFile>(StringComparer.Ordinal);
+        Dictionary<string, SiteFile> byPath = [with(StringComparer.Ordinal)];
         foreach (var file in EnumerateFiles(folderPath))
         {
             var relative = Path.GetRelativePath(folderPath, file).Replace('\\', '/');

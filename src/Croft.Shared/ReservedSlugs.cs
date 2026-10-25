@@ -11,8 +11,9 @@ namespace Croft.Shared;
 /// </summary>
 public static class ReservedSlugs
 {
-    private static readonly FrozenSet<string> All = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
+    private static readonly FrozenSet<string> All =
+    [
+        with(StringComparer.OrdinalIgnoreCase),
         // Root endpoints and files the Web app serves (Program.cs).
         "robots.txt", "sitemap.xml", "feed.xml", "manifest.webmanifest", "branding",
         "login", "logout", "backchannel-logout", "csp-report",
@@ -31,7 +32,7 @@ public static class ReservedSlugs
         "css", "js", "fonts", "lib", "branding-default", "croft.web.styles.css",
         // Routable components' first route segments (case-insensitive).
         "admin", "categories", "category", "editor", "error", "not-found", "post", "search", "tag",
-    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+    ];
 
     /// <summary>Whether <paramref name="slug"/> would shadow one of the Web app's own paths.</summary>
     public static bool Contains(string slug) => All.Contains(slug);

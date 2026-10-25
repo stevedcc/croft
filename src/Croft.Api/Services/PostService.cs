@@ -652,8 +652,8 @@ public partial class PostService(BlogDbContext db, ISlugService slugService, IFi
         if (tagNames is null || tagNames.Count == 0)
             return [];
 
-        var slugsByName = new List<(string Name, string Slug)>(tagNames.Count);
-        var seenSlugs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        List<(string Name, string Slug)> slugsByName = [with(capacity: tagNames.Count)];
+        HashSet<string> seenSlugs = [with(StringComparer.OrdinalIgnoreCase)];
         foreach (var name in tagNames)
         {
             var slug = slugService.GenerateSlug(name);

@@ -29,7 +29,7 @@ public sealed class StaticAssetIntegrity(EndpointDataSource endpoints)
 
     private static Dictionary<string, string> Collect(EndpointDataSource endpoints)
     {
-        var digests = new Dictionary<string, string>(StringComparer.Ordinal);
+        Dictionary<string, string> digests = [with(StringComparer.Ordinal)];
         foreach (var endpoint in endpoints.Endpoints)
         {
             // The identity (uncompressed) variant of the file: its ETag is the quoted base64

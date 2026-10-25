@@ -19,7 +19,7 @@ public static class DataProtectionKeyImporter
     {
         // What the database's key ring already holds, by key id: the framework's repository reads
         // these same rows, so a key present here is one every instance can already use.
-        var knownIds = new HashSet<string>(StringComparer.Ordinal);
+        HashSet<string> knownIds = [with(StringComparer.Ordinal)];
         foreach (var key in await db.DataProtectionKeys.AsNoTracking().ToListAsync(ct))
         {
             if (KeyId(key.Xml) is { } id)

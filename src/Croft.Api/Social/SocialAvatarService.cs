@@ -33,7 +33,7 @@ public sealed partial class SocialAvatarService(IHttpClientFactory clients, IFil
 
     public async Task<IReadOnlyDictionary<string, string>> ResolveAsync(BlogDbContext db, IReadOnlyCollection<string> sourceUrls, CancellationToken ct)
     {
-        var hashes = new Dictionary<string, string>(StringComparer.Ordinal);
+        Dictionary<string, string> hashes = [with(StringComparer.Ordinal)];
         var urls = sourceUrls.Distinct(StringComparer.Ordinal).Where(u => SocialUrl.SafeHttps(u) is not null).ToList();
         if (urls.Count == 0)
             return hashes;

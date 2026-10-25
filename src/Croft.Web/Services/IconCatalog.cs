@@ -24,7 +24,7 @@ public sealed class IconCatalog : IIconCatalog
     // WORKAROUND(W-036, MudBlazor): relies on Icons.Material.Filled being public static string fields holding SVG path markup
     public IconCatalog()
     {
-        var paths = new Dictionary<string, string>(StringComparer.Ordinal);
+        Dictionary<string, string> paths = [with(StringComparer.Ordinal)];
         foreach (var field in typeof(Icons.Material.Filled)
             .GetFields(BindingFlags.Public | BindingFlags.Static)
             .Where(f => f.FieldType == typeof(string)))
@@ -58,7 +58,7 @@ public sealed class IconCatalog : IIconCatalog
             return [.. _names.Take(max)];
         }
 
-        var matches = new HashSet<string>(StringComparer.Ordinal);
+        HashSet<string> matches = [with(StringComparer.Ordinal)];
         foreach (var name in _names)
         {
             if (name.Contains(term, StringComparison.OrdinalIgnoreCase))

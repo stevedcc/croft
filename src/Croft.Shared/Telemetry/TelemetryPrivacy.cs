@@ -142,7 +142,7 @@ internal sealed class LogRecordPrivacyScrubber : BaseProcessor<LogRecord>
     {
         if (data.Attributes is { } attributes)
         {
-            var scrubbed = new List<KeyValuePair<string, object?>>(attributes.Count);
+            List<KeyValuePair<string, object?>> scrubbed = [with(capacity: attributes.Count)];
             foreach (var (key, value) in attributes)
             {
                 if (TelemetryPrivacy.IsForbiddenKey(key))

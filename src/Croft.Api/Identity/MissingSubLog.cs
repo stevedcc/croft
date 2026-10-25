@@ -9,7 +9,7 @@ namespace Croft.Api.Identity;
 /// </summary>
 public sealed partial class MissingSubLog(ILogger<MissingSubLog> logger)
 {
-    private readonly ConcurrentDictionary<string, bool> _warned = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, bool> _warned = [with(StringComparer.Ordinal)];
 
     public void Refused(string? issuer)
     {
