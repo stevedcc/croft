@@ -56,3 +56,8 @@ dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1861.severity = none
 dotnet_diagnostic.CA1310.severity = none
 dotnet_diagnostic.CA1305.severity = none
+# xunit.v3's xUnit1051 asks every call that takes a CancellationToken to pass
+# TestContext.Current.CancellationToken. Brief 16b (the v3 migration) passes it where the
+# migration guide recommends it, the long-running Postgres fixtures; the other call sites stay
+# as they are, so the rule is a suggestion, not a build error.
+dotnet_diagnostic.xUnit1051.severity = suggestion

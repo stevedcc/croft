@@ -174,7 +174,7 @@ public class NoMudBlazorOnReadingPagesTests : StaticReadingTest
         Assert.That(html, Does.Not.Contain("MudBlazor"), $"{path}: the HTML refers to MudBlazor.");
         Assert.That(requests.Where(IsMudBlazorAsset), Is.Empty,
             $"{path} downloaded MudBlazor assets: {string.Join(", ", requests.Where(IsMudBlazorAsset))}.");
-        Assert.That(requests, Has.Some.Matches<string>(url => url.Contains("/js/static-glue")),
+        Assert.That(requests, Has.Some.Matches<string>(url => url!.Contains("/js/static-glue")),
             "the page's own script did load (the log is live).");
     }
 

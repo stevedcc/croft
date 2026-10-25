@@ -18,7 +18,7 @@ public sealed class AuthorizationApiFixture : IAsyncLifetime
 
     internal AuthorizationSeed Seed { get; private set; } = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _database.InitializeAsync();
         _storagePath = Path.Combine(Path.GetTempPath(), $"blog-tests-{Guid.NewGuid():N}");
@@ -47,7 +47,7 @@ public sealed class AuthorizationApiFixture : IAsyncLifetime
         Seed = new AuthorizationSeed(post.Id, feedback.Id, media.Id, category.Id, tag.Id, block.Id);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (Factory is not null)
         {

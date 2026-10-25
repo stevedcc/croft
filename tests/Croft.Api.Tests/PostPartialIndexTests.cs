@@ -112,7 +112,7 @@ public class PostPartialIndexTests(PostgresDatabaseFixture fixture) : IClassFixt
         await using (var scope = provider.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<BlogDbContext>();
-            db.Posts.Add(MakePost("idx3-scheduled-due", PostStatus.Scheduled,
+            db.Posts.Add(MakePost("sched-due-scheduled", PostStatus.Scheduled,
                 publishedAt: DateTime.UtcNow.AddDays(1), createdAt: DateTime.UtcNow));
             await db.SaveChangesAsync();
         }
@@ -138,9 +138,9 @@ public class PostPartialIndexTests(PostgresDatabaseFixture fixture) : IClassFixt
     {
         await using (var db = CreateDb())
         {
-            db.Posts.Add(MakePost("idx3-explain-one", PostStatus.Published,
+            db.Posts.Add(MakePost("explain-one-published", PostStatus.Published,
                 publishedAt: DateTime.UtcNow.AddDays(-2), createdAt: DateTime.UtcNow.AddDays(-3)));
-            db.Posts.Add(MakePost("idx3-explain-two", PostStatus.Published,
+            db.Posts.Add(MakePost("explain-two-published", PostStatus.Published,
                 publishedAt: DateTime.UtcNow.AddDays(-1), createdAt: DateTime.UtcNow.AddDays(-2)));
             await db.SaveChangesAsync();
         }

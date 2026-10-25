@@ -15,14 +15,14 @@ using static Croft.Api.Tests.Fixtures.Social.DiscussionSeed;
 namespace Croft.Api.Tests.Social;
 
 /// <summary>Brief 12a item 5, blocking: a block removes a reply or an account's replies (with their subtrees) at once, on every post and every replica; unblocking brings them back on the next fetch.</summary>
-public class DiscussionBlocksTests(PostgresDatabaseFixture fixture) : IClassFixture<PostgresDatabaseFixture>, IAsyncLifetime
+public sealed class DiscussionBlocksTests(PostgresDatabaseFixture fixture) : IClassFixture<PostgresDatabaseFixture>, IAsyncLifetime
 {
     // Blocks are global (not tied to a post), so each test gets a database of its own: every block and thread it sees is its own.
     private ScratchDatabase _database = null!;
 
-    public async Task InitializeAsync() => _database = await ScratchDatabase.CreateAsync(fixture.ConnectionString);
+    public async ValueTask InitializeAsync() => _database = await ScratchDatabase.CreateAsync(fixture.ConnectionString);
 
-    public async Task DisposeAsync() => await _database.DisposeAsync();
+    public async ValueTask DisposeAsync() => await _database.DisposeAsync();
 
     private static readonly DateTimeOffset Start = new(Noon.AddHours(1));
 

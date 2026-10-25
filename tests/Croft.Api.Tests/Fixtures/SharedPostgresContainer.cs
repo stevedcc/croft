@@ -1,11 +1,12 @@
-// WORKAROUND-FILE(W-062, xUnit): xUnit v2 has no assembly-level fixture, so the container is reference counted
+// WORKAROUND-FILE(W-062, xUnit): xunit's assembly fixture starts for every run, also one that needs no database, so the container is reference counted
 using Testcontainers.PostgreSql;
 
 namespace Croft.Api.Tests.Fixtures;
 
 /// <summary>
-/// The one Postgres Testcontainer shared by every test class in the assembly. xUnit v2 has no
-/// assembly-level fixture, so the per-class <see cref="PostgresDatabaseFixture"/> instances share
+/// The one Postgres Testcontainer shared by every test class in the assembly. xunit.v3's
+/// assembly-level fixture would be created for every run, also a filtered one that needs no
+/// database (docs/workarounds.md W-062), so the per-class <see cref="PostgresDatabaseFixture"/> instances share
 /// the container through this reference-counted holder: the first class to run starts it and the
 /// last class to finish disposes it, keeping the run deterministic (exactly one container per
 /// run, gone when the last database class ends) without a collection fixture that would
@@ -17,9 +18,9 @@ public static class SharedPostgresContainer
     private static PostgreSqlContainer? _container;
     private static int _leases;
 
-    public static async Task<string> AcquireAsync()
+    public static async Task<string> AcquireAsync(CancellationToken cancellationToken)
     {
-        await Gate.WaitAsync();
+        await Gate.WaitAsync(cancellationToken);
         try
         {
             if (_container is null)
@@ -31,7 +32,7 @@ public static class SharedPostgresContainer
                     .Build();
                 // Publish the started container only after StartAsync succeeds, so a failed
                 // start leaves no lease behind for the next class to trip over.
-                await container.StartAsync();
+                await container.StartAsync(cancellationToken);
                 _container = container;
             }
 

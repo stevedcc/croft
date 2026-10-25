@@ -29,14 +29,14 @@ public sealed class ContentExportTests(PostgresDatabaseFixture fixture)
     private readonly List<string> _directories = [];
     private ScratchDatabase _database = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _database = await ScratchDatabase.CreateAsync(fixture.ConnectionString);
         await using var db = _database.CreateContext();
         await ContentSeed.SeedAsync(db);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _database.DisposeAsync();
         foreach (var directory in _directories.Where(Directory.Exists))
