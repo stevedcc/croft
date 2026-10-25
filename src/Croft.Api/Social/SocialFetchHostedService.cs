@@ -207,7 +207,7 @@ public sealed partial class SocialFetchHostedService(
                     await RecordFailureAsync(db, claim, failed.Error, now, ct);
                     return null;
 
-                default:
+                case null:
                     return null;
             }
         }

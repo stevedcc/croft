@@ -264,7 +264,8 @@ public sealed partial class SocialAnnounceHostedService(
             case AnnounceOutcome.Retry retry:
                 return await RecordRetryAsync(db, claim, retry, now, ct);
 
-            default:
+            case AnnounceOutcome.NotFound:
+            case null:
                 // NotFound can only come from the look for an earlier send, which the caller turns into a send; seeing it here means a bug in an announcer.
                 await RecordFailureAsync(db, claim, "Unexpected answer", now, ct);
                 return null;

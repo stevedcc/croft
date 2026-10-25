@@ -1,7 +1,7 @@
 namespace Croft.Api.Social;
 
 /// <summary>What asking a network about an announcement came to (brief 12d).</summary>
-public abstract record AnnounceOutcome
+public closed record AnnounceOutcome
 {
     /// <summary>The announcement is on the network (just sent, or found by the look for an earlier send).</summary>
     public sealed record Posted(string RemoteId, string RemoteUrl) : AnnounceOutcome;
