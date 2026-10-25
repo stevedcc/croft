@@ -23,8 +23,9 @@ public static class SiteFilesService
     /// <c>Program.cs</c>: every hand-mapped endpoint that produces a public URL is here.
     /// <c>MapStaticAssets</c> assets are not listed (they come from the build): they are checked
     /// at startup against the real endpoint set by <see cref="EnsureNoStaticAssetShadowing"/>.</summary>
-    private static readonly FrozenSet<string> ReservedPaths = new[]
-    {
+    private static readonly FrozenSet<string> ReservedPaths =
+    [
+        with(StringComparer.OrdinalIgnoreCase),
         "/robots.txt",
         "/sitemap.xml",
         "/feed.xml",
@@ -41,15 +42,16 @@ public static class SiteFilesService
         "/backchannel-logout",
         "/signin-oidc",
         "/signout-callback-oidc",
-    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+    ];
 
     /// <summary>Reserved prefixes: a site file at <c>/branding/x.txt</c> shadows the branding
     /// endpoint and fails startup. <c>/api/</c> is reserved as a prefix because every API surface lives below it
     /// (and its concrete paths above name the ones the file would shadow outright).</summary>
-    private static readonly FrozenSet<string> ReservedPrefixes = new[]
-    {
+    private static readonly FrozenSet<string> ReservedPrefixes =
+    [
+        with(StringComparer.OrdinalIgnoreCase),
         "/branding/", "/health/", "/api/",
-    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+    ];
 
     /// <summary>The exact extensions a site file may carry, with the content-type each maps to.
     /// Site file names are case-sensitive (the name is the URL, matched exactly), so the tables
