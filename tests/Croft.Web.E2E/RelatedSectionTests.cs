@@ -374,8 +374,7 @@ public class RelatedSectionTests : WebTest
 
     private async Task LogoutAsync()
     {
-        await Page.GotoAsync($"{BaseUrl}/logout");
-        await Expect(Page.GetByText("Log in")).ToBeVisibleAsync();
+        await SignOutAsync();
     }
 
     /// <summary>Opens the draft's review page through the Editor list (EditorTests' pattern: its

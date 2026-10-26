@@ -406,8 +406,7 @@ public class AdminTests : WebTest
 
         // Home is checked as a visitor: an admin's list includes drafts (the API's Admin view),
         // so only the logged-out view proves the public outcome.
-        await Page.GotoAsync($"{BaseUrl}/logout");
-        await Expect(Page.GetByText("Log in")).ToBeVisibleAsync();
+        await SignOutAsync();
         await Page.GotoAsync(BaseUrl);
         await Expect(Page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = title })).ToBeVisibleAsync();
 
@@ -418,8 +417,7 @@ public class AdminTests : WebTest
         await Expect(Page.Locator(".status-badge")).ToHaveTextAsync("Draft");
 
         // Rule 7 outcome: the post is gone from Home, not merely marked draft in the editor.
-        await Page.GotoAsync($"{BaseUrl}/logout");
-        await Expect(Page.GetByText("Log in")).ToBeVisibleAsync();
+        await SignOutAsync();
         await Page.GotoAsync(BaseUrl);
         await Expect(Page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = title })).ToHaveCountAsync(0);
     }

@@ -87,7 +87,6 @@ public class ReadYourWritesTests : WebTest
 
     private async Task LogoutAsync()
     {
-        await Page.GotoAsync($"{BaseUrl}/logout");
-        await Expect(Page.GetByText("Log in")).ToBeVisibleAsync();
+        await SignOutAsync();
     }
 }
