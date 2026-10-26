@@ -19,6 +19,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+source "$ROOT/dev/lib/test-summary.sh"
 
 # global.json pins SDK 11.0.100 (RC 2). Fedora ships 10.0.1xx in /usr/bin, so prefer ~/dotnet when present.
 if [ -x "$HOME/dotnet/dotnet" ]; then
@@ -63,10 +64,15 @@ STACK_STARTED=1
 echo ""
 echo "Running E2E filter '$FILTER' (one NUnit worker: the tests kill stack instances) ..."
 SECONDS=0
-TEST_RC=0
+RUN_LOG="/tmp/blog-e2e-run-ha.log"
+set +e
 dotnet test tests/Croft.Web.E2E --no-build --filter "$FILTER" \
-    --logger "console;verbosity=normal" -- "NUnit.NumberOfTestWorkers=1" || TEST_RC=$?
+    --logger "console;verbosity=normal" -- "NUnit.NumberOfTestWorkers=1" 2>&1 | tee "$RUN_LOG"
+TEST_RC=${PIPESTATUS[0]}
+set -e
+DOTNET_RC=$TEST_RC
+require_test_summary "$RUN_LOG" "$TEST_RC" || TEST_RC=$?
 
 echo ""
-echo "run-ha-e2e: filter '$FILTER', wall time ${SECONDS}s, dotnet test exit code $TEST_RC."
+echo "run-ha-e2e: filter '$FILTER', wall time ${SECONDS}s, dotnet test exit code $DOTNET_RC, run-ha-e2e exit code $TEST_RC, summary: ${TEST_SUMMARY_LINE:-none}."
 exit "$TEST_RC"

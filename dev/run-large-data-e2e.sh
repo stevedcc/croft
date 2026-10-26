@@ -33,6 +33,7 @@ if [ -x "$HOME/dotnet/dotnet" ]; then
 fi
 
 source "$ROOT/dev/instance-params.sh"
+source "$ROOT/dev/lib/test-summary.sh"
 
 INSTANCE=1
 usage() {
@@ -111,6 +112,7 @@ E2E_WEB_URL="$WEB_URL" E2E_API_URL="$API_URL" \
     --logger "console;verbosity=normal" 2>&1 | tee "$TEST_LOG"
 test_rc=${PIPESTATUS[0]}
 set -e
+require_test_summary "$TEST_LOG" "$test_rc" || test_rc=$?
 test_secs=$((SECONDS - phase_start))
 
 echo "[4/5] Web memory (after the tests) ..."

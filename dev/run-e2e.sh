@@ -50,6 +50,7 @@ if [ -x "$HOME/dotnet/dotnet" ]; then
 fi
 
 source "$ROOT/dev/instance-params.sh"
+source "$ROOT/dev/lib/test-summary.sh"
 
 INSTANCES=3
 FIRST_INSTANCE=1
@@ -215,11 +216,17 @@ fi
 echo ""
 echo "Running E2E suite: $INSTANCES instances ($FIRST_INSTANCE..$LAST_INSTANCE), $INSTANCES NUnit workers ..."
 SECONDS=0
-TEST_RC=0
-dotnet test tests/Croft.Web.E2E --no-build "${DOTNET_ARGS[@]}" -- "NUnit.NumberOfTestWorkers=$INSTANCES" || TEST_RC=$?
+# The log is what proves the run finished (dev/lib/test-summary.sh); CI uploads /tmp/blog-e2e-*.log.
+RUN_LOG="/tmp/blog-e2e-run-${FIRST_INSTANCE}-${LAST_INSTANCE}.log"
+set +e
+dotnet test tests/Croft.Web.E2E --no-build "${DOTNET_ARGS[@]}" -- "NUnit.NumberOfTestWorkers=$INSTANCES" 2>&1 | tee "$RUN_LOG"
+TEST_RC=${PIPESTATUS[0]}
+set -e
+DOTNET_RC=$TEST_RC
+require_test_summary "$RUN_LOG" "$TEST_RC" || TEST_RC=$?
 
 echo ""
-echo "E2E run finished: instances $FIRST_INSTANCE..$LAST_INSTANCE, $INSTANCES workers, suite wall time ${SECONDS}s, dotnet test exit code $TEST_RC."
+echo "E2E run finished: instances $FIRST_INSTANCE..$LAST_INSTANCE, $INSTANCES workers, suite wall time ${SECONDS}s, dotnet test exit code $DOTNET_RC, run-e2e exit code $TEST_RC, summary: ${TEST_SUMMARY_LINE:-none}."
 
 if [ "$SECOND_PASS" -eq 1 ]; then
     # Second pass: the DefaultBranding category needs a site with no branding folder. The main
