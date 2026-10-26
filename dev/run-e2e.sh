@@ -43,6 +43,15 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# One suite at a time on this machine (dev/with-suite-lock.sh): re-run under the lock unless
+# the caller already holds it (the later passes of a locked run call this script again).
+if [ "${CROFT_SUITE_LOCK_HELD:-}" != "1" ]; then
+    case " $* " in
+        *" -h "*|*" --help "*) ;;
+        *) exec "$ROOT/dev/with-suite-lock.sh" "$ROOT/dev/run-e2e.sh" "$@" ;;
+    esac
+fi
+
 # global.json pins SDK 11.0.100 (RC 2). Fedora ships 10.0.1xx in /usr/bin, so prefer ~/dotnet when present.
 if [ -x "$HOME/dotnet/dotnet" ]; then
     export DOTNET_ROOT="$HOME/dotnet"
@@ -50,6 +59,7 @@ if [ -x "$HOME/dotnet/dotnet" ]; then
 fi
 
 source "$ROOT/dev/instance-params.sh"
+source "$ROOT/dev/lib/test-summary.sh"
 
 INSTANCES=3
 FIRST_INSTANCE=1
@@ -305,11 +315,22 @@ fi
 echo ""
 echo "Running E2E suite: $INSTANCES instances ($FIRST_INSTANCE..$LAST_INSTANCE), $INSTANCES NUnit workers ..."
 SECONDS=0
-TEST_RC=0
-dotnet test tests/Croft.Web.E2E --no-build "${DOTNET_ARGS[@]}" -- "NUnit.NumberOfTestWorkers=$INSTANCES" || TEST_RC=$?
+# The log is what proves the run finished (dev/lib/test-summary.sh); CI uploads /tmp/blog-e2e-*.log.
+# The mode is in the name so the later passes (same instance range) do not overwrite each other's log.
+LOG_MODE=""
+[ "$CSP_ENFORCED" -eq 1 ] && LOG_MODE="-csp-enforced"
+[ "$DEFAULT_BRANDING" -eq 1 ] && LOG_MODE="-default-branding"
+[ "$OUTPUT_CACHE" -eq 1 ] && LOG_MODE="-output-cache"
+RUN_LOG="/tmp/blog-e2e-run-${FIRST_INSTANCE}-${LAST_INSTANCE}${LOG_MODE}.log"
+set +e
+dotnet test tests/Croft.Web.E2E --no-build "${DOTNET_ARGS[@]}" -- "NUnit.NumberOfTestWorkers=$INSTANCES" 2>&1 | tee "$RUN_LOG"
+TEST_RC=${PIPESTATUS[0]}
+set -e
+DOTNET_RC=$TEST_RC
+require_test_summary "$RUN_LOG" "$TEST_RC" || TEST_RC=$?
 
 echo ""
-echo "E2E run finished: instances $FIRST_INSTANCE..$LAST_INSTANCE, $INSTANCES workers, suite wall time ${SECONDS}s, dotnet test exit code $TEST_RC."
+echo "E2E run finished: instances $FIRST_INSTANCE..$LAST_INSTANCE, $INSTANCES workers, suite wall time ${SECONDS}s, dotnet test exit code $DOTNET_RC, run-e2e exit code $TEST_RC, summary: ${TEST_SUMMARY_LINE:-none}."
 
 if [ "$SECOND_PASS" -eq 1 ]; then
     # Second pass: the DefaultBranding category needs a site with no branding folder. The main

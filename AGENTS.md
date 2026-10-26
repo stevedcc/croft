@@ -112,7 +112,7 @@ files differ from the dev stack's (`/tmp/blog-e2e-<N>-*.pid` vs `/tmp/blog-api.p
 3→130 s, 4→135 s suite wall): it starts instances K..K+N-1, runs the suite with one NUnit worker per
 instance and stops exactly the instances it started, also on failure. Running the suite directly
 against one manually started instance (`./start-local.sh --e2e --instance N`, then
-`dotnet test tests/Croft.Web.E2E --no-build` with `E2E_WEB_URL`/`E2E_API_URL` set to that instance's
+`dev/with-suite-lock.sh dotnet test tests/Croft.Web.E2E --no-build` (through the suite lock, like every suite) with `E2E_WEB_URL`/`E2E_API_URL` set to that instance's
 ports, dev/instance-params.sh) still works, but is the exception, not the normal path.
 A `dev/run-e2e.sh` run with no mode flag (`--csp-enforced`, `--default-branding`, `--output-cache`) and no `--`
 arguments (`--instances` and `--first-instance` do not matter) ends with a second pass of the
@@ -132,10 +132,19 @@ always starts fresh instances. The running processes don't pick up rebuilds.
 Tests (build once with `dotnet build Croft.slnx`, then always `--no-build`):
 
 ```bash
-dotnet test tests/Croft.Api.Tests --no-build   # integration tests; Testcontainers Postgres (~20s)
-dotnet test tests/Croft.Web.Tests --no-build   # unit tests plus 31 container-backed tests (~1 min)
+dev/with-suite-lock.sh dotnet test tests/Croft.Api.Tests --no-build   # integration tests; Testcontainers Postgres (~20s)
+dev/with-suite-lock.sh dotnet test tests/Croft.Web.Tests --no-build   # unit tests plus 31 container-backed tests (~1 min)
 dev/run-e2e.sh                                # Playwright E2E; starts instances K..K+N-1 (default 1..3), runs the suite, stops them
 ```
+
+Two suites running at once have twice taken this machine down (swap on 2026-10-23, OOM kills on
+2026-10-25), so suites go through `dev/with-suite-lock.sh`: it takes a per-machine lock
+(`~/.cache/croft/suite.lock`), prints who holds it while it waits, and passes the command's exit
+code through (`--try` exits 75 instead of waiting). `dev/run-e2e.sh`, `dev/run-ha-e2e.sh` and
+`dev/run-large-data-e2e.sh` take the lock themselves. Those three scripts also carry the same
+guard (`dev/lib/test-summary.sh`): when `dotnet test` exits 0 they exit 70 (no NUnit summary line in
+the log), 71 (more than one) or 72 (the summary reports failures); a non-zero `dotnet test` code is
+kept as it is.
 
 **Test cadence** (keeps runs fast without weakening verification):
 - During red/green and break-it-once loops: run only the affected test class or test
@@ -149,12 +158,13 @@ dev/run-e2e.sh                                # Playwright E2E; starts instances
   is missing or doesn't match the commit.
 - Final whole-branch review: one full run of all three suites from a clean build (E2E via
   `dev/run-e2e.sh`), through `test-runner` when available.
-- Never run suites on an instance another agent is using; parallel briefs each get their own.
+- Never run suites on an instance another agent is using; parallel briefs each get their own. The
+  suite lock serialises suites on the machine; `pgrep` is no longer needed.
 
 **Without a container runtime.** Every API test class and the Web test classes labelled
 `[Trait("Category", "Container")]` (those using `PostgresDatabaseFixture`; a test guards the
 label) need Docker or Podman. A machine without one runs
-`dotnet test tests/Croft.Web.Tests --no-build --filter "Category!=Container"`; the API suite has
+`dev/with-suite-lock.sh dotnet test tests/Croft.Web.Tests --no-build --filter "Category!=Container"`; the API suite has
 no such subset. The Web project has no default filter, so its plain run includes the labelled
 classes. (In the API project the same label name means the opt-in image-building tests, below.)
 
@@ -167,8 +177,8 @@ Dockerfiles' own flags and checks for ReadyToRun code, about 40 s). Run them exp
 normal build:
 
 ```bash
-dotnet test tests/Croft.Api.Tests --no-build --filter "Category=Container"
-dotnet test tests/Croft.Api.Tests --no-build --filter "Category=ReadyToRun"
+dev/with-suite-lock.sh dotnet test tests/Croft.Api.Tests --no-build --filter "Category=Container"
+dev/with-suite-lock.sh dotnet test tests/Croft.Api.Tests --no-build --filter "Category=ReadyToRun"
 ```
 
 They **must be run** after any change to a Dockerfile, to `Croft.Shared/MigrationRetry.cs`, to the
@@ -266,17 +276,10 @@ nothing; each role is added at most once.
   operations without it.
   **Pending contracts** (columns kept only for older releases; drop each in a later contract
   migration once no pod older than the named release runs, then delete its line here):
-  - `Posts.ShowInNavigation` (replaced by `NavigationPlacement` in 0.6.1, kept as a shadow
-    property in `PostConfiguration`): drop once no pod older than 0.6.1 runs.
-  - `Posts.ViewCount` (replaced by the narrow `PostViewCounts` table in the release after 0.6.3, brief 13c; the model maps it as
-    `Post.LegacyViewCount` and nothing of the new release writes or reads it): a pod of the release before brief 13c (0.6.3 and older) still adds
-    its views to it during a rolling deploy, and those views are not in `PostViewCounts` (the migration copied the
-    totals once, a small accepted loss). Drop the column once no pod older than the release of brief 13c (the release after 0.6.3) runs.
-  - `PageViews.Referrer` and `PageViews.UserAgent` are unbounded `text` (review 2026-10-19,
-    finding 3): the API truncates them to 2048 and 512 characters on write since brief 13a (the release after 0.6.2). A
-    pod older than that may still write longer values during a rolling deploy, so the
-    `HasMaxLength(2048)` / `HasMaxLength(512)` migration (and a one-off trim of existing rows) ships one
-    release later, once no pod older than the truncation runs.
+  - `Posts.ShowInNavigation` and `Posts.ViewCount` are unmapped since this release (brief 17c; the
+    new release neither reads nor writes them, `ViewCount` has a default); drop both in a
+    hand-written `[ContractMigration]` `DropColumn` migration once no pod older than this release
+    runs, and delete `RetiredPostColumnsTests.TheRetiredColumns_StillExist_ForPodsOfThePreviousRelease`.
 - **Rules for data migrations (expand/contract, continued):** the migration guard reads raw SQL for
   `DROP`, `RENAME`, `SET NOT NULL` and `ALTER COLUMN ... TYPE`, and flags a `NOT NULL` column with no
   default; moving data is the other half of the rule.

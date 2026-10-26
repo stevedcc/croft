@@ -42,6 +42,34 @@ public class MigrationContractGuardTests
             .Which.Should().Contain(expectedOperation);
     }
 
+    [Theory]
+    [InlineData(typeof(TightenMaxLengthMigration), "max length 2048")]
+    [InlineData(typeof(ShrinkMaxLengthMigration), "max length 2048")]
+    [InlineData(typeof(ChangeColumnTypeMigration), "type jsonb")]
+    [InlineData(typeof(ChangeTypeAtSameLengthMigration), "type character(2048)")]
+    public void Guard_FlagsAlterColumnThatBoundsOrRetypes(Type migrationType, string expectedDescription)
+    {
+        var violations = MigrationContractGuard.FindViolations([migrationType], []);
+
+        violations.Should().ContainSingle().Which.Should().Contain("AlterColumn").And.Contain(expectedDescription);
+    }
+
+    [Fact]
+    public void Guard_AllowsAlterColumnThatWidensMaxLength()
+    {
+        var violations = MigrationContractGuard.FindViolations([typeof(WidenMaxLengthMigration)], []);
+
+        violations.Should().BeEmpty("a wider bound cannot reject a value the previous release writes");
+    }
+
+    [Fact]
+    public void Guard_ExemptsATighteningMigrationCarryingTheAttribute()
+    {
+        var violations = MigrationContractGuard.FindViolations([typeof(ContractedTightenMaxLengthMigration)], []);
+
+        violations.Should().BeEmpty("the attribute records why the new bound is safe now");
+    }
+
     [Fact]
     public void Guard_AllowsAnAdditiveMigration()
     {
@@ -151,6 +179,55 @@ public class MigrationContractGuardTests
         protected override void Up(MigrationBuilder migrationBuilder) =>
             migrationBuilder.AlterColumn<string>(
                 name: "Summary", table: "Posts", type: "text", nullable: false,
+                oldClrType: typeof(string), oldType: "text", oldNullable: true);
+    }
+
+    private sealed class TightenMaxLengthMigration : Migration
+    {
+        protected override void Up(MigrationBuilder migrationBuilder) =>
+            migrationBuilder.AlterColumn<string>(
+                name: "Referrer", table: "PageViews", type: "character varying(2048)", maxLength: 2048, nullable: true,
+                oldClrType: typeof(string), oldType: "text", oldNullable: true);
+    }
+
+    [ContractMigration("Referrer has been truncated to 2048 on write by every release still running")]
+    private sealed class ContractedTightenMaxLengthMigration : Migration
+    {
+        protected override void Up(MigrationBuilder migrationBuilder) =>
+            migrationBuilder.AlterColumn<string>(
+                name: "Referrer", table: "PageViews", type: "character varying(2048)", maxLength: 2048, nullable: true,
+                oldClrType: typeof(string), oldType: "text", oldNullable: true);
+    }
+
+    private sealed class ShrinkMaxLengthMigration : Migration
+    {
+        protected override void Up(MigrationBuilder migrationBuilder) =>
+            migrationBuilder.AlterColumn<string>(
+                name: "Referrer", table: "PageViews", type: "character varying(2048)", maxLength: 2048, nullable: true,
+                oldClrType: typeof(string), oldType: "character varying(4096)", oldMaxLength: 4096, oldNullable: true);
+    }
+
+    private sealed class WidenMaxLengthMigration : Migration
+    {
+        protected override void Up(MigrationBuilder migrationBuilder) =>
+            migrationBuilder.AlterColumn<string>(
+                name: "Referrer", table: "PageViews", type: "character varying(2048)", maxLength: 2048, nullable: true,
+                oldClrType: typeof(string), oldType: "character varying(512)", oldMaxLength: 512, oldNullable: true);
+    }
+
+    private sealed class ChangeTypeAtSameLengthMigration : Migration
+    {
+        protected override void Up(MigrationBuilder migrationBuilder) =>
+            migrationBuilder.AlterColumn<string>(
+                name: "Referrer", table: "PageViews", type: "character(2048)", maxLength: 2048, nullable: true,
+                oldClrType: typeof(string), oldType: "character varying(2048)", oldMaxLength: 2048, oldNullable: true);
+    }
+
+    private sealed class ChangeColumnTypeMigration : Migration
+    {
+        protected override void Up(MigrationBuilder migrationBuilder) =>
+            migrationBuilder.AlterColumn<string>(
+                name: "Data", table: "PageViews", type: "jsonb", nullable: true,
                 oldClrType: typeof(string), oldType: "text", oldNullable: true);
     }
 

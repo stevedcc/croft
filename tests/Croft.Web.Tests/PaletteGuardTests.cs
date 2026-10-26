@@ -236,4 +236,35 @@ public sealed partial class PaletteGuardTests
             }
         }
     }
+
+    [Fact]
+    public void TheErrorTextColour_ReachesAaOnMudBlazorsHoverTint_InBothModes()
+    {
+        // MudBlazor paints a hovered text button with its colour at the palette's HoverOpacity over what lies
+        // behind it (.mud-button-text.mud-button-text-error:hover { background-color: var(--mud-palette-error-hover) },
+        // MudBlazor 9.11.0). Error and HoverOpacity are read from MudBlazor's own PaletteLight / PaletteDark
+        // defaults (BlogTheme maps neither), not guessed: 0.06 in both at 9.11.0.
+        var css = File.ReadAllText(Path.Combine(Root, "src", "Croft.Web", "wwwroot", "app.css"));
+        var values = ErrorText().Matches(css).Select(m => m.Groups[1].Value).ToList();
+        values.Should().HaveCount(3, "light, explicit dark and system dark");
+
+        foreach (var (mode, value, tokens, mud) in new (string, string, BrandPalette, MudBlazor.Palette)[]
+        {
+            ("light", values[0], BrandPalette.DefaultLight, new MudBlazor.PaletteLight()),
+            ("dark", values[1], BrandPalette.DefaultDark, new MudBlazor.PaletteDark()),
+            ("system dark", values[2], BrandPalette.DefaultDark, new MudBlazor.PaletteDark()),
+        })
+        {
+            mud.HoverOpacity.Should().BeInRange(0.01, 0.5, "the opacity is read from MudBlazor, and a hover tint is a faint wash");
+            foreach (var surface in new[] { PaletteTokens.Bg, PaletteTokens.Surface })
+            {
+                BrandingColor.TryParse(tokens[surface], out var r, out var g, out var b, out _).Should().BeTrue();
+                var a = mud.HoverOpacity;
+                string Channel(double behind, int error) => ((int)Math.Round(255 * (behind * (1 - a) + error / 255.0 * a))).ToString("X2", CultureInfo.InvariantCulture);
+                var tint = "#" + Channel(r, mud.Error.R) + Channel(g, mud.Error.G) + Channel(b, mud.Error.B);
+                BrandingContrast.Ratio(value, tint).Should().BeGreaterThanOrEqualTo(4.5,
+                    $"{mode} error text {value} on the hover tint {tint} (error at {a} over {surface})");
+            }
+        }
+    }
 }
