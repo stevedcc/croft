@@ -132,10 +132,17 @@ always starts fresh instances. The running processes don't pick up rebuilds.
 Tests (build once with `dotnet build Croft.slnx`, then always `--no-build`):
 
 ```bash
-dotnet test tests/Croft.Api.Tests --no-build   # integration tests; Testcontainers Postgres (~20s)
-dotnet test tests/Croft.Web.Tests --no-build   # unit tests plus 31 container-backed tests (~1 min)
+dev/with-suite-lock.sh dotnet test tests/Croft.Api.Tests --no-build   # integration tests; Testcontainers Postgres (~20s)
+dev/with-suite-lock.sh dotnet test tests/Croft.Web.Tests --no-build   # unit tests plus 31 container-backed tests (~1 min)
 dev/run-e2e.sh                                # Playwright E2E; starts instances K..K+N-1 (default 1..3), runs the suite, stops them
 ```
+
+Two suites running at once have twice taken this machine down (swap on 2026-10-23, OOM kills on
+2026-10-25), so suites go through `dev/with-suite-lock.sh`: it takes a per-machine lock
+(`~/.cache/croft/suite.lock`), prints who holds it while it waits, and passes the command's exit
+code through (`--try` exits 75 instead of waiting). `dev/run-e2e.sh`, `dev/run-ha-e2e.sh` and
+`dev/run-large-data-e2e.sh` take the lock themselves. `dev/run-e2e.sh` also fails (exit 70, 71 or
+72) unless the log holds exactly one NUnit summary line that agrees with `dotnet test`'s exit code.
 
 **Test cadence** (keeps runs fast without weakening verification):
 - During red/green and break-it-once loops: run only the affected test class or test
@@ -149,12 +156,13 @@ dev/run-e2e.sh                                # Playwright E2E; starts instances
   is missing or doesn't match the commit.
 - Final whole-branch review: one full run of all three suites from a clean build (E2E via
   `dev/run-e2e.sh`), through `test-runner` when available.
-- Never run suites on an instance another agent is using; parallel briefs each get their own.
+- Never run suites on an instance another agent is using; parallel briefs each get their own. The
+  suite lock serialises suites on the machine; `pgrep` is no longer needed.
 
 **Without a container runtime.** Every API test class and the Web test classes labelled
 `[Trait("Category", "Container")]` (those using `PostgresDatabaseFixture`; a test guards the
 label) need Docker or Podman. A machine without one runs
-`dotnet test tests/Croft.Web.Tests --no-build --filter "Category!=Container"`; the API suite has
+`dev/with-suite-lock.sh dotnet test tests/Croft.Web.Tests --no-build --filter "Category!=Container"`; the API suite has
 no such subset. The Web project has no default filter, so its plain run includes the labelled
 classes. (In the API project the same label name means the opt-in image-building tests, below.)
 
@@ -167,8 +175,8 @@ Dockerfiles' own flags and checks for ReadyToRun code, about 40 s). Run them exp
 normal build:
 
 ```bash
-dotnet test tests/Croft.Api.Tests --no-build --filter "Category=Container"
-dotnet test tests/Croft.Api.Tests --no-build --filter "Category=ReadyToRun"
+dev/with-suite-lock.sh dotnet test tests/Croft.Api.Tests --no-build --filter "Category=Container"
+dev/with-suite-lock.sh dotnet test tests/Croft.Api.Tests --no-build --filter "Category=ReadyToRun"
 ```
 
 They **must be run** after any change to a Dockerfile, to `Croft.Shared/MigrationRetry.cs`, to the

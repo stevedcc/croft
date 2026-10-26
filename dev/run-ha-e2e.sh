@@ -19,6 +19,15 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+
+# One suite at a time on this machine (dev/with-suite-lock.sh): re-run under the lock unless
+# the caller already holds it (the later passes of a locked run call this script again).
+if [ "${CROFT_SUITE_LOCK_HELD:-}" != "1" ]; then
+    case " $* " in
+        *" -h "*|*" --help "*) ;;
+        *) exec "$ROOT/dev/with-suite-lock.sh" "$ROOT/dev/run-ha-e2e.sh" "$@" ;;
+    esac
+fi
 source "$ROOT/dev/lib/test-summary.sh"
 
 # global.json pins SDK 11.0.100 (RC 2). Fedora ships 10.0.1xx in /usr/bin, so prefer ~/dotnet when present.
