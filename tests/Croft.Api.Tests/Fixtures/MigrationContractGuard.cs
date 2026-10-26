@@ -82,9 +82,12 @@ internal static partial class MigrationContractGuard
         AlterColumnOperation { MaxLength: { } newLength } alter
             when alter.OldColumn.MaxLength is not { } oldLength || oldLength > newLength
             => $"{migrationId}: AlterColumn({alter.Table}.{alter.Name}, max length {newLength})",
-        // (a bounded column's type string changes with its length; the arm above judges that)
-        AlterColumnOperation { ColumnType: { } newType, MaxLength: null } alter
-            when alter.OldColumn.ColumnType is { } oldType && oldType != newType
+        // (a bounded column's type string changes with its length, which the arm above judges, so the type
+        // is compared without its "(n)" suffix, and only when the length did not change or is not set)
+        AlterColumnOperation { ColumnType: { } newType } alter
+            when alter.OldColumn.ColumnType is { } oldType
+                && (alter.MaxLength is null || alter.MaxLength == alter.OldColumn.MaxLength)
+                && StripLength(oldType) != StripLength(newType)
             => $"{migrationId}: AlterColumn({alter.Table}.{alter.Name}, type {newType})",
         // Raw SQL is read as text: a statement that drops, renames or tightens is a contraction whatever
         // EF operation would have said it (the rule's escape hatch for "EF has no operation for it").
@@ -99,6 +102,12 @@ internal static partial class MigrationContractGuard
     [GeneratedRegex(@"\b(DROP|RENAME)\b|SET\s+NOT\s+NULL|ALTER\s+COLUMN\b.*\bTYPE\b",
         RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.CultureInvariant)]
     private static partial Regex ContractingSql();
+
+    private static string StripLength(string columnType) => LengthSuffix().Replace(columnType, "");
+
+    /// <summary>The "(n)" length of a column type such as "character varying(2048)".</summary>
+    [GeneratedRegex(@"\(\d+\)$", RegexOptions.CultureInvariant)]
+    private static partial Regex LengthSuffix();
 
     private static string Excerpt(string sql)
     {

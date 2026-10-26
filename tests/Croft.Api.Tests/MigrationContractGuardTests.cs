@@ -46,6 +46,7 @@ public class MigrationContractGuardTests
     [InlineData(typeof(TightenMaxLengthMigration), "max length 2048")]
     [InlineData(typeof(ShrinkMaxLengthMigration), "max length 2048")]
     [InlineData(typeof(ChangeColumnTypeMigration), "type jsonb")]
+    [InlineData(typeof(ChangeTypeAtSameLengthMigration), "type character(2048)")]
     public void Guard_FlagsAlterColumnThatBoundsOrRetypes(Type migrationType, string expectedDescription)
     {
         var violations = MigrationContractGuard.FindViolations([migrationType], []);
@@ -212,6 +213,14 @@ public class MigrationContractGuardTests
             migrationBuilder.AlterColumn<string>(
                 name: "Referrer", table: "PageViews", type: "character varying(2048)", maxLength: 2048, nullable: true,
                 oldClrType: typeof(string), oldType: "character varying(512)", oldMaxLength: 512, oldNullable: true);
+    }
+
+    private sealed class ChangeTypeAtSameLengthMigration : Migration
+    {
+        protected override void Up(MigrationBuilder migrationBuilder) =>
+            migrationBuilder.AlterColumn<string>(
+                name: "Referrer", table: "PageViews", type: "character(2048)", maxLength: 2048, nullable: true,
+                oldClrType: typeof(string), oldType: "character varying(2048)", oldMaxLength: 2048, oldNullable: true);
     }
 
     private sealed class ChangeColumnTypeMigration : Migration

@@ -11,8 +11,8 @@ namespace Croft.Api.Migrations;
 /// runs; the trim below only repairs rows written before that. It runs in this migration's one
 /// transaction: retention keeps about 90 days of page views and the trim has been live since 0.6.3,
 /// so the UPDATEs touch few rows, and the type change holds an ACCESS EXCLUSIVE lock for one scan.
-/// Postgres left() counts code points and the API cuts UTF-16 units (surrogate-safe), so a trimmed row
-/// is never longer than what the API would have written.
+/// Postgres enforces varchar(n) in code points, so every row, trimmed or untouched, fits the new bound,
+/// and so does every API write: it keeps at most n UTF-16 units, which is at most n code points.
 /// </summary>
 [ContractMigration("Referrer and UserAgent have been truncated to 2048/512 on write since 0.6.3; no pod older than that runs")]
 public partial class _20261026134409_PageViewTextBounds : Migration
