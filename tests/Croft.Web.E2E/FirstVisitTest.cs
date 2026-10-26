@@ -95,8 +95,8 @@ public abstract class FirstVisitTest : StaticReadingTest
             ExtraHTTPHeaders = new Dictionary<string, string> { ["Accept-Encoding"] = acceptEncoding },
         });
         var page = await context.NewPageAsync();
-        var responseLog = EventLog.Responses(page);
-        var warningLog = EventLog.ConsoleTexts(page, "warning", "error");
+        using var responseLog = EventLog.Responses(page);
+        using var warningLog = EventLog.ConsoleTexts(page, "warning", "error");
 
         await page.GotoAsync($"{BaseUrl}{path}");
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);

@@ -91,6 +91,7 @@ public sealed class CspViolationProbe
     private readonly IPage _page;
     private readonly List<CspViolation> _violations = [];
     private readonly List<CspViolation> _trustedTypesReports = [];
+    private readonly Lock _consoleErrorsGate = new();
     private readonly List<CspConsoleError> _consoleErrors = [];
     private string _step = "before the first step";
 
@@ -106,7 +107,16 @@ public sealed class CspViolationProbe
     public IReadOnlyList<CspViolation> TrustedTypesReports => _trustedTypesReports;
 
     /// <summary>Every CSP console error recorded so far.</summary>
-    public IReadOnlyList<CspConsoleError> ConsoleErrors => _consoleErrors;
+    public IReadOnlyList<CspConsoleError> ConsoleErrors
+    {
+        get
+        {
+            lock (_consoleErrorsGate)
+            {
+                return [.. _consoleErrors];
+            }
+        }
+    }
 
     /// <summary>Installs the init script and the console listener on <paramref name="page"/>.</summary>
     public static async Task<CspViolationProbe> AttachAsync(IPage page)
@@ -195,7 +205,10 @@ public sealed class CspViolationProbe
         if (text.Contains("Content Security Policy", StringComparison.OrdinalIgnoreCase)
             || text.StartsWith("Refused to", StringComparison.Ordinal))
         {
-            _consoleErrors.Add(new CspConsoleError(_step, text));
+            lock (_consoleErrorsGate)
+            {
+                _consoleErrors.Add(new CspConsoleError(_step, text));
+            }
         }
     }
 

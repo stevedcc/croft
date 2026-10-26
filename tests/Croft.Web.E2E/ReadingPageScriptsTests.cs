@@ -105,7 +105,7 @@ public class ReadingPageScriptsTests : StaticReadingTest
 
     private async Task AssertOnlyReadingScriptsAsync(string path, int status = 200)
     {
-        var log = EventLog.RequestUrls(Page);
+        using var log = EventLog.RequestUrls(Page);
 
         var response = await Page.GotoAsync($"{BaseUrl}{path}");
         Assert.That(response!.Status, Is.EqualTo(status), $"{path} must answer {status}.");

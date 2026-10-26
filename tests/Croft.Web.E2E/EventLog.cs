@@ -8,7 +8,7 @@ namespace Croft.Web.E2E;
 /// "Collection was modified". <see cref="Add"/> and <see cref="Snapshot"/> take the same lock;
 /// every assertion enumerates a snapshot.
 /// </summary>
-public sealed class EventLog<T>
+public sealed class EventLog<T> : IDisposable
 {
     private readonly Lock _gate = new();
     private readonly List<T> _items = [];
@@ -36,6 +36,9 @@ public sealed class EventLog<T>
 
     /// <summary>Unsubscribes the handler; the log keeps what it has.</summary>
     public void Stop() => Interlocked.Exchange(ref _unsubscribe, null)?.Invoke();
+
+    /// <summary>Same as <see cref="Stop"/>, so <c>using var</c> unsubscribes when a test fails too.</summary>
+    public void Dispose() => Stop();
 }
 
 /// <summary>Factories for the logs the tests keep: each subscribes to the page and returns the log.</summary>

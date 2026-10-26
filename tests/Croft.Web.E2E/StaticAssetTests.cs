@@ -37,7 +37,7 @@ public class StaticAssetTests : WebTest
     {
         // An interactive page is a staff page since brief 13a (the not-found page is static).
         await LoginAsync("admin@example.com", "password");
-        var responseLog = EventLog.Responses(Page);
+        using var responseLog = EventLog.Responses(Page);
         await Page.GotoAsync($"{BaseUrl}/admin/posts");
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         responseLog.Stop();
@@ -71,7 +71,7 @@ public class StaticAssetTests : WebTest
         var slug = await CreatePublishedPostAsync();
         Assert.That(slug, Is.Not.Null.And.Not.Empty, "A published post is needed to prove the per-page load.");
 
-        var responseLog = EventLog.Responses(Page);
+        using var responseLog = EventLog.Responses(Page);
         await Page.GotoAsync($"{BaseUrl}/post/{slug}");
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         responseLog.Stop();
@@ -133,7 +133,7 @@ public class StaticAssetTests : WebTest
     /// <summary>The home page and every network response its load triggers (stylesheets included).</summary>
     private async Task<IReadOnlyList<IResponse>> LoadHomePageAsync()
     {
-        var responseLog = EventLog.Responses(Page);
+        using var responseLog = EventLog.Responses(Page);
         await Page.GotoAsync(BaseUrl);
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         responseLog.Stop();
