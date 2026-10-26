@@ -98,7 +98,7 @@ public class ScheduledPublisherSleepTests(PostgresDatabaseFixture fixture)
                     TestCache.NewCache(),
                     new HttpContextAccessor(),
                     new DateTimeNormalizer(time),
-                    new NoSocialLinks(), NoSocialLinks.Options, NoSocialLinks.Outbox(postsDb));
+                    new NoSocialLinks(), NoSocialLinks.Options, NoSocialLinks.Outbox(postsDb), NoSocialLinks.Counts(postsDb));
                 var created = await posts.CreateAsync(new CreatePostRequest("Wake-up Test", "body"), "author-id", "Author");
                 var published = await posts.PublishAsync(created.Id, new PublishRequest(StartUtc + TimeSpan.FromSeconds(90)));
                 published!.Status.Should().Be(PostStatus.Scheduled);

@@ -9,6 +9,9 @@ internal sealed class NoSocialLinks : ISocialLinkService
     /// <summary>The queue of such a test: social is off, so it queues nothing.</summary>
     public static IAnnouncementOutbox Outbox(Croft.Api.Data.BlogDbContext db) => new AnnouncementOutbox(db, Options);
 
+    /// <summary>The counts reader of such a test: social is off, so it reads nothing.</summary>
+    public static ISocialCountsReader Counts(Croft.Api.Data.BlogDbContext db) => new SocialCountsReader(db, Croft.Api.Tests.Fixtures.TestCache.NewCache(), Options);
+
     /// <summary>The settings of such a test: social is off, nothing is announced.</summary>
     public static Microsoft.Extensions.Options.IOptions<SocialOptions> Options => Microsoft.Extensions.Options.Options.Create(new SocialOptions());
 

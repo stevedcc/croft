@@ -39,7 +39,7 @@ public sealed class ApiTidyUpTests(PostgresDatabaseFixture fixture) : IClassFixt
         var posts = new PostService(
             postsDb, new SlugService(), null!,
             NullLogger<PostService>.Instance, time, new ScheduledPublishWakeup(), TestCache.NewNotifier(),
-            TestCache.NewCache(), new HttpContextAccessor(), normalizer, new NoSocialLinks(), NoSocialLinks.Options, NoSocialLinks.Outbox(postsDb));
+            TestCache.NewCache(), new HttpContextAccessor(), normalizer, new NoSocialLinks(), NoSocialLinks.Options, NoSocialLinks.Outbox(postsDb), NoSocialLinks.Counts(postsDb));
         var published = await posts.PublishAsync(created.Id, new PublishRequest(requested));
 
         published!.Status.Should().Be(PostStatus.Scheduled);

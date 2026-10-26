@@ -138,6 +138,7 @@ builder.Services.AddScoped<ISocialLinkService, SocialLinkService>();
 builder.Services.AddScoped<IAnnouncementOutbox, AnnouncementOutbox>();
 builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
 builder.Services.AddScoped<IDiscussionService, DiscussionService>();
+builder.Services.AddScoped<ISocialCountsReader, SocialCountsReader>();
 builder.Services.AddSingleton<SocialPlatformGates>();
 builder.Services.AddSingleton<ISocialAnnouncer, MastodonAnnouncer>();
 builder.Services.AddSingleton<ISocialAnnouncer, BlueskyAnnouncer>();
