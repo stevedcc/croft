@@ -43,6 +43,10 @@ public abstract class AccessibilityScan : StaticReadingTest
     protected string DraftTitle { get; private set; } = string.Empty;
     protected Guid DraftId { get; private set; }
     protected string DraftSlug { get; private set; } = string.Empty;
+    /// <summary>A tag and a category that no post uses: their Delete buttons are enabled, so they can take the hover.</summary>
+    protected string UnusedTagName { get; private set; } = string.Empty;
+    protected string UnusedCategoryName { get; private set; } = string.Empty;
+    protected string MediaFileName { get; private set; } = string.Empty;
     private bool _built;
 
     /// <summary>Builds the fixtures through the API as the mock admin: a published post (category,
@@ -63,6 +67,11 @@ public abstract class AccessibilityScan : StaticReadingTest
         var banner = await MockIdpApi.UploadImageAsync(client, ApiUrl, $"scan-{RunId}.png",
             await File.ReadAllBytesAsync(Path.Combine(AppContext.BaseDirectory, "test-image.png")), token);
         TagSlug = $"scantag{RunId}";
+        MediaFileName = $"scan-{RunId}.png";
+        UnusedTagName = $"scanunusedtag{RunId}";
+        UnusedCategoryName = $"Scan unused {RunId}";
+        await CreateCategoryAsync(UnusedCategoryName);
+        await MockIdpApi.PostJsonAsync(client, ApiUrl, "/api/tags", System.Text.Json.JsonSerializer.Serialize(UnusedTagName), token);
 
         var created = await MockIdpApi.PostJsonAsync(client, ApiUrl, "/api/posts",
             new CreatePostRequest($"Scan post {RunId}", BodyWithSections(RunId, 12), Subtitle: "A subtitle for the hero",
@@ -298,8 +307,108 @@ public class AccessibilityAdminMatrixTests : AccessibilityScan
         {
             scans.Add(await ScanDrawerAsync(page));
         }
+        else if (route is "tags" or "media")
+        {
+            // Pointer viewports only: the phone context has touch and no hover. Brief 17d item 2.
+            await HoverDeleteAsync(page, route);
+            scans.Add(await RunScanAsync(page, "hover: Delete"));
+        }
 
         AssertScans(route, $"{route} at {width}px, {theme}", scans);
+    }
+
+    /// <summary>Filters the page to this run's fixture and moves the pointer onto its enabled, text-variant Delete button
+    /// (the tag row's on /admin/tags, the banner tile's on /admin/media).</summary>
+    private async Task<ILocator> HoverDeleteAsync(IPage page, string route)
+    {
+        ILocator delete;
+        if (route == "tags")
+        {
+            var search = page.GetByRole(AriaRole.Textbox, new PageGetByRoleOptions { Name = "Search tags" });
+            await search.FillAsync(UnusedTagName);
+            await search.PressAsync("Enter");
+            // The filter has been applied when the tags table holds this one row: the row that matched before the
+            // filter's reload is replaced by it, and a pointer left over the old row does not hover the new one.
+            var rows = page.GetByRole(AriaRole.Region, new PageGetByRoleOptions { Name = "Tags table" }).Locator("tbody tr");
+            await Expect(rows).ToHaveCountAsync(1);
+            var row = rows.Filter(new LocatorFilterOptions { HasText = UnusedTagName });
+            await Expect(row).ToHaveCountAsync(1);
+            delete = row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Delete", Exact = true });
+        }
+        else
+        {
+            var search = page.GetByRole(AriaRole.Textbox, new PageGetByRoleOptions { Name = "Search filenames" });
+            await search.FillAsync(MediaFileName);
+            await search.PressAsync("Enter");
+            var tile = page.Locator(".media-tile", new PageLocatorOptions { HasText = MediaFileName });
+            await Expect(tile).ToHaveCountAsync(1);
+            delete = tile.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Delete", Exact = true });
+        }
+
+        await Expect(delete).ToBeEnabledAsync();
+        await delete.HoverAsync();
+        await WaitForHoveredAsync(page, delete);
+        return delete;
+    }
+
+    /// <summary>Waits until the button really shows its hover state: it matches :hover and MudBlazor's tint is painted
+    /// (a hovered text button has a background, a resting one has none), then until the tint's transition ends.</summary>
+    internal static async Task WaitForHoveredAsync(IPage page, ILocator button)
+    {
+        await button.EvaluateAsync("""
+            el => new Promise((resolve, reject) => {
+                const deadline = Date.now() + 10000;
+                // The alpha of a computed colour: rgba(r, g, b, a), rgb(r g b / a), color(srgb r g b / a), oklab(... / a);
+                // no alpha component means opaque, 'transparent' means none; a percentage is a fraction of 1.
+                const alphaOf = colour => {
+                    if (colour === 'transparent') { return 0; }
+                    const match = /(?:,\s*|\/\s*)([\d.]+)(%?)\s*\)$/.exec(colour);
+                    if (!/^rgba\(/.test(colour) && !colour.includes('/')) { return 1; }
+                    return match ? Number(match[1]) / (match[2] ? 100 : 1) : 1;
+                };
+                const check = () => {
+                    if (el.matches(':hover') && alphaOf(getComputedStyle(el).backgroundColor) > 0) { resolve(); }
+                    else if (Date.now() > deadline) { reject(new Error('the button never showed its hover tint')); }
+                    else { requestAnimationFrame(check); }
+                };
+                check();
+            })
+            """);
+        await page.WaitForFunctionAsync("() => document.getAnimations().every(a => a.playState !== 'running')");
+    }
+
+    /// <summary>Brief 17d item 1: the enabled Delete text button on /admin/tags while the pointer rests on it.
+    /// Label colour against the backdrop it is drawn on (the hover tint composited over its ancestors).</summary>
+    [TestCase("light")]
+    [TestCase("dark")]
+    public async Task TheHoveredDeleteTextButtonOnTags_HasAtLeast45To1Contrast(string theme)
+    {
+        await EnsureFixturesAsync();
+        await using var context = await NewScanContextAsync(1440, 900, theme);
+        var page = await context.NewPageAsync();
+        await LoginAsync(page, "admin@example.com", "password");
+        await page.GotoAsync($"{BaseUrl}/admin/tags");
+        await Expect(page.Locator(".admin-table").First).ToBeVisibleAsync(new() { Timeout = SlowLoadTimeoutMs });
+        await WaitUsableAsync(page, theme);
+        var delete = await HoverDeleteAsync(page, "tags");
+
+        var read = await delete.EvaluateAsync<string[]>("""
+            el => {
+                const backgrounds = [];
+                for (let n = el; n; n = n.parentElement) { backgrounds.push(getComputedStyle(n).backgroundColor); }
+                return [getComputedStyle(el).color, ...backgrounds];
+            }
+            """);
+        var label = ColorContrast.Parse(read[0]);
+        var canvas = ColorContrast.Parse(theme == "dark" ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)");
+        var backdrop = ColorContrast.BackdropOf(read[1..], canvas);
+        var ratio = ColorContrast.Ratio(ColorContrast.Composite(label, backdrop), backdrop);
+        TestContext.Out.WriteLine($"MEASURED {theme}: label {read[0]}, backdrop rgb({backdrop.R:0}, {backdrop.G:0}, {backdrop.B:0}), ratio {ratio:0.00}");
+        var axe = await RunScanAsync(page, "hover: Delete");
+        TestContext.Out.WriteLine($"MEASURED {theme}: axe violations [{string.Join(", ", axe.Failing.Select(v => v.Id))}]");
+
+        Assert.That(ratio, Is.GreaterThanOrEqualTo(4.5),
+            $"the hovered Delete label {read[0]} on its backdrop rgb({backdrop.R:0}, {backdrop.G:0}, {backdrop.B:0}) in the {theme} theme");
     }
 }
 
@@ -385,5 +494,52 @@ public class AccessibilityDialogMatrixTests : AccessibilityScan
             ColorContrast.Composite(ColorContrast.Parse(label), ColorContrast.Parse(surface)), ColorContrast.Parse(surface));
         Assert.That(ratio, Is.GreaterThanOrEqualTo(4.5),
             $"the error label {label} on the dialog surface {surface} in the {theme} theme");
+    }
+
+    /// <summary>The same button while the pointer rests on it (brief 17d item 1): MudBlazor's hover tint is
+    /// drawn under the label, so the ratio is taken against the tint composited over the dialog's surface.</summary>
+    [TestCase("light")]
+    [TestCase("dark")]
+    public async Task AHoveredTextVariantErrorButtonInADialog_HasAtLeast45To1Contrast(string theme)
+    {
+        await EnsureFixturesAsync();
+        await using var context = await NewScanContextAsync(1440, 900, theme);
+        var page = await context.NewPageAsync();
+        await LoginAsync(page, "admin@example.com", "password");
+        await page.GotoAsync($"{BaseUrl}/admin/posts");
+        await WaitUsableAsync(page, theme);
+        await FilterToDraftsAsync(page, DraftTitle);
+        var row = page.Locator(".posts-grid__row", new PageLocatorOptions { HasText = DraftTitle });
+        await row.Locator(".posts-grid__delete").ClickAsync();
+        await Expect(page.Locator(".mud-dialog")).ToBeVisibleAsync(new() { Timeout = SlowLoadTimeoutMs });
+        await page.WaitForFunctionAsync("() => document.getAnimations().every(a => a.playState !== 'running')");
+
+        var button = page.Locator(".mud-dialog > button.mud-button-text-error");
+        await page.EvaluateAsync("""
+            () => {
+                const dialog = document.querySelector('.mud-dialog');
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'mud-button-root mud-button mud-button-text mud-button-text-error mud-button-text-size-small';
+                button.textContent = 'Delete';
+                dialog.appendChild(button);
+            }
+            """);
+        await button.HoverAsync();
+        await AccessibilityAdminMatrixTests.WaitForHoveredAsync(page, button);
+
+        var read = await button.EvaluateAsync<string[]>("""
+            el => {
+                const backgrounds = [];
+                for (let n = el; n; n = n.parentElement) { backgrounds.push(getComputedStyle(n).backgroundColor); }
+                return [getComputedStyle(el).color, ...backgrounds];
+            }
+            """);
+        var canvas = ColorContrast.Parse(theme == "dark" ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)");
+        var backdrop = ColorContrast.BackdropOf(read[1..], canvas);
+        var ratio = ColorContrast.Ratio(ColorContrast.Composite(ColorContrast.Parse(read[0]), backdrop), backdrop);
+        TestContext.Out.WriteLine($"MEASURED dialog {theme}: label {read[0]}, backdrop rgb({backdrop.R:0}, {backdrop.G:0}, {backdrop.B:0}), ratio {ratio:0.00}");
+        Assert.That(ratio, Is.GreaterThanOrEqualTo(4.5),
+            $"the hovered error label {read[0]} on its backdrop rgb({backdrop.R:0}, {backdrop.G:0}, {backdrop.B:0}) in the {theme} theme");
     }
 }

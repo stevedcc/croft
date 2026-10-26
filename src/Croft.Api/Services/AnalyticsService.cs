@@ -33,8 +33,8 @@ public class AnalyticsService(BlogDbContext db, IConfiguration configuration, Ti
         if (!countable)
             return;
 
-        // The columns are unbounded text for now (expand/contract: a pending contract adds the
-        // limits in the next release), so the bound is enforced here; a beacon is anonymous.
+        // The columns are bounded since brief 17c (varchar 2048 / 512). The cut stays as the first line of
+        // defence, so that a beacon from an anonymous client never fails on length.
         userAgent = Truncate(userAgent, MaxUserAgentLength);
         referrer = Truncate(referrer, MaxReferrerLength);
 

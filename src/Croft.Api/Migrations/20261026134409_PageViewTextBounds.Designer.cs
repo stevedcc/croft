@@ -13,8 +13,8 @@ using NpgsqlTypes;
 namespace Croft.Api.Migrations;
 
 [DbContext(typeof(BlogDbContext))]
-[Migration("20261026133729_SocialThreadCounts")]
-partial class _20261026133729_SocialThreadCounts
+[Migration("20261026134409_PageViewTextBounds")]
+partial class _20261026134409_PageViewTextBounds
 {
     /// <inheritdoc />
     protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -166,13 +166,15 @@ partial class _20261026133729_SocialThreadCounts
                     .HasColumnType("uuid");
 
                 b.Property<string>("Referrer")
-                    .HasColumnType("text");
+                    .HasMaxLength(2048)
+                    .HasColumnType("character varying(2048)");
 
                 b.Property<DateTime>("Timestamp")
                     .HasColumnType("timestamp with time zone");
 
                 b.Property<string>("UserAgent")
-                    .HasColumnType("text");
+                    .HasMaxLength(512)
+                    .HasColumnType("character varying(512)");
 
                 b.HasKey("Id");
 
@@ -241,10 +243,6 @@ partial class _20261026133729_SocialThreadCounts
                     .HasColumnType("integer")
                     .HasDefaultValue(0);
 
-                b.Property<long>("LegacyViewCount")
-                    .HasColumnType("bigint")
-                    .HasColumnName("ViewCount");
-
                 b.Property<string>("MarkdownContent")
                     .IsRequired()
                     .HasColumnType("text");
@@ -280,11 +278,6 @@ partial class _20261026133729_SocialThreadCounts
                     .ValueGeneratedOnAddOrUpdate()
                     .HasColumnType("tsvector")
                     .HasComputedColumnSql("to_tsvector('english', coalesce(\"Title\", '') || ' ' || coalesce(\"Excerpt\", '') || ' ' || coalesce(\"MarkdownContent\", ''))", true);
-
-                b.Property<bool>("ShowInNavigation")
-                    .ValueGeneratedOnAdd()
-                    .HasColumnType("boolean")
-                    .HasDefaultValue(false);
 
                 b.Property<string>("Slug")
                     .IsRequired()
@@ -533,9 +526,6 @@ partial class _20261026133729_SocialThreadCounts
                 b.Property<int>("Platform")
                     .HasColumnType("integer");
 
-                b.Property<DateTime?>("CountsAt")
-                    .HasColumnType("timestamp with time zone");
-
                 b.Property<DateTime?>("LastAttemptAt")
                     .HasColumnType("timestamp with time zone");
 
@@ -549,17 +539,8 @@ partial class _20261026133729_SocialThreadCounts
                 b.Property<DateTime?>("LeaseUntil")
                     .HasColumnType("timestamp with time zone");
 
-                b.Property<int?>("LikeCount")
-                    .HasColumnType("integer");
-
                 b.Property<DateTime>("NextDueAt")
                     .HasColumnType("timestamp with time zone");
-
-                b.Property<int?>("ReplyCount")
-                    .HasColumnType("integer");
-
-                b.Property<int?>("RepostCount")
-                    .HasColumnType("integer");
 
                 b.Property<string>("SnapshotHash")
                     .HasMaxLength(64)

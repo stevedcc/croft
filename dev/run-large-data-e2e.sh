@@ -26,6 +26,15 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# One suite at a time on this machine (dev/with-suite-lock.sh): re-run under the lock unless
+# the caller already holds it (the later passes of a locked run call this script again).
+if [ "${CROFT_SUITE_LOCK_HELD:-}" != "1" ]; then
+    case " $* " in
+        *" -h "*|*" --help "*) ;;
+        *) exec "$ROOT/dev/with-suite-lock.sh" "$ROOT/dev/run-large-data-e2e.sh" "$@" ;;
+    esac
+fi
+
 # global.json pins SDK 11.0.100 (RC 2). Fedora ships 10.0.1xx in /usr/bin, so prefer ~/dotnet when present.
 if [ -x "$HOME/dotnet/dotnet" ]; then
     export DOTNET_ROOT="$HOME/dotnet"
@@ -33,6 +42,7 @@ if [ -x "$HOME/dotnet/dotnet" ]; then
 fi
 
 source "$ROOT/dev/instance-params.sh"
+source "$ROOT/dev/lib/test-summary.sh"
 
 INSTANCE=1
 usage() {
@@ -111,6 +121,7 @@ E2E_WEB_URL="$WEB_URL" E2E_API_URL="$API_URL" \
     --logger "console;verbosity=normal" 2>&1 | tee "$TEST_LOG"
 test_rc=${PIPESTATUS[0]}
 set -e
+require_test_summary "$TEST_LOG" "$test_rc" || test_rc=$?
 test_secs=$((SECONDS - phase_start))
 
 echo "[4/5] Web memory (after the tests) ..."

@@ -177,16 +177,19 @@ the session tests need one. AGENTS.md, "Running things", has the details.
 
 ```bash
 dotnet build Croft.slnx
-dotnet test tests/Croft.Api.Tests --no-build
-dotnet test tests/Croft.Web.Tests --no-build
+dev/with-suite-lock.sh dotnet test tests/Croft.Api.Tests --no-build
+dev/with-suite-lock.sh dotnet test tests/Croft.Web.Tests --no-build
 ```
+
+`dev/with-suite-lock.sh` makes suites wait for each other on one machine (two at once have
+exhausted its memory); `dev/run-e2e.sh` takes the same lock itself.
 
 Both suites need a **container runtime** (Docker or Podman; Testcontainers starts a PostgreSQL
 container): every API test class, and 31 Web tests in the classes labelled `Category=Container`.
 Without one, run only the Web tests that need none:
 
 ```bash
-dotnet test tests/Croft.Web.Tests --no-build --filter "Category!=Container"
+dev/with-suite-lock.sh dotnet test tests/Croft.Web.Tests --no-build --filter "Category!=Container"
 ```
 
 The API suite has no such subset. With the default filter it also leaves out the opt-in
@@ -212,8 +215,8 @@ docker compose up -d
 dotnet tool restore
 dotnet build Croft.slnx -c Release -warnaserror   # the build job
 dotnet build Croft.slnx
-dotnet test tests/Croft.Api.Tests --no-build
-dotnet test tests/Croft.Web.Tests --no-build
+dev/with-suite-lock.sh dotnet test tests/Croft.Api.Tests --no-build
+dev/with-suite-lock.sh dotnet test tests/Croft.Web.Tests --no-build
 dev/run-e2e.sh --instances 2
 dev/run-ha-e2e.sh                                  # the HaTests category
 ```

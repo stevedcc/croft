@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Croft.Api.Migrations;
 
 /// <inheritdoc />
-public partial class _20261026133729_SocialThreadCounts : Migration
+public partial class _20261026174607_SocialThreadCounts : Migration
 {
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)

@@ -78,6 +78,17 @@ internal static partial class MigrationContractGuard
         // release reads, whatever else it also changes; flag it and require the attribute.
         AlterColumnOperation { IsNullable: false } alter
             => $"{migrationId}: AlterColumn({alter.Table}.{alter.Name}, nullable: false)",
+        // A new or smaller max length rejects values the previous release may still write; so does a type change.
+        AlterColumnOperation { MaxLength: { } newLength } alter
+            when alter.OldColumn.MaxLength is not { } oldLength || oldLength > newLength
+            => $"{migrationId}: AlterColumn({alter.Table}.{alter.Name}, max length {newLength})",
+        // (a bounded column's type string changes with its length, which the arm above judges, so the type
+        // is compared without its "(n)" suffix, and only when the length did not change or is not set)
+        AlterColumnOperation { ColumnType: { } newType } alter
+            when alter.OldColumn.ColumnType is { } oldType
+                && (alter.MaxLength is null || alter.MaxLength == alter.OldColumn.MaxLength)
+                && StripLength(oldType) != StripLength(newType)
+            => $"{migrationId}: AlterColumn({alter.Table}.{alter.Name}, type {newType})",
         // Raw SQL is read as text: a statement that drops, renames or tightens is a contraction whatever
         // EF operation would have said it (the rule's escape hatch for "EF has no operation for it").
         SqlOperation sql when ContractingSql().IsMatch(sql.Sql) => $"{migrationId}: Sql({Excerpt(sql.Sql)})",
@@ -91,6 +102,12 @@ internal static partial class MigrationContractGuard
     [GeneratedRegex(@"\b(DROP|RENAME)\b|SET\s+NOT\s+NULL|ALTER\s+COLUMN\b.*\bTYPE\b",
         RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.CultureInvariant)]
     private static partial Regex ContractingSql();
+
+    private static string StripLength(string columnType) => LengthSuffix().Replace(columnType, "");
+
+    /// <summary>The "(n)" length of a column type such as "character varying(2048)".</summary>
+    [GeneratedRegex(@"\(\d+\)$", RegexOptions.CultureInvariant)]
+    private static partial Regex LengthSuffix();
 
     private static string Excerpt(string sql)
     {

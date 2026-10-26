@@ -18,7 +18,7 @@ public class ContentExportCompletenessTests
 
     /// <summary>
     /// Every column and relation the EF model knows for the entity, shadow properties included
-    /// (Post.ShowInNavigation has no CLR property, so a reflection walk cannot see it). The model is
+    /// (a shadow property has no CLR property, so a reflection walk cannot see it). The model is
     /// built without connecting to a database.
     /// </summary>
     private static IEnumerable<string> ModelMembers(Type entity)
