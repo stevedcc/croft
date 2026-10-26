@@ -37,18 +37,11 @@ public class StaticAssetTests : WebTest
     {
         // An interactive page is a staff page since brief 13a (the not-found page is static).
         await LoginAsync("admin@example.com", "password");
-        var responses = new List<IResponse>();
-        void Collect(object? _, IResponse response) => responses.Add(response);
-        Page.Response += Collect;
-        try
-        {
-            await Page.GotoAsync($"{BaseUrl}/admin/posts");
-            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        }
-        finally
-        {
-            Page.Response -= Collect;
-        }
+        var responseLog = EventLog.Responses(Page);
+        await Page.GotoAsync($"{BaseUrl}/admin/posts");
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        responseLog.Stop();
+        var responses = responseLog.Snapshot();
 
         await AssertServedWith200Async(responses, "app stylesheet", AppStylesheetPath);
         await AssertServedWith200Async(responses, "MudBlazor stylesheet", MudBlazorStylesheetPath);
@@ -78,18 +71,11 @@ public class StaticAssetTests : WebTest
         var slug = await CreatePublishedPostAsync();
         Assert.That(slug, Is.Not.Null.And.Not.Empty, "A published post is needed to prove the per-page load.");
 
-        var responses = new List<IResponse>();
-        void Collect(object? _, IResponse response) => responses.Add(response);
-        Page.Response += Collect;
-        try
-        {
-            await Page.GotoAsync($"{BaseUrl}/post/{slug}");
-            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        }
-        finally
-        {
-            Page.Response -= Collect;
-        }
+        var responseLog = EventLog.Responses(Page);
+        await Page.GotoAsync($"{BaseUrl}/post/{slug}");
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        responseLog.Stop();
+        var responses = responseLog.Snapshot();
 
         foreach (var expected in new[] { "/post.js", "/highlightjs/", "/highlight-theme.css" })
         {
@@ -125,7 +111,7 @@ public class StaticAssetTests : WebTest
         return await SlugForPostAsync(PostIdFromEditorUrl());
     }
 
-    private async Task AssertServedWith200Async(List<IResponse> responses, string label, Regex pathPattern)
+    private async Task AssertServedWith200Async(IReadOnlyList<IResponse> responses, string label, Regex pathPattern)
     {
         var matches = responses.Where(r => pathPattern.IsMatch(UrlPath(r))).ToList();
         Assert.That(matches, Has.Count.EqualTo(1), $"The page must fetch exactly one {label}.");
@@ -145,22 +131,13 @@ public class StaticAssetTests : WebTest
     }
 
     /// <summary>The home page and every network response its load triggers (stylesheets included).</summary>
-    private async Task<List<IResponse>> LoadHomePageAsync()
+    private async Task<IReadOnlyList<IResponse>> LoadHomePageAsync()
     {
-        var responses = new List<IResponse>();
-        void Collect(object? _, IResponse response) => responses.Add(response);
-        Page.Response += Collect;
-        try
-        {
-            await Page.GotoAsync(BaseUrl);
-            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        }
-        finally
-        {
-            Page.Response -= Collect;
-        }
-
-        return responses;
+        var responseLog = EventLog.Responses(Page);
+        await Page.GotoAsync(BaseUrl);
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        responseLog.Stop();
+        return responseLog.Snapshot();
     }
 
     private static string UrlPath(IResponse response) => new Uri(response.Url).AbsolutePath;

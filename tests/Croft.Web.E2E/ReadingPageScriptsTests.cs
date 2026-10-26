@@ -80,19 +80,19 @@ public class ReadingPageScriptsTests : StaticReadingTest
     public async Task NewPost_ReachedFromAReadingPage_LoadsTheEditorScripts_AndTheDraftBackupWorks()
     {
         await LoginAsync("admin@example.com", "password");
-        var requests = TrackRequests(Page);
+        var requests = EventLog.RequestUrls(Page);
 
         await Page.GotoAsync(BaseUrl);
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        Assert.That(requests.Where(IsStaffScript), Is.Empty, "the reading page we start from loads no staff script.");
+        Assert.That(requests.Snapshot().Where(IsStaffScript), Is.Empty, "the reading page we start from loads no staff script.");
 
         await Page.Locator("#sidebar-nav a[href='/admin/posts/new']").ClickAsync();
         await Page.WaitForURLAsync(url => url.EndsWith("/admin/posts/new"));
         await WaitForInteractiveAsync(Page);
 
-        Assert.That(requests, Has.Some.Matches<string>(url => url!.Contains("/js/editor.")),
+        Assert.That(requests.Snapshot(), Has.Some.Matches<string>(url => url!.Contains("/js/editor.")),
             "the editor document must load editor.js.");
-        Assert.That(requests, Has.Some.Matches<string>(url => url!.Contains("/js/draft-backup.")),
+        Assert.That(requests.Snapshot(), Has.Some.Matches<string>(url => url!.Contains("/js/draft-backup.")),
             "the editor document must load draft-backup.js.");
         Assert.That(await Page.EvaluateAsync<string>("() => typeof window.blogDraft?.flush + '/' + typeof window.blogEditor?.insertAtCursor"),
             Is.EqualTo("function/function"), "both scripts ran and registered their helpers.");
@@ -105,11 +105,13 @@ public class ReadingPageScriptsTests : StaticReadingTest
 
     private async Task AssertOnlyReadingScriptsAsync(string path, int status = 200)
     {
-        var requests = TrackRequests(Page);
+        var log = EventLog.RequestUrls(Page);
 
         var response = await Page.GotoAsync($"{BaseUrl}{path}");
         Assert.That(response!.Status, Is.EqualTo(status), $"{path} must answer {status}.");
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        log.Stop();
+        var requests = log.Snapshot();
 
         var html = await response.TextAsync();
         foreach (var staffOnly in StaffOnly)
@@ -125,19 +127,6 @@ public class ReadingPageScriptsTests : StaticReadingTest
 
     private static bool IsStaffScript(string url) =>
         StaffOnly.Any(marker => url.Contains(marker, StringComparison.OrdinalIgnoreCase));
-
-    private static List<string> TrackRequests(IPage page)
-    {
-        var urls = new List<string>();
-        page.Request += (_, request) =>
-        {
-            lock (urls)
-            {
-                urls.Add(request.Url);
-            }
-        };
-        return urls;
-    }
 
     private async Task EnsureFixturesAsync()
     {

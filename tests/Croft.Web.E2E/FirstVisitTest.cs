@@ -95,16 +95,8 @@ public abstract class FirstVisitTest : StaticReadingTest
             ExtraHTTPHeaders = new Dictionary<string, string> { ["Accept-Encoding"] = acceptEncoding },
         });
         var page = await context.NewPageAsync();
-        var responses = new List<IResponse>();
-        var warnings = new List<string>();
-        page.Response += (_, response) => responses.Add(response);
-        page.Console += (_, message) =>
-        {
-            if (message.Type is "warning" or "error")
-            {
-                warnings.Add(message.Text);
-            }
-        };
+        var responseLog = EventLog.Responses(page);
+        var warningLog = EventLog.ConsoleTexts(page, "warning", "error");
 
         await page.GotoAsync($"{BaseUrl}{path}");
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
@@ -129,6 +121,11 @@ public abstract class FirstVisitTest : StaticReadingTest
                 // no such warning: the preloads were all used
             }
         }
+
+        responseLog.Stop();
+        warningLog.Stop();
+        var responses = responseLog.Snapshot();
+        var warnings = warningLog.Snapshot();
 
         var preloads = await page.EvaluateAsync<string[]>(
             "() => [...document.querySelectorAll('link[rel=preload][as=font]')].map(l => l.href)");

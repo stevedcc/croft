@@ -37,8 +37,7 @@ public class DiscussionTests : WebTest
     {
         var runId = NewRunId();
         var post = await SeedPostAsync(runId);
-        var requests = new List<string>();
-        Page.Request += (_, request) => requests.Add(request.Url);
+        var requestLog = EventLog.RequestUrls(Page);
 
         await Page.GotoAsync($"{BaseUrl}/post/{post.Slug}");
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
@@ -74,7 +73,7 @@ public class DiscussionTests : WebTest
         await Expect(section.Locator("a.discussion-reply__view:not([rel='nofollow ugc noopener'])")).ToHaveCountAsync(0);
 
         // No script, no third party, no cookie: everything the page asked for came from our origin.
-        Assert.That(requests.Where(url => !url.StartsWith(BaseUrl, StringComparison.Ordinal) && !url.StartsWith("data:", StringComparison.Ordinal)),
+        Assert.That(requestLog.Snapshot().Where(url => !url.StartsWith(BaseUrl, StringComparison.Ordinal) && !url.StartsWith("data:", StringComparison.Ordinal)),
             Is.Empty, "the discussion page makes no third-party request");
         Assert.That(await Context.CookiesAsync(), Is.Empty, "a reader gets no cookie");
     }

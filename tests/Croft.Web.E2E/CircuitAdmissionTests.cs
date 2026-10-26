@@ -153,19 +153,12 @@ public class CircuitAdmissionTests : WebTest
         // for one: no negotiate request, no WebSocket, and the whole post reads.
         await using var contextC = await Browser.NewContextAsync();
         var pageC = await contextC.NewPageAsync();
-        var asked = new List<string>();
-        pageC.Request += (_, request) =>
-        {
-            if (request.Url.Contains("/_blazor", StringComparison.Ordinal))
-            {
-                asked.Add(request.Url);
-            }
-        };
+        var asked = EventLog.RequestUrls(pageC, request => request.Url.Contains("/_blazor", StringComparison.Ordinal));
         await pageC.GotoAsync($"{_limitedBase}/post/{_postSlug}");
         await WaitForInteractiveAsync(pageC);
         await Expect(pageC.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = PostTitle })).ToBeVisibleAsync();
         await Expect(pageC.GetByText($"Body {RunId}", new PageGetByTextOptions { Exact = false })).ToBeVisibleAsync();
-        Assert.That(asked, Is.Empty, "a static post page must not ask the circuit endpoint for anything");
+        Assert.That(asked.Snapshot(), Is.Empty, "a static post page must not ask the circuit endpoint for anything");
 
         // ...and nothing covers or blocks it: the element at the viewport's centre is the
         // post's own content (the reconnect overlay, if the framework showed one, would be the
