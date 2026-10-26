@@ -112,7 +112,7 @@ files differ from the dev stack's (`/tmp/blog-e2e-<N>-*.pid` vs `/tmp/blog-api.p
 3→130 s, 4→135 s suite wall): it starts instances K..K+N-1, runs the suite with one NUnit worker per
 instance and stops exactly the instances it started, also on failure. Running the suite directly
 against one manually started instance (`./start-local.sh --e2e --instance N`, then
-`dotnet test tests/Croft.Web.E2E --no-build` with `E2E_WEB_URL`/`E2E_API_URL` set to that instance's
+`dev/with-suite-lock.sh dotnet test tests/Croft.Web.E2E --no-build` (through the suite lock, like every suite) with `E2E_WEB_URL`/`E2E_API_URL` set to that instance's
 ports, dev/instance-params.sh) still works, but is the exception, not the normal path.
 A `dev/run-e2e.sh` run with no mode flag (`--csp-enforced`, `--default-branding`, `--output-cache`) and no `--`
 arguments (`--instances` and `--first-instance` do not matter) ends with a second pass of the
@@ -141,8 +141,10 @@ Two suites running at once have twice taken this machine down (swap on 2026-10-2
 2026-10-25), so suites go through `dev/with-suite-lock.sh`: it takes a per-machine lock
 (`~/.cache/croft/suite.lock`), prints who holds it while it waits, and passes the command's exit
 code through (`--try` exits 75 instead of waiting). `dev/run-e2e.sh`, `dev/run-ha-e2e.sh` and
-`dev/run-large-data-e2e.sh` take the lock themselves. `dev/run-e2e.sh` also fails (exit 70, 71 or
-72) unless the log holds exactly one NUnit summary line that agrees with `dotnet test`'s exit code.
+`dev/run-large-data-e2e.sh` take the lock themselves. Those three scripts also carry the same
+guard (`dev/lib/test-summary.sh`): when `dotnet test` exits 0 they exit 70 (no NUnit summary line in
+the log), 71 (more than one) or 72 (the summary reports failures); a non-zero `dotnet test` code is
+kept as it is.
 
 **Test cadence** (keeps runs fast without weakening verification):
 - During red/green and break-it-once loops: run only the affected test class or test

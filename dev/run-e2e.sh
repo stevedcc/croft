@@ -226,7 +226,12 @@ echo ""
 echo "Running E2E suite: $INSTANCES instances ($FIRST_INSTANCE..$LAST_INSTANCE), $INSTANCES NUnit workers ..."
 SECONDS=0
 # The log is what proves the run finished (dev/lib/test-summary.sh); CI uploads /tmp/blog-e2e-*.log.
-RUN_LOG="/tmp/blog-e2e-run-${FIRST_INSTANCE}-${LAST_INSTANCE}.log"
+# The mode is in the name so the later passes (same instance range) do not overwrite each other's log.
+LOG_MODE=""
+[ "$CSP_ENFORCED" -eq 1 ] && LOG_MODE="-csp-enforced"
+[ "$DEFAULT_BRANDING" -eq 1 ] && LOG_MODE="-default-branding"
+[ "$OUTPUT_CACHE" -eq 1 ] && LOG_MODE="-output-cache"
+RUN_LOG="/tmp/blog-e2e-run-${FIRST_INSTANCE}-${LAST_INSTANCE}${LOG_MODE}.log"
 set +e
 dotnet test tests/Croft.Web.E2E --no-build "${DOTNET_ARGS[@]}" -- "NUnit.NumberOfTestWorkers=$INSTANCES" 2>&1 | tee "$RUN_LOG"
 TEST_RC=${PIPESTATUS[0]}

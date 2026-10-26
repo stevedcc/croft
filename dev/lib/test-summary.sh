@@ -14,7 +14,7 @@
 #     72                  the summary reports failures but dotnet test exited 0
 #   A non-zero rc with a missing or doubled summary keeps rc (the failure is already visible) but
 #   still says why.
-TEST_SUMMARY_PATTERN='^[[:space:]]*(Passed|Failed)!?[[:space:]]+-[[:space:]]+Failed:[[:space:]]+[0-9]+'
+TEST_SUMMARY_PATTERN='^[[:space:]]*(Passed|Failed)![[:space:]]+-[[:space:]]+Failed:[[:space:]]+[0-9]+'
 
 require_test_summary() {
     local log="$1" rc="$2" count

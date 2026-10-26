@@ -58,9 +58,20 @@ remove_owner() {
     fi
 }
 trap remove_owner EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
 
+# The command runs in the background (fd 9 closed, stdin kept) so INT and TERM sent to this
+# wrapper reach it: the lock is held exactly as long as the command runs.
+CROFT_SUITE_LOCK_HELD=1 "$@" 9>&- <&0 &
+child=$!
+forward() {
+    kill -s "$1" "$child" 2>/dev/null || true
+}
+trap 'forward INT' INT
+trap 'forward TERM' TERM
 rc=0
-CROFT_SUITE_LOCK_HELD=1 "$@" 9>&- || rc=$?
+while true; do
+    wait "$child" && rc=0 || rc=$?
+    # wait returns early (rc > 128) when a trapped signal arrived; wait again until the child is gone.
+    kill -0 "$child" 2>/dev/null || break
+done
 exit "$rc"
