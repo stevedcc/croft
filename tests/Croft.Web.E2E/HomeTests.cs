@@ -19,6 +19,8 @@ namespace Croft.Web.E2E;
 /// observe detached elements (Chromium returns "" from getComputedStyle on them). The expected
 /// outcomes are unchanged; the assertions just survive the startup swap.
 /// </summary>
+// NUnit 5 marks [Order] obsolete in favour of [DependsOnTest]; the suite still uses it (HaTests), so the same pragma applies here.
+#pragma warning disable CS0618
 [Parallelizable(ParallelScope.Fixtures)]
 public class HomeTests : WebTest
 {
@@ -38,10 +40,10 @@ public class HomeTests : WebTest
     private static string _pageCatSlug = string.Empty;
     private static string _tagSlug = string.Empty;
 
-    // The Z prefix runs these after the other tests of the class (NUnit runs a fixture's tests in name order): they publish posts newer
-    // than the fixture's own, and HomePage_Page1_HasExactlyOneFeaturedCardThenListCards expects its Beta post to be the newest.
-    [Test]
-    public async Task ZCounts_ACardOfALinkedPost_ShowsItsCountsPill_AndAPostWithoutCountsShowsNone()
+    // Order(2) and (3): these publish posts newer than the fixture's own, and HomePage_Page1_HasExactlyOneFeaturedCardThenListCards
+    // (Order(1), run first) expects its Beta post to be the newest.
+    [Test, Order(2)]
+    public async Task ACardOfALinkedPost_ShowsItsCountsPill_AndAPostWithoutCountsShowsNone()
     {
         await using var db = await OpenInstanceDatabaseAsync();
         var runId = Guid.NewGuid().ToString("N")[..12];
@@ -61,14 +63,15 @@ public class HomeTests : WebTest
         await Expect(card.GetByRole(AriaRole.Link, new LocatorGetByRoleOptions { Name = countedTitle })).ToHaveCountAsync(1);
 
         // The pill is not a click target of its own: a click on it goes through to the card's link.
-        var box = (await pill.BoundingBoxAsync())!;
-        await Page.Mouse.ClickAsync(box.X + (box.Width / 2), box.Y + (box.Height / 2));
-        await Page.WaitForURLAsync($"{BaseUrl}/post/{counted.Slug}");
+        // Force: the pill ignores pointer events by design, so Playwright's own hit-target check would never accept it; the click is
+        // made at the pill's centre, measured when the click happens (the page may still be shifting under load), and lands on the link below.
+        await pill.ClickAsync(new LocatorClickOptions { Force = true });
+        await Page.WaitForURLAsync($"{BaseUrl}/post/{counted.Slug}", new PageWaitForURLOptions { WaitUntil = WaitUntilState.Commit });
         Assert.That(plain.Slug, Is.Not.EqualTo(counted.Slug));
     }
 
-    [Test]
-    public async Task ZCounts_EveryListCardOfThePage_ShowsItsPill_InTheCompactSize()
+    [Test, Order(3)]
+    public async Task EveryListCardOfThePage_ShowsItsPill_InTheCompactSize()
     {
         await using var db = await OpenInstanceDatabaseAsync();
         var runId = Guid.NewGuid().ToString("N")[..12];
@@ -87,7 +90,7 @@ public class HomeTests : WebTest
         Assert.That(box.X, Is.GreaterThanOrEqualTo(media.X - 0.5), "the pill stays inside its card's image, not over the text");
     }
 
-    [Test]
+    [Test, Order(1)]
     public async Task HomePage_Page1_HasExactlyOneFeaturedCardThenListCards()
     {
         await EnsureFixturesAsync();

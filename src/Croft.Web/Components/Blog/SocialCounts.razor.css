@@ -1,7 +1,7 @@
 /* Brief 17e: the counts pill over a hero or a card image. The image can be any colour, so the pill brings its own
    backdrop: white on rgba(15, 23, 42, .72) composites to about 7:1 over a white image and 21:1 over black
-   (always above 4.5:1). pointer-events: none because on the cards the pill sits inside the card's link and
-   is not a click target of its own. The parent places it (position, z-index). */
+   (always above 4.5:1). pointer-events: none because on the cards the pill is laid over the card link (a sibling of it): it is not
+   a click target of its own and clicks reach the link below. The parent places it (position, z-index). */
 .social-counts {
     display: inline-flex;
     align-items: center;

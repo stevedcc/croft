@@ -5,7 +5,8 @@
 
 @* Brief 17e: a small pill with how many likes, reposts and replies a post's announcements have on
    Mastodon and Bluesky together. Presentational static markup (no script, no inline style, no
-   event handler): it sits on the hero and inside the cards' link on the reading pages. Nothing
+   event handler): it sits on the hero and, on the cards, as a sibling laid over the card link
+   (pointer-events: none lets clicks reach the link below, whose name stays the title). Nothing
    renders without counts. The icons are the catalogue's, drawn by CategoryIcon (decorative,
    aria-hidden, currentColor); the group's label carries the exact numbers, the pill the compact ones. *@
 @if (Counts is { } counts)

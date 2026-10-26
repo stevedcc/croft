@@ -2,6 +2,7 @@ using AwesomeAssertions;
 using Bunit;
 using Croft.Shared.Contracts.Social;
 using Croft.Web.Components;
+using Croft.Web.Components.Admin;
 
 namespace Croft.Web.Tests.Components;
 
@@ -50,6 +51,15 @@ public class SocialCountsTests : BlogBunitContext
 
         icons.Should().HaveCount(3);
         icons.Should().OnlyContain(svg => svg.GetAttribute("aria-hidden") == "true" && svg.GetAttribute("fill") == "currentColor" && svg.QuerySelector("path") != null);
+    }
+
+    [Fact]
+    public void TheIcons_AreFavoriteRepeatAndChatBubble_NotTheCatalogsFolderFallback()
+    {
+        var cut = RenderCounts(new SocialCountsDto(1, 2, 3));
+
+        // IIconCatalog answers Folder for a name it does not know, so a mistyped name would still render an icon.
+        cut.FindComponents<CategoryIcon>().Select(i => i.Instance.Name).Should().Equal("Favorite", "Repeat", "ChatBubble");
     }
 
     [Fact]
