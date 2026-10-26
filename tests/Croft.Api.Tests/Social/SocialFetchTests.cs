@@ -293,6 +293,118 @@ public class SocialFetchTests(PostgresDatabaseFixture fixture) : IClassFixture<P
         (await h.RepliesAsync(post, SocialPlatform.Mastodon)).Should().BeEquivalentTo(rowsBefore, "the rows were not rewritten");
     }
 
+    /// <summary>The recorded Mastodon status with its favourites_count changed (reblogs_count 1 and replies_count 2 stay).</summary>
+    private static string StatusWithLikes(int likes)
+    {
+        var status = SocialFixtures.Load("mastodon-status.json");
+        status["favourites_count"] = likes;
+        return status.ToJsonString();
+    }
+
+    private static HttpResponseMessage MastodonAnswerWithLikes(HttpRequestMessage request, int likes) =>
+        request.RequestUri!.AbsolutePath.EndsWith("/context", StringComparison.Ordinal)
+            ? SocialFetchHarness.MastodonAnswerFor(request)
+            : SocialFetchHarness.MastodonAnswer(StatusWithLikes(likes));
+
+    [Fact]
+    public async Task TheCountsOfTheFirstFetch_AreStoredOnTheThread_AndTheDiscussionIsInvalidated()
+    {
+        await using var h = await HarnessAsync();
+        var post = await h.SeedPostAsync(HoursAgo(1), blueskyUri: BlueskyThreadBuilder.RootUri);
+        var replica = h.NewReplica();
+
+        await replica.TickAsync();
+
+        var mastodon = await h.ThreadAsync(post, SocialPlatform.Mastodon);
+        (mastodon.LikeCount, mastodon.RepostCount, mastodon.ReplyCount).Should().Be((0, 1, 2), "the recorded Mastodon status");
+        mastodon.CountsAt.Should().Be(h.Time.GetUtcNow().UtcDateTime);
+        var bluesky = await h.ThreadAsync(post, SocialPlatform.Bluesky);
+        (bluesky.LikeCount, bluesky.RepostCount, bluesky.ReplyCount).Should().Be((63724, 9545, 8675), "the recorded Bluesky root");
+        replica.Notifier.Notified.Should().OnlyContain(g => g == CacheGroup.Discussion);
+    }
+
+    [Fact]
+    public async Task SameRepliesAndSameCounts_InvalidateNothing()
+    {
+        await using var h = await HarnessAsync();
+        var post = await h.SeedPostAsync(HoursAgo(1));
+        var replica = h.NewReplica();
+        await replica.TickAsync();
+        replica.Notifier.Notified.Should().HaveCount(1, "the first fetch stored the replies and the counts");
+
+        h.Time.Advance(TimeSpan.FromMinutes(11));
+        await replica.TickAsync();
+
+        replica.Notifier.Notified.Should().HaveCount(1);
+        replica.Notifier.ClearedLocally.Should().HaveCount(1);
+        (await h.ThreadAsync(post, SocialPlatform.Mastodon)).LikeCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task SameRepliesButOneMoreLike_StoresTheCount_AndInvalidatesTheDiscussionGroupOnly()
+    {
+        await using var h = await HarnessAsync();
+        var post = await h.SeedPostAsync(HoursAgo(1));
+        var replica = h.NewReplica();
+        await replica.TickAsync();
+        var before = await h.ThreadAsync(post, SocialPlatform.Mastodon);
+        var rowsBefore = await h.RepliesAsync(post, SocialPlatform.Mastodon);
+
+        h.Mastodon.Respond = request => MastodonAnswerWithLikes(request, likes: 1);
+        h.Time.Advance(TimeSpan.FromMinutes(11));
+        await replica.TickAsync();
+
+        var after = await h.ThreadAsync(post, SocialPlatform.Mastodon);
+        after.SnapshotHash.Should().Be(before.SnapshotHash, "the replies did not change");
+        (after.LikeCount, after.RepostCount, after.ReplyCount).Should().Be((1, 1, 2));
+        after.CountsAt.Should().Be(h.Time.GetUtcNow().UtcDateTime);
+        after.LastSuccessAt.Should().Be(h.Time.GetUtcNow().UtcDateTime);
+        (await h.RepliesAsync(post, SocialPlatform.Mastodon)).Should().BeEquivalentTo(rowsBefore, "the rows were not rewritten");
+        replica.Notifier.Notified.Should().Equal(CacheGroup.Discussion, CacheGroup.Discussion);
+        replica.Notifier.ClearedLocally.Should().Equal(CacheGroup.Discussion, CacheGroup.Discussion);
+    }
+
+    [Fact]
+    public async Task ALaterFetchWithoutCounts_KeepsTheEarlierOnes_AndInvalidatesNothing()
+    {
+        await using var h = await HarnessAsync();
+        var post = await h.SeedPostAsync(HoursAgo(1));
+        var replica = h.NewReplica();
+        await replica.TickAsync();
+
+        // The status request now fails: the replies are the same, the counts unknown.
+        h.Mastodon.Respond = request => request.RequestUri!.AbsolutePath.EndsWith("/context", StringComparison.Ordinal)
+            ? SocialFetchHarness.MastodonAnswerFor(request)
+            : new HttpResponseMessage(HttpStatusCode.InternalServerError);
+        h.Time.Advance(TimeSpan.FromMinutes(11));
+        await replica.TickAsync();
+
+        var after = await h.ThreadAsync(post, SocialPlatform.Mastodon);
+        (after.LikeCount, after.RepostCount, after.ReplyCount).Should().Be((0, 1, 2), "a failed count request must not blank the overlay");
+        after.LastSuccessAt.Should().Be(h.Time.GetUtcNow().UtcDateTime);
+        replica.Notifier.Notified.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task AChangedSnapshotWithoutCounts_ReplacesTheRows_AndKeepsTheEarlierCounts()
+    {
+        await using var h = await HarnessAsync();
+        var post = await h.SeedPostAsync(HoursAgo(1));
+        var replica = h.NewReplica();
+        await replica.TickAsync();
+
+        var changed = new MastodonThreadBuilder().Reply("999", MastodonThreadBuilder.RootId).ToJson();
+        h.Mastodon.Respond = request => request.RequestUri!.AbsolutePath.EndsWith("/context", StringComparison.Ordinal)
+            ? SocialFetchHarness.MastodonAnswer(changed)
+            : new HttpResponseMessage(HttpStatusCode.InternalServerError);
+        h.Time.Advance(TimeSpan.FromMinutes(11));
+        await replica.TickAsync();
+
+        (await h.RepliesAsync(post, SocialPlatform.Mastodon)).Should().ContainSingle();
+        var after = await h.ThreadAsync(post, SocialPlatform.Mastodon);
+        (after.LikeCount, after.RepostCount, after.ReplyCount).Should().Be((0, 1, 2));
+    }
+
     [Fact]
     public async Task AChangedSnapshot_ReplacesTheRows_AndInvalidatesTheDiscussionGroupOnly()
     {

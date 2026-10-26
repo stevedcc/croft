@@ -5,6 +5,7 @@ using Croft.Shared;
 using Croft.Shared.Contracts.Social;
 using Croft.Shared.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.Extensions.Options;
 
 namespace Croft.Api.Social;
@@ -196,7 +197,7 @@ public sealed partial class SocialFetchHostedService(
             switch (outcome)
             {
                 case SocialFetchOutcome.Fetched fetched:
-                    await StoreAsync(db, claim, fetched.Replies, now, ct);
+                    await StoreAsync(db, claim, fetched.Replies, fetched.Counts, now, ct);
                     return fetched.PlatformBusyUntil;
 
                 case SocialFetchOutcome.RateLimited limited:
@@ -228,7 +229,7 @@ public sealed partial class SocialFetchHostedService(
             : threads.Where(t => db.Posts.Any(p => p.Id == t.PostId && p.BlueskyUri == claim.RemoteId));
     }
 
-    private async Task StoreAsync(BlogDbContext db, SocialClaim claim, IReadOnlyList<IngestedReply> replies, DateTime now, CancellationToken ct)
+    private async Task StoreAsync(BlogDbContext db, SocialClaim claim, IReadOnlyList<IngestedReply> replies, SocialCounts? counts, DateTime now, CancellationToken ct)
     {
         var avatarUrls = replies.Select(r => r.AvatarSourceUrl).Where(u => u is not null).Select(u => u!).Distinct(StringComparer.Ordinal).ToList();
         IReadOnlyDictionary<string, string> hashes = avatarUrls.Count == 0
@@ -262,26 +263,26 @@ public sealed partial class SocialFetchHostedService(
         var stored = await db.SocialThreads
             .AsNoTracking()
             .Where(t => t.PostId == claim.PostId && t.Platform == claim.Platform)
-            .Select(t => t.SnapshotHash)
+            .Select(t => new { t.SnapshotHash, t.LikeCount, t.RepostCount, t.ReplyCount })
             .SingleOrDefaultAsync(ct);
 
+        // The counts are not part of the snapshot hash (it stays reply-only); a count that differs from the stored one (or is the first) is compared here.
+        // No counts (the count request failed) changes nothing: the stored ones stay.
+        var countsChanged = counts is not null
+            && (stored?.LikeCount != counts.Likes || stored.RepostCount != counts.Reposts || stored.ReplyCount != counts.Replies);
+
         bool changed;
-        if (stored == snapshot)
+        if (stored?.SnapshotHash == snapshot)
         {
-            // Same snapshot: only the times move; the rows stay and nothing is invalidated.
-            var updated = await StillLinked(db, claim).ExecuteUpdateAsync(set => set
-                .SetProperty(t => t.LastSuccessAt, (DateTime?)now)
-                .SetProperty(t => t.LastAttemptAt, (DateTime?)now)
-                .SetProperty(t => t.NextDueAt, nextDue)
-                .SetProperty(t => t.LeaseUntil, (DateTime?)null)
-                .SetProperty(t => t.LastError, (string?)null), ct);
-            if (updated == 0)
+            // Same snapshot: the times move (and the counts, when they changed); the rows stay. Only a changed count invalidates.
+            var (linked, notified) = await UpdateTimesAsync(db, claim, counts, countsChanged, now, nextDue, ct);
+            if (!linked)
                 return;
-            changed = false;
+            changed = notified;
         }
         else
         {
-            changed = await ReplaceAsync(db, claim, rows, snapshot, now, nextDue, ct);
+            changed = await ReplaceAsync(db, claim, rows, snapshot, counts, now, nextDue, ct);
             if (!changed)
                 return;
         }
@@ -292,20 +293,64 @@ public sealed partial class SocialFetchHostedService(
         await avatars.SweepAsync(db, ct);
     }
 
+    /// <summary>
+    /// The same snapshot again: the thread's times move, and its counts when it has new ones. A changed count is written in one transaction
+    /// with the NOTIFY (the other replicas drop their discussion entries). <c>Linked</c> is false (nothing written) when the link changed meanwhile.
+    /// </summary>
+    private async Task<(bool Linked, bool Notified)> UpdateTimesAsync(
+        BlogDbContext db, SocialClaim claim, SocialCounts? counts, bool countsChanged, DateTime now, DateTime nextDue, CancellationToken ct)
+    {
+        await using var transaction = countsChanged ? await db.Database.BeginTransactionAsync(ct) : null;
+        var updated = await StillLinked(db, claim).ExecuteUpdateAsync(set =>
+        {
+            set.SetProperty(t => t.LastSuccessAt, (DateTime?)now)
+                .SetProperty(t => t.LastAttemptAt, (DateTime?)now)
+                .SetProperty(t => t.NextDueAt, nextDue)
+                .SetProperty(t => t.LeaseUntil, (DateTime?)null)
+                .SetProperty(t => t.LastError, (string?)null);
+            if (counts is not null)
+                SetCounts(set, counts, now);
+        }, ct);
+
+        if (updated == 0)
+        {
+            if (transaction is not null)
+                await transaction.RollbackAsync(ct);
+            return (false, false);
+        }
+
+        if (transaction is null)
+            return (true, false);
+
+        await notifier.NotifyAsync(db, CacheGroup.Discussion, ct);
+        await transaction.CommitAsync(ct);
+        return (true, true);
+    }
+
+    private static void SetCounts(UpdateSettersBuilder<SocialThread> set, SocialCounts counts, DateTime now) =>
+        set.SetProperty(t => t.LikeCount, (int?)counts.Likes)
+            .SetProperty(t => t.RepostCount, (int?)counts.Reposts)
+            .SetProperty(t => t.ReplyCount, (int?)counts.Replies)
+            .SetProperty(t => t.CountsAt, (DateTime?)now);
+
     /// <summary>One transaction: the thread's state, its replaced rows and the NOTIFY. False (nothing written) when the link changed meanwhile.</summary>
     private async Task<bool> ReplaceAsync(
-        BlogDbContext db, SocialClaim claim, List<SocialReply> rows, string snapshot, DateTime now, DateTime nextDue, CancellationToken ct)
+        BlogDbContext db, SocialClaim claim, List<SocialReply> rows, string snapshot, SocialCounts? counts, DateTime now, DateTime nextDue, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
         // The thread update comes first and holds the row until the commit: a link change waits for it, and one that got there first makes it affect no row.
-        var updated = await StillLinked(db, claim).ExecuteUpdateAsync(set => set
-            .SetProperty(t => t.SnapshotHash, snapshot)
-            .SetProperty(t => t.LastSuccessAt, (DateTime?)now)
-            .SetProperty(t => t.LastAttemptAt, (DateTime?)now)
-            .SetProperty(t => t.NextDueAt, nextDue)
-            .SetProperty(t => t.LeaseUntil, (DateTime?)null)
-            .SetProperty(t => t.LastError, (string?)null), ct);
+        var updated = await StillLinked(db, claim).ExecuteUpdateAsync(set =>
+        {
+            set.SetProperty(t => t.SnapshotHash, snapshot)
+                .SetProperty(t => t.LastSuccessAt, (DateTime?)now)
+                .SetProperty(t => t.LastAttemptAt, (DateTime?)now)
+                .SetProperty(t => t.NextDueAt, nextDue)
+                .SetProperty(t => t.LeaseUntil, (DateTime?)null)
+                .SetProperty(t => t.LastError, (string?)null);
+            if (counts is not null)
+                SetCounts(set, counts, now);
+        }, ct);
         if (updated == 0)
         {
             await transaction.RollbackAsync(ct);
