@@ -298,6 +298,12 @@ public class AccessibilityAdminMatrixTests : AccessibilityScan
         {
             scans.Add(await ScanDrawerAsync(page));
         }
+        else if (route is "tags" or "media")
+        {
+            // Pointer viewports only: the phone context has touch and no hover. Brief 17d item 2.
+            await HoverDeleteAsync(page, route);
+            scans.Add(await RunScanAsync(page, "hover: Delete"));
+        }
 
         AssertScans(route, $"{route} at {width}px, {theme}", scans);
     }
