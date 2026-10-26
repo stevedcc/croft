@@ -440,20 +440,14 @@ public class StaticGlueTests : StaticReadingTest
         await context.RouteAsync(new System.Text.RegularExpressions.Regex(@"post[^/]*\.js(\?.*)?$"),
             route => route.FulfillAsync(new RouteFulfillOptions { Status = 500, Body = "nope" }));
         var page = await context.NewPageAsync();
-        var errors = new List<string>();
-        page.Console += (_, message) =>
-        {
-            if (message.Type == "error")
-            {
-                errors.Add(message.Text);
-            }
-        };
+        var errorLog = EventLog.ConsoleTexts(page, "error");
 
         await page.GotoAsync($"{BaseUrl}/post/{_postA.Slug}");
         await WaitForInteractiveAsync(page);
 
         await page.Locator(".theme-switch").ClickAsync();
         await Expect(page.Locator(".theme-switch .label")).ToHaveTextAsync("Theme: Light");
+        var errors = errorLog.Snapshot();
         Assert.That(errors, Has.Some.Contain("static-glue: starting the page's scripts failed"),
             $"the failure is named in the console; console errors: {string.Join(" | ", errors)}");
     }
@@ -467,21 +461,14 @@ public class StaticGlueTests : StaticReadingTest
         await using var context = await NewDesktopContextAsync();
         await context.AddInitScriptAsync(CountScrollHandlers);
         var page = await context.NewPageAsync();
-        var errors = new List<string>();
-        page.Console += (_, message) =>
-        {
-            if (message.Type == "error")
-            {
-                errors.Add(message.Text);
-            }
-        };
+        var errorLog = EventLog.ConsoleTexts(page, "error");
         await OpenPostAsync(page, _postA);
         // Post A is up with its spy listening. Make the next start throw (after the teardown, if there is one).
         await page.EvaluateAsync("() => { window.blogPost.highlightAll = () => { throw new Error('highlight exploded'); }; }");
 
         await NavigateByRelatedCardAsync(page, _postB, _titleB);
 
-        Assert.That(errors, Has.Some.Contain("static-glue: starting the page's scripts failed"));
+        Assert.That(errorLog.Snapshot(), Has.Some.Contain("static-glue: starting the page's scripts failed"));
         await page.EvaluateAsync(
             """
             async () => {

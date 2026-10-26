@@ -129,15 +129,7 @@ public class CspPublicPagesTests : StaticReadingTest
         // Brief 13a: the not-found page is a static document; an anonymous visitor who lands on
         // it opens no circuit (no WebSocket, no /_blazor request) and the static policy holds.
         var probe = await CspViolationProbe.AttachAsync(Page);
-        var circuitTraffic = new List<string>();
-        Page.WebSocket += (_, socket) => { lock (circuitTraffic) { circuitTraffic.Add(socket.Url); } };
-        Page.Request += (_, request) =>
-        {
-            if (request.Url.Contains("/_blazor", StringComparison.Ordinal))
-            {
-                lock (circuitTraffic) { circuitTraffic.Add(request.Url); }
-            }
-        };
+        var circuitTraffic = EventLog.CircuitTraffic(Page);
 
         await probe.StepAsync("static not-found page");
         var response = await Page.GotoAsync($"{BaseUrl}/not-found");
@@ -146,7 +138,7 @@ public class CspPublicPagesTests : StaticReadingTest
 
         Assert.That(response!.Status, Is.EqualTo(200));
         await Expect(Page.GetByText("This page has wandered off")).ToBeVisibleAsync();
-        Assert.That(circuitTraffic, Is.Empty, $"a static not-found page must not ask for a circuit in {Engine}");
+        Assert.That(circuitTraffic.Snapshot(), Is.Empty, $"a static not-found page must not ask for a circuit in {Engine}");
         await AssertZeroViolationsAsync(probe, $"not-found page in {Engine}");
     }
 
@@ -154,19 +146,17 @@ public class CspPublicPagesTests : StaticReadingTest
     public async Task FontsAndIcons_LoadUnderTheEnforcedPolicy()
     {
         var probe = await CspViolationProbe.AttachAsync(Page);
-        var fontResponses = new List<(string Url, int Status)>();
-        Page.Response += (_, response) =>
-        {
-            if (response.Url.Contains(".woff2", StringComparison.Ordinal))
-            {
-                lock (fontResponses) { fontResponses.Add((response.Url, response.Status)); }
-            }
-        };
+        var fontLog = EventLog.Responses(Page);
 
         await probe.StepAsync("home, fonts and icons");
         await Page.GotoAsync(BaseUrl);
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         await Page.EvaluateAsync("() => document.fonts.ready");
+        fontLog.Stop();
+        var fontResponses = fontLog.Snapshot()
+            .Where(response => response.Url.Contains(".woff2", StringComparison.Ordinal))
+            .Select(response => (response.Url, response.Status))
+            .ToList();
 
         Assert.That(fontResponses, Is.Not.Empty, "the preloaded fonts were requested");
         Assert.That(fontResponses.Where(f => f.Status != 200), Is.Empty, "every font request was answered");

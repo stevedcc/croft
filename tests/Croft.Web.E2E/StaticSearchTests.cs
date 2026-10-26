@@ -27,8 +27,7 @@ public class StaticSearchTests : StaticReadingTest
     public async Task Enter_SearchesByUrl_ShowsTheResults_WithoutAFullReload()
     {
         await EnsureFixturesAsync();
-        var sockets = new List<string>();
-        Page.WebSocket += (_, socket) => sockets.Add(socket.Url);
+        var sockets = EventLog.WebSocketUrls(Page);
         await Page.GotoAsync($"{BaseUrl}/search");
         await WaitForInteractiveAsync(Page);
         await Page.EvaluateAsync("() => { window.__docMarker = 'one-document'; }");
@@ -42,7 +41,7 @@ public class StaticSearchTests : StaticReadingTest
         Assert.That(await Page.EvaluateAsync<string?>("() => window.__docMarker"), Is.EqualTo("one-document"),
             "Enter must search by enhanced navigation: a full document load would drop the window marker.");
         await Expect(Page.Locator("#search-field")).ToHaveValueAsync(OneTerm);
-        Assert.That(sockets, Is.Empty, "searching must open no circuit.");
+        Assert.That(sockets.Snapshot(), Is.Empty, "searching must open no circuit.");
     }
 
     [Test]

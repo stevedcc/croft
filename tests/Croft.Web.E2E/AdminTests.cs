@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using MudBlazor;
 
 namespace Croft.Web.E2E;
@@ -149,9 +150,7 @@ public class AdminTests : WebTest
         await Page.GetByLabel("Upload banner").SetInputFilesAsync(Path.Combine(AppContext.BaseDirectory, "test-image.png"));
         await Expect(Page.GetByText("test-image.png").First).ToBeVisibleAsync();
         await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Publish now" }).ClickAsync();
-        await Page.WaitForURLAsync(
-            url => url.StartsWith($"{BaseUrl}/admin/posts/") && url.EndsWith("/edit"),
-            new PageWaitForURLOptions { Timeout = 15000 });
+        await ExpectEditorUrlAsync();
         var slug = await SlugForPostAsync(PostIdFromEditorUrl());
 
         string bannerUrl;
@@ -407,8 +406,7 @@ public class AdminTests : WebTest
 
         // Home is checked as a visitor: an admin's list includes drafts (the API's Admin view),
         // so only the logged-out view proves the public outcome.
-        await Page.GotoAsync($"{BaseUrl}/logout");
-        await Expect(Page.GetByText("Log in")).ToBeVisibleAsync();
+        await SignOutAsync();
         await Page.GotoAsync(BaseUrl);
         await Expect(Page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = title })).ToBeVisibleAsync();
 
@@ -419,8 +417,7 @@ public class AdminTests : WebTest
         await Expect(Page.Locator(".status-badge")).ToHaveTextAsync("Draft");
 
         // Rule 7 outcome: the post is gone from Home, not merely marked draft in the editor.
-        await Page.GotoAsync($"{BaseUrl}/logout");
-        await Expect(Page.GetByText("Log in")).ToBeVisibleAsync();
+        await SignOutAsync();
         await Page.GotoAsync(BaseUrl);
         await Expect(Page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = title })).ToHaveCountAsync(0);
     }
@@ -502,9 +499,7 @@ public class AdminTests : WebTest
         await Page.GetByLabel("Markdown").BlurAsync();
 
         await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Save draft" }).ClickAsync();
-        await Page.WaitForURLAsync(
-            url => url.StartsWith($"{BaseUrl}/admin/posts/") && url.EndsWith("/edit"),
-            new PageWaitForURLOptions { Timeout = 15000 });
+        await ExpectEditorUrlAsync();
 
         // Ruling R4-empty + spec §6.4: the picker opens on "All images" (the global library is
         // never empty in the shared dev DB), and a fresh post's own images are the deterministic
@@ -561,7 +556,6 @@ public class AdminTests : WebTest
     [Test]
     public async Task PostsList_RowActions_NavigateToEditAnalyticsAndFeedbackTab()
     {
-        TrackRequestsForCapture();
         await LoginAsync("admin@example.com", "password");
         var title = $"R41 Actions {Guid.NewGuid():N}";
         await PublishPostAsync(title, "Row actions fixture body.");
@@ -573,16 +567,14 @@ public class AdminTests : WebTest
 
         // Rule 7 outcome: each row action lands on the page that does the job.
         await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Edit" }).ClickAsync();
-        await WaitForUrlCapturingAsync(
-            url => url == $"{BaseUrl}/admin/posts/{postId}/edit", "edit");
+        await ExpectUrlAsync($"{BaseUrl}/admin/posts/{postId}/edit");
         await Expect(Page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Edit Post" })).ToBeVisibleAsync();
 
         await SearchForRowAsync(title);
         row = RowFor(title);
         await Expect(row).ToBeVisibleAsync();
         await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Analytics" }).ClickAsync();
-        await WaitForUrlCapturingAsync(
-            url => url == $"{BaseUrl}/admin/posts/{postId}/analytics", "analytics");
+        await ExpectUrlAsync($"{BaseUrl}/admin/posts/{postId}/analytics");
         await Expect(Page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = title })).ToBeVisibleAsync();
         await Expect(Page.Locator(".analytics__total")).ToContainTextAsync("Total views:");
 
@@ -590,8 +582,7 @@ public class AdminTests : WebTest
         row = RowFor(title);
         await Expect(row).ToBeVisibleAsync();
         await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Feedback" }).ClickAsync();
-        await WaitForUrlCapturingAsync(
-            url => url == $"{BaseUrl}/admin/posts/{postId}/edit?tab=feedback", "feedback");
+        await ExpectUrlAsync($"{BaseUrl}/admin/posts/{postId}/edit?tab=feedback");
         // The Feedback tab is the one doing the job: its panel is what shows.
         await Expect(Page.GetByText("No feedback yet.")).ToBeVisibleAsync();
     }
@@ -599,113 +590,6 @@ public class AdminTests : WebTest
     /// <summary>The posts-grid row showing this title.</summary>
     private ILocator RowFor(string title) =>
         Page.Locator(".posts-grid__row", new PageLocatorOptions { HasText = title });
-
-    // WORKAROUND(W-066, Playwright): diagnostic capture for an unexplained rare hang in WaitForURLAsync (not a fix)
-    /// <summary>The navigation wait for this test's three row actions, with a failure-only capture.
-    /// These waits carry a rare (~1 in 15 full-suite runs) unreproduced 15 s hang whose root cause
-    /// is still open — the prerender-click-drop hypothesis was refuted (0/15 delayed runs dropped
-    /// the click; the grid rows render only after interactivity), see
-    /// .superpowers/sdd/08a-ha-web-state/flake-fix-report.md and progress.md. On timeout the
-    /// capture writes Page.Url, all .posts-grid__row texts and a full-page screenshot to /tmp so
-    /// the first recurrence names the mechanism. The success path is exactly
-    /// Page.WaitForURLAsync with the same 15 s timeout: no retries, no timeout changes.</summary>
-    private async Task WaitForUrlCapturingAsync(Func<string, bool> predicate, string captureName)
-    {
-        try
-        {
-            await Page.WaitForURLAsync(predicate, new PageWaitForURLOptions { Timeout = 15000 });
-        }
-        catch (TimeoutException)
-        {
-            var rows = await Page.Locator(".posts-grid__row").AllTextContentsAsync();
-            await File.WriteAllTextAsync(
-                $"/tmp/diag-{captureName}-{DateTime.UtcNow:HHmmssfff}.txt",
-                $"url={Page.Url}\nrows={string.Join("\n---\n", rows)}\n{await HangStateAsync()}");
-            await Page.ScreenshotAsync(new() { Path = $"/tmp/diag-{captureName}.png", FullPage = true });
-            throw;
-        }
-    }
-    // END WORKAROUND(W-066)
-
-    // In-flight request tracking for the hang capture: started minus finished/failed, so the
-    // dump names the request(s) that never completed if that is what the load event waits on.
-    private readonly Lock _requestsGate = new();
-    private readonly Dictionary<IRequest, (string Method, string Url, string ResourceType)> _requestsInFlight = [];
-
-    /// <summary>Subscribes the request events feeding the hang capture's in-flight dump.</summary>
-    private void TrackRequestsForCapture()
-    {
-        lock (_requestsGate)
-        {
-            _requestsInFlight.Clear();
-        }
-
-        Page.Request += OnCapturedRequestStarted;
-        Page.RequestFinished += OnCapturedRequestEnded;
-        Page.RequestFailed += OnCapturedRequestEnded;
-    }
-
-    private void OnCapturedRequestStarted(object? sender, IRequest request)
-    {
-        lock (_requestsGate)
-        {
-            _requestsInFlight[request] = (request.Method, request.Url, request.ResourceType);
-        }
-    }
-
-    private void OnCapturedRequestEnded(object? sender, IRequest request)
-    {
-        lock (_requestsGate)
-        {
-            _requestsInFlight.Remove(request);
-        }
-    }
-
-    /// <summary>What the hung wait is waiting on: the in-flight requests (started minus
-    /// finished/failed), the performance resource entries whose responseEnd/duration are 0
-    /// (the never-finished ones) and the document's ready/load timing — the cheap state that
-    /// identifies the load condition that stayed unmet. (Playwright's .NET API has no
-    /// load-state getter, so readyState + the navigation entry stand in for it.)</summary>
-    private async Task<string> HangStateAsync()
-    {
-        (string Method, string Url, string ResourceType)[] inFlight;
-        lock (_requestsGate)
-        {
-            inFlight = [.. _requestsInFlight.Values];
-        }
-
-        var readyState = await Page.EvaluateAsync<string>("document.readyState");
-        var navigation = await Page.EvaluateAsync<JsonElement>(
-            "performance.getEntriesByType('navigation')[0]"
-            + " ? (({ type, startTime, responseEnd, domContentLoadedEventEnd, loadEventEnd }) =>"
-            + " ({ type, startTime, responseEnd, domContentLoadedEventEnd, loadEventEnd }))"
-            + "(performance.getEntriesByType('navigation')[0])"
-            + " : null");
-        var resources = await Page.EvaluateAsync<JsonElement>(
-            "performance.getEntriesByType('resource').map("
-            + "({ name, initiatorType, startTime, duration, responseEnd }) =>"
-            + " ({ name, initiatorType, startTime, duration, responseEnd }))");
-
-        List<string> lines = ["in-flight requests (started minus finished/failed):"];
-        if (inFlight.Length == 0)
-        {
-            lines.Add("  (none)");
-        }
-
-        lines.AddRange(inFlight.Select(r => $"  {r.Method} {r.ResourceType} {r.Url}"));
-        lines.Add($"document.readyState={readyState}");
-        lines.Add($"navigation entry: {navigation}");
-        lines.Add("resource entries (name | initiatorType | startTime | duration | responseEnd):");
-        lines.AddRange(resources.EnumerateArray().Select(e =>
-            $"  {e.GetProperty("name").GetString()} | {e.GetProperty("initiatorType").GetString()}"
-            + $" | {e.GetProperty("startTime").GetDouble():F0} | {e.GetProperty("duration").GetDouble():F0}"
-            + $" | {e.GetProperty("responseEnd").GetDouble():F0}"));
-        lines.Add("never-finished resource entries (responseEnd=0 or duration=0):");
-        lines.AddRange(resources.EnumerateArray()
-            .Where(e => e.GetProperty("responseEnd").GetDouble() == 0 || e.GetProperty("duration").GetDouble() == 0)
-            .Select(e => $"  {e.GetProperty("initiatorType").GetString()} {e.GetProperty("name").GetString()}"));
-        return string.Join("\n", lines);
-    }
 
     /// <summary>Opens the posts list and searches for the title so its row is on page 1. The
     /// shared dev DB accumulates posts scheduled far in the future, which sort above fresh rows
@@ -718,6 +602,22 @@ public class AdminTests : WebTest
         await Page.GetByRole(AriaRole.Textbox, new PageGetByRoleOptions { Name = "Search titles" }).PressAsync("Enter");
     }
 
+    // WORKAROUND(W-105, Playwright .NET): URL waits after in-circuit navigations are retrying assertions, not WaitForURLAsync
+    /// <summary>Waits for the URL after a navigation inside the circuit (a <c>pushState</c>: Save draft,
+    /// Publish now, a row action). The .NET client's <c>WaitForURLAsync</c> checks the frame's URL and
+    /// then subscribes to the "navigated" event as two separate steps, so a navigation that lands
+    /// between them is missed and the wait runs to its timeout while the URL is already right
+    /// (reproduced: about 1 in 200 waits). <c>Expect(Page).ToHaveURLAsync</c> re-reads the URL until it matches.</summary>
+    private Task ExpectUrlAsync(string url) =>
+        Expect(Page).ToHaveURLAsync(url, new PageAssertionsToHaveURLOptions { Timeout = 15000 });
+
+    /// <summary>The editor URL of a saved post, <c>/admin/posts/{id}/edit</c>.</summary>
+    private Task ExpectEditorUrlAsync() =>
+        Expect(Page).ToHaveURLAsync(
+            new Regex($"^{Regex.Escape(BaseUrl)}/admin/posts/[^/]+/edit$"),
+            new PageAssertionsToHaveURLOptions { Timeout = 15000 });
+    // END WORKAROUND(W-105)
+
     /// <summary>Saves a post as a draft through the new editor.</summary>
     private async Task CreateDraftAsync(string title, string body)
     {
@@ -728,9 +628,7 @@ public class AdminTests : WebTest
         await Page.GetByLabel("Markdown").BlurAsync();
 
         await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Save draft" }).ClickAsync();
-        await Page.WaitForURLAsync(
-            url => url.StartsWith($"{BaseUrl}/admin/posts/") && url.EndsWith("/edit"),
-            new PageWaitForURLOptions { Timeout = 15000 });
+        await ExpectEditorUrlAsync();
     }
 
     /// <summary>Creates a category through the new TagsPage UI (ruling R4-auth: fixtures go through the admin UI).</summary>
@@ -768,9 +666,7 @@ public class AdminTests : WebTest
         }
 
         await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Publish now" }).ClickAsync();
-        await Page.WaitForURLAsync(
-            url => url.StartsWith($"{BaseUrl}/admin/posts/") && url.EndsWith("/edit"),
-            new PageWaitForURLOptions { Timeout = 15000 });
+        await ExpectEditorUrlAsync();
     }
 
     private async Task<string> CategorySlugAsync(string name)

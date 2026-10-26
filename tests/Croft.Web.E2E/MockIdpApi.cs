@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -26,7 +27,8 @@ internal static class MockIdpApi
         var authorize = $"{OAuthAuthority}/authorize?response_type=code&client_id=blog-web" +
                         $"&redirect_uri={Uri.EscapeDataString(callback)}&scope=openid&state=seed";
 
-        await client.GetAsync(authorize);
+        using var authorizeResponse = await client.GetAsync(authorize);
+        authorizeResponse.EnsureSuccessStatusCode();
 
         var claims = "{\"sub\":\"admin-id\",\"name\":\"Admin User\",\"email\":\"admin@example.com\"," +
                      "\"email_verified\":true,\"groups\":[\"Admin\"]}";
@@ -35,7 +37,14 @@ internal static class MockIdpApi
             ["username"] = "admin@example.com",
             ["claims"] = claims,
         });
-        var loginResponse = await client.PostAsync(authorize, loginForm);
+        using var loginResponse = await client.PostAsync(authorize, loginForm);
+        if (loginResponse.StatusCode is not (HttpStatusCode.Found or HttpStatusCode.SeeOther))
+        {
+            throw new InvalidOperationException(
+                $"Mock IdP login answered {(int)loginResponse.StatusCode} {loginResponse.StatusCode} instead of a redirect with an authorization code " +
+                $"(the /authorize GET answered {(int)authorizeResponse.StatusCode}).");
+        }
+
         var location = loginResponse.Headers.Location
             ?? throw new InvalidOperationException("Mock IdP login returned no redirect with an authorization code.");
         var code = location.Query.TrimStart('?')
@@ -55,7 +64,7 @@ internal static class MockIdpApi
         tokenResponse.EnsureSuccessStatusCode();
         using var doc = JsonDocument.Parse(await tokenResponse.Content.ReadAsStringAsync());
         var accessToken = doc.RootElement.GetProperty("access_token").GetString()!;
-        EnsureAdminClaims(accessToken, location);
+        EnsureAdminClaims(accessToken, location, authorizeResponse.StatusCode, loginResponse.StatusCode);
         return accessToken;
     }
 
@@ -64,7 +73,7 @@ internal static class MockIdpApi
     /// upload was refused with 403 on CI (2 of 5 runs on PR #46, the first matrix fixture of the run), which
     /// only an authenticated caller without the Admin role gets. This names the token's actual claims instead.
     /// </summary>
-    private static void EnsureAdminClaims(string accessToken, Uri loginRedirect)
+    private static void EnsureAdminClaims(string accessToken, Uri loginRedirect, HttpStatusCode authorizeStatus, HttpStatusCode loginStatus)
     {
         var parts = accessToken.Split('.');
         var payload = parts.Length == 3 ? Encoding.UTF8.GetString(System.Buffers.Text.Base64Url.DecodeFromChars(parts[1])) : "(not a JWT)";
@@ -78,7 +87,7 @@ internal static class MockIdpApi
         {
             throw new InvalidOperationException(
                 $"The mock IdP issued an access token without the posted admin claims (sub admin-id, groups [Admin]); " +
-                $"the login redirected to {loginRedirect}; token payload: {payload}");
+                $"the /authorize GET answered {(int)authorizeStatus}, the login POST answered {(int)loginStatus} and redirected to {loginRedirect}; token payload: {payload}");
         }
     }
 

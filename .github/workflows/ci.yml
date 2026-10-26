@@ -177,6 +177,7 @@ jobs:
           path: |
             /tmp/blog-e2e-*.log
             /tmp/diag-*.png
+            /tmp/diag-*.txt
             tests/Croft.Web.E2E/bin/Debug/net11.0/screenshots
             tests/Croft.Web.E2E/TestResults
           if-no-files-found: ignore

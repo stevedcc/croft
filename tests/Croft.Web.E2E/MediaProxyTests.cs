@@ -29,8 +29,7 @@ public class MediaProxyTests : WebTest
 
         var actualSlug = await SlugForPostAsync(PostIdFromEditorUrl());
 
-        await Page.GotoAsync($"{BaseUrl}/logout");
-        await Expect(Page.GetByText("Log in")).ToBeVisibleAsync();
+        await SignOutAsync();
 
         await Page.GotoAsync($"{BaseUrl}/post/{actualSlug}");
 
@@ -75,8 +74,7 @@ public class MediaProxyTests : WebTest
         var adminResponse = await Page.APIRequest.GetAsync($"{BaseUrl}{bannerSrc}");
         Assert.That(adminResponse.Status, Is.EqualTo(200));
 
-        await Page.GotoAsync($"{BaseUrl}/logout");
-        await Expect(Page.GetByText("Log in")).ToBeVisibleAsync();
+        await SignOutAsync();
 
         var anonymousResponse = await Page.APIRequest.GetAsync($"{BaseUrl}{bannerSrc}");
         Assert.That(anonymousResponse.Status, Is.EqualTo(403));
@@ -113,8 +111,7 @@ public class MediaProxyTests : WebTest
 
         var actualSlug = await SlugForPostAsync(PostIdFromEditorUrl());
 
-        await Page.GotoAsync($"{BaseUrl}/logout");
-        await Expect(Page.GetByText("Log in")).ToBeVisibleAsync();
+        await SignOutAsync();
 
         await Page.GotoAsync($"{BaseUrl}/post/{actualSlug}");
 

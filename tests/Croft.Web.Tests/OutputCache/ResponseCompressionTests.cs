@@ -153,19 +153,21 @@ public class ResponseCompressionTests
     }
 
     [Theory]
-    [InlineData("/admin/posts", true)]
-    [InlineData("/not-found", false)]
-    [InlineData("/post/no-such-post", false)]
-    [InlineData("/search?q=cache", false)]
-    [InlineData("/health/ready", false)]
-    [InlineData("/robots.txt", false)]
-    public async Task EverythingElse_IsNotCompressedByThisCode(string path, bool staff)
+    [InlineData("/admin/posts", true, HttpStatusCode.OK)]
+    [InlineData("/not-found", false, HttpStatusCode.OK)]
+    [InlineData("/post/no-such-post", false, HttpStatusCode.NotFound)]
+    [InlineData("/search?q=cache", false, HttpStatusCode.OK)]
+    // The cache host has no API behind it, so readiness answers its own 503 (not ready): still a deliberate answer.
+    [InlineData("/health/ready", false, HttpStatusCode.ServiceUnavailable)]
+    [InlineData("/robots.txt", false, HttpStatusCode.OK)]
+    public async Task EverythingElse_IsNotCompressedByThisCode(string path, bool staff, HttpStatusCode status)
     {
         using var host = CacheHost.Create();
         using var client = host.Client();
 
         var (response, _) = await GetAsync(client, path, "br", staff);
 
+        response.StatusCode.Should().Be(status, $"{path} must answer for real: a 500 is not 'uncompressed'");
         response.Content.Headers.ContentEncoding.Should().BeEmpty($"{path} is not something the output cache may store");
     }
 

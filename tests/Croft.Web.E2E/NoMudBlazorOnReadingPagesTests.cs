@@ -73,12 +73,12 @@ public class NoMudBlazorOnReadingPagesTests : StaticReadingTest
     public async Task AdminPage_StillLoadsMudBlazor_AndRendersItsComponents()
     {
         await LoginAsync("admin@example.com", "password");
-        var requests = TrackRequests(Page);
+        var requests = EventLog.RequestUrls(Page);
 
         var response = await Page.GotoAsync($"{BaseUrl}/admin/posts");
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
-        AssertMudBlazorLoaded(requests, "/admin/posts");
+        AssertMudBlazorLoaded(requests.Snapshot(), "/admin/posts");
         Assert.That(await response!.TextAsync(), Does.Contain("mud-"), "an admin document renders MudBlazor markup.");
         await Expect(Page.Locator("main .mud-table, main .mud-button-root, .mud-popover-provider").First)
             .ToBeAttachedAsync();
@@ -92,14 +92,14 @@ public class NoMudBlazorOnReadingPagesTests : StaticReadingTest
     public async Task NotFoundPage_LoadsNoMudBlazor_AndDrawsItsLinks()
     {
         // Brief 13a: the not-found page is a static document like the reading pages.
-        var requests = TrackRequests(Page);
+        var requests = EventLog.RequestUrls(Page);
 
         var response = await Page.GotoAsync($"{BaseUrl}/not-found");
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
         Assert.That(response!.Status, Is.EqualTo(200));
         Assert.That(await response.TextAsync(), Does.Not.Contain("mud-"), "/not-found carries no MudBlazor class or variable.");
-        Assert.That(requests.Where(IsMudBlazorAsset), Is.Empty, "/not-found downloads no MudBlazor assets.");
+        Assert.That(requests.Snapshot().Where(IsMudBlazorAsset), Is.Empty, "/not-found downloads no MudBlazor assets.");
         await Expect(Page.Locator("main a.not-found__link")).ToHaveCountAsync(2);
     }
 
@@ -112,7 +112,7 @@ public class NoMudBlazorOnReadingPagesTests : StaticReadingTest
         // A reading page that calls NotFound() renders the not-found copy inside its own static
         // document: no MudBlazor there either, so the copy is plain markup that must still read
         // as the not-found page (a 3rem heading, upper-case accent-coloured links).
-        var requests = TrackRequests(Page);
+        var requests = EventLog.RequestUrls(Page);
 
         var response = await Page.GotoAsync($"{BaseUrl}{path}-{RunId}");
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
@@ -121,7 +121,7 @@ public class NoMudBlazorOnReadingPagesTests : StaticReadingTest
         var html = await response.TextAsync();
         Assert.That(html, Does.Contain("This page has wandered off"), "the not-found copy renders.");
         Assert.That(html, Does.Not.Contain("mud-"), $"{path}: the static 404 document carries a MudBlazor class or variable.");
-        Assert.That(requests.Where(IsMudBlazorAsset), Is.Empty,
+        Assert.That(requests.Snapshot().Where(IsMudBlazorAsset), Is.Empty,
             $"{path}: the static 404 document downloaded MudBlazor assets.");
         Assert.That(await Page.Locator("main h1").EvaluateAsync<string>("el => getComputedStyle(el).fontSize"),
             Is.EqualTo("48px"), "the heading is drawn by the page's own stylesheet.");
@@ -136,16 +136,8 @@ public class NoMudBlazorOnReadingPagesTests : StaticReadingTest
     {
         // Brief 13a: the catch-all page is a static endpoint. The anonymous visitor gets the real
         // 404 with the static policy (no MudBlazor script sources), no MudBlazor and no circuit.
-        var requests = TrackRequests(Page);
-        var circuitTraffic = new List<string>();
-        Page.WebSocket += (_, socket) => { lock (circuitTraffic) { circuitTraffic.Add(socket.Url); } };
-        Page.Request += (_, request) =>
-        {
-            if (request.Url.Contains("/_blazor", StringComparison.Ordinal))
-            {
-                lock (circuitTraffic) { circuitTraffic.Add(request.Url); }
-            }
-        };
+        var requests = EventLog.RequestUrls(Page);
+        var circuitTraffic = EventLog.CircuitTraffic(Page);
 
         var response = await Page.GotoAsync($"{BaseUrl}/no/such/route/{RunId}");
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
@@ -156,14 +148,14 @@ public class NoMudBlazorOnReadingPagesTests : StaticReadingTest
         Assert.That(policy, Is.Not.Null.And.Not.Contain("/_content/MudBlazor/"),
             "the 404 document carries the static policy, which names no MudBlazor script source.");
         Assert.That(await response.TextAsync(), Does.Not.Contain("mud-"));
-        Assert.That(requests.Where(IsMudBlazorAsset), Is.Empty);
+        Assert.That(requests.Snapshot().Where(IsMudBlazorAsset), Is.Empty);
         await Expect(Page.Locator("main a.not-found__link")).ToHaveCountAsync(2);
-        Assert.That(circuitTraffic, Is.Empty, "an anonymous visitor on a 404 opens no circuit.");
+        Assert.That(circuitTraffic.Snapshot(), Is.Empty, "an anonymous visitor on a 404 opens no circuit.");
     }
 
     private async Task AssertNoMudBlazorAsync(string path)
     {
-        var requests = TrackRequests(Page);
+        var requests = EventLog.RequestUrls(Page);
 
         var response = await Page.GotoAsync($"{BaseUrl}{path}");
         Assert.That(response!.Status, Is.EqualTo(200), $"{path} must render.");
@@ -172,9 +164,9 @@ public class NoMudBlazorOnReadingPagesTests : StaticReadingTest
         var html = await response.TextAsync();
         Assert.That(html, Does.Not.Contain("mud-"), $"{path}: the HTML carries a MudBlazor class or variable.");
         Assert.That(html, Does.Not.Contain("MudBlazor"), $"{path}: the HTML refers to MudBlazor.");
-        Assert.That(requests.Where(IsMudBlazorAsset), Is.Empty,
-            $"{path} downloaded MudBlazor assets: {string.Join(", ", requests.Where(IsMudBlazorAsset))}.");
-        Assert.That(requests, Has.Some.Matches<string>(url => url!.Contains("/js/static-glue")),
+        Assert.That(requests.Snapshot().Where(IsMudBlazorAsset), Is.Empty,
+            $"{path} downloaded MudBlazor assets: {string.Join(", ", requests.Snapshot().Where(IsMudBlazorAsset))}.");
+        Assert.That(requests.Snapshot(), Has.Some.Matches<string>(url => url!.Contains("/js/static-glue")),
             "the page's own script did load (the log is live).");
     }
 
@@ -187,20 +179,6 @@ public class NoMudBlazorOnReadingPagesTests : StaticReadingTest
     }
 
     private static bool IsMudBlazorAsset(string url) => url.Contains("MudBlazor", StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>The URLs the page requests, as the browser makes them (Playwright's request log).</summary>
-    private static List<string> TrackRequests(IPage page)
-    {
-        var urls = new List<string>();
-        page.Request += (_, request) =>
-        {
-            lock (urls)
-            {
-                urls.Add(request.Url);
-            }
-        };
-        return urls;
-    }
 
     private async Task EnsureFixturesAsync()
     {

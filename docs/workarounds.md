@@ -582,13 +582,6 @@ entry and a marker in the same commit (AGENTS.md, "Workarounds").
 - **Fails without it:** `AdminTests` and `LongPostEditorTests`.
 - **Upgrade check:** re-run both on a Playwright upgrade. **Re-checked on 11.0 RC 2 (16a):** Playwright 1.64 is not part of this upgrade (unchanged); the suites of brief 16a pass with it on 11.0 RC 2.
 
-### W-066: The URL-wait hang capture
-
-- **Library:** an unexplained rare (about 1 in 15 full-suite runs) 15 s hang in `WaitForURLAsync`.
-- **Our code:** `AdminTests.WaitForUrlCapturingAsync` writes the URL, the row texts and a screenshot on timeout; the success path is plain `WaitForURLAsync`. It is a diagnostic, not a fix.
-- **Fails without it:** none: manual check (remove the capture and see whether the hang recurs).
-- **Upgrade check:** delete it once the hang has not recurred across upgrades. **Re-checked on 11.0 RC 2 (16a):** Playwright is not part of this upgrade (unchanged); the suites of brief 16a pass with it on 11.0 RC 2.
-
 ### W-067: The blocked-storage shadow getter
 
 - **Library:** relies on Chromium letting an own throwing `localStorage` getter shadow the configurable accessor; not guaranteed in WebKit or Firefox.
@@ -701,6 +694,13 @@ entry and a marker in the same commit (AGENTS.md, "Workarounds").
 - **Fails without it:** `OutputCacheReadingPageTests.AnEnhancedNavigationRequest_GetsTheSameResponseAsAFullLoad` (all six reading routes: "differ on line ... `<!--Blazor-Web-Initializers:WwogICJfZnJh...`").
 - **Upgrade check:** on each SDK update, delete the target and run that test; if the SDK stops emitting the initializer in Debug builds (or offers a switch for the browser tools alone), use that and retire W-104. The target relies on the SDK's private target and property names: if they change, the test fails again, which is the signal. **Re-checked on 11.0 RC 2 (16a):** added in 16a for SDK 11 RC 2 (item 2); its upgrade check applies from the next SDK on.
 
+### W-105: URL waits after in-circuit navigations are `Expect(Page).ToHaveURLAsync`
+
+- **Library:** Playwright .NET's `Page.WaitForURLAsync` checks the frame's URL on the calling thread and then subscribes to the "navigated" event; the connection delivers events on another thread (inferred from the probe below and the server-side source, which emits each "navigated" event once and never replays it; the .NET client source was not read), so a navigation landing between the two steps is never seen and the wait runs to its timeout although the URL is right. A same-document navigation (Blazor's `NavigateTo` inside the circuit is a `pushState`) is one a click's completion races with. Reproduced by a probe (a page `pushState`s after 0 to 3 ms, 2000 waits): 10 timeouts with `WaitForURLAsync`, 0 with `ToHaveURLAsync`.
+- **Our code:** `AdminTests.ExpectUrlAsync` and `ExpectEditorUrlAsync`, used for Save draft, Publish now and the posts-list row actions.
+- **Fails without it:** none deterministically (a rare timeout, about 1 in 15 full runs before the change); manual check: the probe above.
+- **Upgrade check:** on a Playwright upgrade, re-run the probe against `WaitForURLAsync`; if it no longer times out, the helpers can go back to it (or stay: they are correct either way).
+
 ## Tier F: deployment and dev tooling
 
 ### W-081: Network-policy labels for K3s and Traefik
@@ -790,6 +790,7 @@ compensates for a dependency's behaviour.
 IDs that no longer have an entry. They are never reused. These are plain lines, not headings, so
 `WorkaroundRegisterTests` checks that none of them has a `###` entry or a marker.
 
+- W-066: the URL-wait hang capture (`AdminTests.WaitForUrlCapturingAsync` and its in-flight request tracking, a diagnostic for a rare 15 s hang in `WaitForURLAsync`) was retired in brief 17a: the hang was Playwright .NET's `WaitForURLAsync` missing a navigation between its URL check and its event subscription (see W-105), and the three waits are `Expect(Page).ToHaveURLAsync` now.
 - W-005: the MudBlazor dark-palette append on static pages (the palette variables stayed light there) was removed when brief 09i took MudBlazor off the reading pages; `Theme/MudDarkPaletteCss.cs` is deleted and `Branding.ThemeHash` is retired.
 - W-047: the OIDC authority in `form-action` (`OidcFormActionCspContributor`) was removed in brief 10c at the owner's decision: sign-in is a 302 challenge and sign-out a GET link chain (`/logout` to `/logout/interstitial` to `/logout/complete` to a redirect), so no form of ours posts to the IdP and Chrome's form-redirect check never applied (brief 13b made `/logout/complete` a POST, so the check applies again: see W-096); `SidebarAuthLinksTests` and `DraftBackupTests.Logout_ClearsEveryDraftBackupKey` pass in Chromium and Firefox with `form-action 'self'`.
 - W-063: `BlogBunitContext`'s `IAsyncLifetime` (xUnit 2 disposed a test class through `IDisposable`, the bUnit context's synchronous dispose, while MudBlazor's dialog services are `IAsyncDisposable` only) was removed in brief 16b: xunit.v3 disposes a test class through `IAsyncDisposable` when it implements it, and `BunitContext` does, so the bUnit dialog tests pass with the context's own `DisposeAsync`.
