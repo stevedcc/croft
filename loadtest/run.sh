@@ -17,6 +17,8 @@ here="$(cd "$(dirname "$0")" && pwd)"
 engine="$(command -v podman || command -v docker)" || { echo "needs podman or docker" >&2; exit 2; }
 
 mkdir -p "$here/results"
+# The k6 container reads the asset list as its own user: a file written with a tight mode is "permission denied".
+[ -f "$here/${ASSETS:-assets.json}" ] && chmod a+r "$here/${ASSETS:-assets.json}"
 : > "$here/results/$name.csv"; : > "$here/results/$name-summary.json"
 chmod a+w "$here/results/$name.csv" "$here/results/$name-summary.json"
 
