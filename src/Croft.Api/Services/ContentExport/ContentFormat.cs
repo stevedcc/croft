@@ -17,9 +17,6 @@ public static class ContentFormat
 {
     public const int Version = 1;
 
-    /// <summary>The retired shadow property of Post (no CLR property): the guard finds it through the EF model.</summary>
-    public const string PostShowInNavigation = "ShowInNavigation";
-
     public const string ManifestFile = "manifest.json";
     public const string CategoriesFile = "categories.json";
     public const string TagsFile = "tags.json";
@@ -40,7 +37,6 @@ public static class ContentFormat
             {
                 [nameof(Post.SearchVector)] = "derived: a stored computed column the database rebuilds from title, excerpt and Markdown",
                 [nameof(Post.PageViews)] = "analytics, not content: page views have their own retention",
-                [nameof(Post.LegacyViewCount)] = "a pending-contract column (see AGENTS.md), kept only for releases older than the release of brief 13c (the release after 0.6.3); the view total is exported as viewCount from PostViewCounts (Post.Views)",
                 [nameof(Post.MastodonUrl)] = "social discussion link (brief 12a), outside format version 1: the owner re-enters it after a restore, and the replies are re-fetched from it",
                 [nameof(Post.MastodonStatusId)] = "derived from MastodonUrl on save",
                 [nameof(Post.BlueskyUrl)] = "social discussion link (brief 12a), outside format version 1: the owner re-enters it after a restore, and the replies are re-fetched from it",
@@ -49,8 +45,6 @@ public static class ContentFormat
                 [nameof(Post.AnnouncementText)] = "announcing setting (brief 12d), outside format version 1: it only matters until the post is published, and a restore starts with the defaults",
                 [nameof(Post.AnnounceMastodon)] = "announcing setting (brief 12d), outside format version 1: an imported post announces nothing, so a restore cannot announce old posts by surprise",
                 [nameof(Post.AnnounceBluesky)] = "announcing setting (brief 12d), outside format version 1: an imported post announces nothing, so a restore cannot announce old posts by surprise",
-                [PostShowInNavigation] = "a pending-contract column (see AGENTS.md), kept only for releases older than 0.6.1 and derived from NavigationPlacement, which is exported; "
-                    + "an import leaves it at its database default (false) and a later contract migration drops it"
             },
             [typeof(Category)] = new Dictionary<string, string>
             {

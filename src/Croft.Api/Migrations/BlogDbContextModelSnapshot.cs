@@ -17,7 +17,7 @@ partial class BlogDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261024162314_DotNet11Snapshot";
+    public override string LastMigrationId => "20261026133825_RetiredPostColumnsDefault";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -243,10 +243,6 @@ partial class BlogDbContextModelSnapshot : ModelSnapshot
                     .HasColumnType("integer")
                     .HasDefaultValue(0);
 
-                b.Property<long>("LegacyViewCount")
-                    .HasColumnType("bigint")
-                    .HasColumnName("ViewCount");
-
                 b.Property<string>("MarkdownContent")
                     .IsRequired()
                     .HasColumnType("text");
@@ -282,11 +278,6 @@ partial class BlogDbContextModelSnapshot : ModelSnapshot
                     .ValueGeneratedOnAddOrUpdate()
                     .HasColumnType("tsvector")
                     .HasComputedColumnSql("to_tsvector('english', coalesce(\"Title\", '') || ' ' || coalesce(\"Excerpt\", '') || ' ' || coalesce(\"MarkdownContent\", ''))", true);
-
-                b.Property<bool>("ShowInNavigation")
-                    .ValueGeneratedOnAdd()
-                    .HasColumnType("boolean")
-                    .HasDefaultValue(false);
 
                 b.Property<string>("Slug")
                     .IsRequired()
