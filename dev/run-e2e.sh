@@ -156,6 +156,96 @@ if ! curl -sf http://localhost:5556/default/.well-known/openid-configuration >/d
     fi
 fi
 
+# Pre-flight: the mock IdP must issue the claims a login posts (brief 17a item 5, issue #57).
+# A discovery document only proves the HTTP server is up. On CI the first token of a run came
+# back without the Admin group (a 403 on the first matrix fixture's upload), and nothing had
+# exercised /authorize or /token on the cold JVM before two workers started their flows at
+# once. mock-oauth2-server 2.3.0 keeps the code-to-login map in a plain HashMap that its
+# Netty worker threads write concurrently (AuthorizationCodeHandler.codeToLoginCache), so a
+# lost entry yields a token with the default claims. This runs the code flow the way
+# dev/seed-dev-data.sh does and requires sub admin-id and the Admin group in the access
+# token: serially until one is good (up to 30 x 1 s, which also initialises the maps before
+# anything runs concurrently), then three flows at once. It is a readiness check like the
+# discovery wait above, not a test retry.
+MOCK_AUTHORITY="http://localhost:5556/default"
+IDP_REQUIRED_GROUP="${IDP_REQUIRED_GROUP:-Admin}"
+
+# Prints the decoded payload of an access token for the posted admin identity, or a
+# parenthesised reason when the flow itself failed (and returns 1).
+idp_admin_token_payload() {
+    local jar headers authorize_url claims code response token segment pad
+    jar="$(mktemp)"
+    headers="$(mktemp)"
+    authorize_url="$MOCK_AUTHORITY/authorize?response_type=code&client_id=blog-web&redirect_uri=http%3A%2F%2Flocalhost%3A9876%2Fcallback&scope=openid&state=gate"
+    claims='{"sub":"admin-id","name":"Admin User","email":"admin@example.com","email_verified":true,"groups":["Admin"]}'
+    curl -s -m 10 -o /dev/null -c "$jar" -b "$jar" "$authorize_url"
+    curl -s -m 10 -o /dev/null -D "$headers" -c "$jar" -b "$jar" \
+        --data-urlencode "username=admin@example.com" --data-urlencode "claims=$claims" "$authorize_url"
+    code="$(grep -io 'code=[^&[:space:]]*' "$headers" | head -n 1 | sed 's/^[^=]*=//')"
+    if [ -z "$code" ]; then
+        echo "(no authorization code in the login redirect: $(head -n 1 "$headers" | tr -d '\r'))"
+        rm -f "$jar" "$headers"
+        return 1
+    fi
+    response="$(curl -s -m 10 -c "$jar" -b "$jar" \
+        --data-urlencode "grant_type=authorization_code" --data-urlencode "code=$code" \
+        --data-urlencode "client_id=blog-web" --data-urlencode "client_secret=secret" \
+        --data-urlencode "redirect_uri=http://localhost:9876/callback" "$MOCK_AUTHORITY/token")"
+    rm -f "$jar" "$headers"
+    token="$(grep -o '"access_token" *: *"[^"]*"' <<<"$response" | head -n 1 | sed 's/.*: *"//; s/"$//')"
+    if [ -z "$token" ]; then
+        echo "(no access token in the token response: $response)"
+        return 1
+    fi
+    segment="$(cut -d. -f2 <<<"$token" | tr '_-' '/+')"
+    pad=$(( (4 - ${#segment} % 4) % 4 ))
+    [ "$pad" -gt 0 ] && segment="$segment$(printf '=%.0s' $(seq 1 "$pad"))"
+    base64 -d <<<"$segment" 2>/dev/null
+    echo
+}
+
+idp_payload_is_admin() {
+    grep -Eq '"sub" *: *"admin-id"' <<<"$1" && grep -Eq "\"groups\" *: *\[[^]]*\"$IDP_REQUIRED_GROUP\"" <<<"$1"
+}
+
+idp_gate_failed() {
+    echo "Mock IdP gate failed: $1" >&2
+    shift
+    local n=0 payload
+    for payload in "$@"; do
+        n=$((n + 1))
+        echo "  payload $n: $payload" >&2
+    done
+    echo "docker compose logs --tail 50 oauth2:" >&2
+    docker compose logs --tail 50 oauth2 >&2 || true
+    exit 1
+}
+
+idp_gate() {
+    local payload="" attempt flow dir
+    for attempt in $(seq 1 30); do
+        payload="$(idp_admin_token_payload)" && idp_payload_is_admin "$payload" && break
+        payload="${payload:-(empty)}"
+        [ "$attempt" -lt 30 ] && sleep 1
+    done
+    idp_payload_is_admin "$payload" || idp_gate_failed "no good admin token in 30 tries (last payload below)" "$payload"
+
+    dir="$(mktemp -d)"
+    for flow in 1 2 3; do
+        ( idp_admin_token_payload >"$dir/$flow" 2>&1 ) &
+    done
+    wait
+    local payloads=() bad=0
+    for flow in 1 2 3; do
+        payloads+=("$(cat "$dir/$flow")")
+        idp_payload_is_admin "${payloads[-1]}" || bad=1
+    done
+    rm -rf "$dir"
+    [ "$bad" -eq 0 ] || idp_gate_failed "three concurrent flows did not all return the posted admin claims" "${payloads[@]}"
+    echo "Mock IdP gate: serial flow and three concurrent flows returned sub admin-id with group $IDP_REQUIRED_GROUP."
+}
+idp_gate
+
 # Pre-flight: never touch an instance whose ports are already serving another stack.
 CONFLICTS=()
 for i in $(seq "$FIRST_INSTANCE" "$LAST_INSTANCE"); do
