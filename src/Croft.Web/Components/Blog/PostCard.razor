@@ -72,5 +72,6 @@
 
     private string CssClass =>
         $"post-card post-card--{(Variant == PostCardVariant.Featured ? "featured" : "list")}" +
-        (Post.Category is null ? " post-card--no-chip" : string.Empty);
+        (Post.Category is null ? " post-card--no-chip" : string.Empty) +
+        (Post.Social is null ? string.Empty : " post-card--counts");
 }
