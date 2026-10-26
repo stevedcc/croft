@@ -23,4 +23,6 @@ public record PostDto(Guid Id, string Slug, string Title, string? Subtitle, stri
     // Announcing on publish (brief 12d). Staff reads carry them; public reads leave them empty (like AuthorId), and so does the public read cache.
     string? AnnouncementText = null,
     bool AnnounceMastodon = false,
-    bool AnnounceBluesky = false);
+    bool AnnounceBluesky = false,
+    // The announcements' like, repost and reply counts on both networks together (brief 17e); null when no thread has counts. Attached after the posts cache.
+    Croft.Shared.Contracts.Social.SocialCountsDto? Social = null);

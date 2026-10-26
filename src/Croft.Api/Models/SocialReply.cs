@@ -4,7 +4,7 @@ namespace Croft.Api.Models;
 
 /// <summary>
 /// One stored, already filtered and sanitised reply (brief 12a). Only what the discussion shows is
-/// kept: no counts, no other metadata. A refresh replaces a thread's rows, so what disappeared upstream disappears here.
+/// kept: no counts (the thread row holds the announcement's), no other metadata. A refresh replaces a thread's rows, so what disappeared upstream disappears here.
 /// </summary>
 public class SocialReply
 {

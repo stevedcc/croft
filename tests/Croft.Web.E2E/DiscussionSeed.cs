@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Croft.Shared.Contracts;
+using Croft.Shared.Contracts.Social;
 using Npgsql;
 
 namespace Croft.Web.E2E;
@@ -38,7 +39,8 @@ internal static class DiscussionSeed
     }
 
     /// <summary>Links the post to its two announcements (as 12a stores them) and marks both threads as fetched just now (the 48-hour rule).</summary>
-    public static async Task<SeededPost> LinkAsync(NpgsqlConnection db, Guid postId, string slug, string runId, bool withThreads = true)
+    public static async Task<SeededPost> LinkAsync(NpgsqlConnection db, Guid postId, string slug, string runId, bool withThreads = true,
+        (SocialCountsDto Mastodon, SocialCountsDto Bluesky)? counts = null)
     {
         var mastodonUrl = $"https://social.example/@owner/{runId}";
         var blueskyUrl = $"https://bsky.example/profile/owner.example/post/{runId}";
@@ -54,10 +56,16 @@ internal static class DiscussionSeed
         {
             foreach (var platform in new[] { Mastodon, Bluesky })
             {
+                var platformCounts = counts is null ? null : platform == Mastodon ? counts.Value.Mastodon : counts.Value.Bluesky;
                 await Execute(db, """
-                    INSERT INTO "SocialThreads" ("PostId", "Platform", "LastSuccessAt", "LastAttemptAt", "NextDueAt")
-                    VALUES (@id, @platform, now(), now(), now() + interval '30 days')
-                    """, ("id", postId), ("platform", platform));
+                    INSERT INTO "SocialThreads" ("PostId", "Platform", "LastSuccessAt", "LastAttemptAt", "NextDueAt",
+                        "LikeCount", "RepostCount", "ReplyCount", "CountsAt")
+                    VALUES (@id, @platform, now(), now(), now() + interval '30 days', @likes, @reposts, @replies,
+                        CASE WHEN @likes IS NULL THEN NULL ELSE now() END)
+                    """, ("id", postId), ("platform", platform),
+                    ("likes", (object?)platformCounts?.Likes ?? DBNull.Value),
+                    ("reposts", (object?)platformCounts?.Reposts ?? DBNull.Value),
+                    ("replies", (object?)platformCounts?.Replies ?? DBNull.Value));
             }
         }
 
