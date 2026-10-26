@@ -39,6 +39,51 @@ public class HomeTests : WebTest
     private static string _tagSlug = string.Empty;
 
     [Test]
+    public async Task ACardOfALinkedPost_ShowsItsCountsPill_AndAPostWithoutCountsShowsNone()
+    {
+        await using var db = await OpenInstanceDatabaseAsync();
+        var runId = Guid.NewGuid().ToString("N")[..12];
+        var (plain, plainTitle) = await DiscussionSeed.PublishLinkedAsync(ApiUrl, db, $"p{runId}", withCounts: false);
+        var (counted, countedTitle) = await DiscussionSeed.PublishLinkedAsync(ApiUrl, db, $"c{runId}", withCounts: true);
+        await Page.SetViewportSizeAsync(1440, 900);
+
+        await Page.GotoAsync(BaseUrl);
+
+        // The newest post is the page's featured card, the one before it a list card: both carry their pill, in their own variant.
+        var card = Page.Locator(".post-card", new PageLocatorOptions { HasText = countedTitle });
+        var pill = card.Locator(".post-card__media .social-counts");
+        await Expect(pill).ToHaveAttributeAsync("aria-label", "12 likes, 5 reposts, 5 replies");
+        await Expect(pill.Locator(".social-counts__item")).ToHaveTextAsync(["12", "5", "5"]);
+        await Expect(Page.Locator(".post-card", new PageLocatorOptions { HasText = plainTitle }).Locator(".social-counts")).ToHaveCountAsync(0);
+
+        // The pill is not a click target of its own: a click on it goes through to the card's link.
+        var box = (await pill.BoundingBoxAsync())!;
+        await Page.Mouse.ClickAsync(box.X + (box.Width / 2), box.Y + (box.Height / 2));
+        await Page.WaitForURLAsync($"{BaseUrl}/post/{counted.Slug}");
+        Assert.That(plain.Slug, Is.Not.EqualTo(counted.Slug));
+    }
+
+    [Test]
+    public async Task EveryListCardOfThePage_ShowsItsPill_InTheCompactSize()
+    {
+        await using var db = await OpenInstanceDatabaseAsync();
+        var runId = Guid.NewGuid().ToString("N")[..12];
+        var (_, olderTitle) = await DiscussionSeed.PublishLinkedAsync(ApiUrl, db, $"o{runId}", withCounts: true);
+        await DiscussionSeed.PublishLinkedAsync(ApiUrl, db, $"n{runId}", withCounts: true);
+        await Page.SetViewportSizeAsync(1440, 900);
+
+        await Page.GotoAsync(BaseUrl);
+
+        var listCard = Page.Locator(".post-card--list", new PageLocatorOptions { HasText = olderTitle });
+        var pill = listCard.Locator(".post-card__media .social-counts");
+        await Expect(pill).ToHaveAttributeAsync("aria-label", "12 likes, 5 reposts, 5 replies");
+        await Expect(pill).ToHaveClassAsync(new Regex("social-counts--compact"));
+        var media = (await listCard.Locator(".post-card__media").BoundingBoxAsync())!;
+        var box = (await pill.BoundingBoxAsync())!;
+        Assert.That(box.X, Is.GreaterThanOrEqualTo(media.X - 0.5), "the pill stays inside its card's image, not over the text");
+    }
+
+    [Test]
     public async Task HomePage_Page1_HasExactlyOneFeaturedCardThenListCards()
     {
         await EnsureFixturesAsync();

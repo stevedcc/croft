@@ -43,6 +43,18 @@ public class PostHeroTests : BlogBunitContext
     }
 
     [Fact]
+    public void PostHero_WithSocialCounts_ShowsThePillInsideTheHero()
+    {
+        var cut = RenderHero(Post() with { Social = new Croft.Shared.Contracts.Social.SocialCountsDto(12, 5, 5) });
+
+        cut.Find(".post-hero > .social-counts").GetAttribute("aria-label").Should().Be("12 likes, 5 reposts, 5 replies");
+    }
+
+    [Fact]
+    public void PostHero_WithoutSocialCounts_ShowsNoPill() =>
+        RenderHero(Post()).FindAll(".social-counts").Should().BeEmpty("the editor preview and draft review pass a post without counts");
+
+    [Fact]
     public void PostHero_DraftRibbon_WhenRequested()
     {
         var withRibbon = RenderHero(Post(), draftRibbon: true);

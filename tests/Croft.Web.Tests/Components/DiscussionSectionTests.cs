@@ -44,6 +44,30 @@ public class DiscussionSectionTests : BlogBunitContext
     }
 
     [Fact]
+    public void EachReplyAction_IsFollowedByItsPlatformsLikesAndReposts()
+    {
+        var discussion = Discussion(0) with { MastodonCounts = new SocialCountsDto(5, 2, 1), BlueskyCounts = new SocialCountsDto(7, 3, 4) };
+
+        var cut = RenderSection(discussion);
+
+        var parts = cut.Find(".discussion__actions").Children.Select(c => c.GetAttribute("class") + "|" + c.TextContent.Trim()).ToList();
+        parts[0].Should().Be("discussion__reply-bluesky|Reply on Bluesky");
+        parts[1].Should().Be("discussion__counts|7 likes · 3 reposts", "the Bluesky numbers follow the Bluesky action");
+        parts[2].Should().StartWith("mastodon-reply|", "then the Mastodon form");
+        parts[3].Should().Be("discussion__counts|5 likes · 2 reposts", "and its numbers follow it");
+        parts.Should().HaveCount(4);
+    }
+
+    [Fact]
+    public void WithoutCounts_NoCountsAreShown_AndOneOfEachIsSingular()
+    {
+        RenderSection(Discussion(0)).FindAll(".discussion__counts").Should().BeEmpty();
+
+        RenderSection(Discussion(0, mastodon: null) with { BlueskyCounts = new SocialCountsDto(1, 1, 0) })
+            .Find(".discussion__counts").TextContent.Trim().Should().Be("1 like · 1 repost");
+    }
+
+    [Fact]
     public void LinkedPostWithoutReplies_ShowsTheSection_AndNoRepliesYet()
     {
         var cut = RenderSection(Discussion(0));

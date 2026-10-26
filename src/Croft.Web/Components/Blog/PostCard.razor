@@ -11,6 +11,8 @@
             <BannerOrFallback Banner="@Post.Banner" Category="@Post.Category" IconSize="@IconSize"
                             ShowIcon="@(Variant == PostCardVariant.Featured)"
                             Overlay="@(Variant == PostCardVariant.Featured)" />
+            @* The platforms' counts (brief 17e): inside the card link, top-right (the category chip is top-left); not a click target. *@
+            <SocialCounts Counts="@Post.Social" Size="@(Variant == PostCardVariant.Featured ? "normal" : "compact")" />
             @if (Variant == PostCardVariant.Featured)
             {
                 <div class="post-card__overlay">

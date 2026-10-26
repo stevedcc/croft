@@ -32,6 +32,8 @@
         <PostMeta LongForm="true" PublishedAt="@Post.PublishedAt" ReadingMinutes="@Post.ReadingMinutes"
                   ContentEditedAt="@Post.ContentEditedAt" />
     </div>
+    @* The announcements' likes, reposts and replies (brief 17e); nothing without counts, so the editor preview shows none. *@
+    <SocialCounts Counts="@Post.Social" />
 </header>
 
 @code {

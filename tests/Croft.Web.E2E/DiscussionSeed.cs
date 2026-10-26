@@ -60,8 +60,8 @@ internal static class DiscussionSeed
                 await Execute(db, """
                     INSERT INTO "SocialThreads" ("PostId", "Platform", "LastSuccessAt", "LastAttemptAt", "NextDueAt",
                         "LikeCount", "RepostCount", "ReplyCount", "CountsAt")
-                    VALUES (@id, @platform, now(), now(), now() + interval '30 days', @likes, @reposts, @replies,
-                        CASE WHEN @likes IS NULL THEN NULL ELSE now() END)
+                    VALUES (@id, @platform, now(), now(), now() + interval '30 days', CAST(@likes AS integer), CAST(@reposts AS integer),
+                        CAST(@replies AS integer), CASE WHEN CAST(@likes AS integer) IS NULL THEN NULL ELSE now() END)
                     """, ("id", postId), ("platform", platform),
                     ("likes", (object?)platformCounts?.Likes ?? DBNull.Value),
                     ("reposts", (object?)platformCounts?.Reposts ?? DBNull.Value),
@@ -69,8 +69,41 @@ internal static class DiscussionSeed
             }
         }
 
+        if (counts is not null)
+        {
+            // What the fetcher does after storing counts: tell every API replica to drop its cached discussion entries, so the
+            // counts it cached before this post existed are read again (the tests then wait for WaitForCountsAsync).
+            await Execute(db, "SELECT pg_notify('croft_cache', 'discussion')");
+        }
+
         return new SeededPost(postId, slug, mastodonUrl, blueskyUrl, AvatarHash);
     }
+
+    /// <summary>
+    /// Publishes a post and links it to both announcements; with <paramref name="withCounts"/> the threads carry the counts the social
+    /// tests read (Mastodon 5 likes / 2 reposts / 1 reply, Bluesky 7 / 3 / 4: 12 / 5 / 5 together) and the call returns once the API serves them.
+    /// </summary>
+    public static async Task<(SeededPost Post, string Title)> PublishLinkedAsync(string apiUrl, NpgsqlConnection db, string runId, bool withCounts)
+    {
+        var title = $"Counted post {runId}";
+        var (id, slug) = await PublishPostAsync(apiUrl, title, $"A post about counts {runId}.");
+        var post = await LinkAsync(db, id, slug, runId, counts: withCounts ? (new SocialCountsDto(5, 2, 1), new SocialCountsDto(7, 3, 4)) : null);
+        if (withCounts)
+        {
+            WaitForCounts(apiUrl, slug);
+        }
+
+        return (post, title);
+    }
+
+    /// <summary>Waits until the API's public post read carries the counts of a post seeded with them (the NOTIFY has been handled and the cache refilled).</summary>
+    public static void WaitForCounts(string apiUrl, string slug) =>
+        Assert.That(async () =>
+        {
+            using var client = new HttpClient();
+            using var document = System.Text.Json.JsonDocument.Parse(await client.GetStringAsync($"{apiUrl}/api/posts/{slug}"));
+            return document.RootElement.TryGetProperty("social", out var social) && social.ValueKind == System.Text.Json.JsonValueKind.Object;
+        }, Is.True.After(15000, 250), $"the API's read of '{slug}' carries its seeded counts (the croft_cache NOTIFY was handled)");
 
     /// <summary>The hash the stored avatar is served under: the SHA-256 of its bytes, 64 lower-case hex characters.</summary>
     public static string AvatarHash { get; } = Convert.ToHexStringLower(SHA256.HashData(Webp));

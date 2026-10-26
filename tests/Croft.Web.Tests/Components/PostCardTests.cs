@@ -32,6 +32,26 @@ public class PostCardTests : BlogBunitContext
     private IRenderedComponent<PostCard> RenderCard(PostSummaryDto post, PostCardVariant variant) =>
         Render<PostCard>(p => p.Add(x => x.Post, post).Add(x => x.Variant, variant));
 
+    [Theory]
+    [InlineData(PostCardVariant.Featured, false)]
+    [InlineData(PostCardVariant.List, true)]
+    public void PostCard_WithSocialCounts_ShowsThePillInTheMedia_CompactOnTheListCard(PostCardVariant variant, bool compact)
+    {
+        var post = Post() with { Social = new Croft.Shared.Contracts.Social.SocialCountsDto(12, 5, 5) };
+
+        var cut = RenderCard(post, variant);
+
+        var pill = cut.Find(".post-card__link .post-card__media .social-counts");
+        pill.GetAttribute("aria-label").Should().Be("12 likes, 5 reposts, 5 replies");
+        pill.ClassList.Contains("social-counts--compact").Should().Be(compact);
+    }
+
+    [Theory]
+    [InlineData(PostCardVariant.Featured)]
+    [InlineData(PostCardVariant.List)]
+    public void PostCard_WithoutSocialCounts_ShowsNoPill(PostCardVariant variant) =>
+        RenderCard(Post(), variant).FindAll(".social-counts").Should().BeEmpty();
+
     [Fact]
     public void PostCard_Featured_WithBanner_RendersImgWithAlt()
     {

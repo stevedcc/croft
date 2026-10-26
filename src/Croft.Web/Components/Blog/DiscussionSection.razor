@@ -1,5 +1,6 @@
 @namespace Croft.Web.Components
 @using Croft.Shared.Contracts.Social
+@using Croft.Web.Services
 
 @* Brief 12b: the replies of the post's Mastodon and Bluesky announcements, one thread, under the
    article. Static markup only (no script, no inline style, no cookie): the section works on the static
@@ -21,10 +22,18 @@
             @if (discussion.BlueskyUrl is { } blueskyUrl)
             {
                 <a class="discussion__reply-bluesky" href="@blueskyUrl" rel="noopener">Reply on Bluesky</a>
+                @if (discussion.BlueskyCounts is { } blueskyCounts)
+                {
+                    <span class="discussion__counts">@CountsText(blueskyCounts)</span>
+                }
             }
             @if (discussion.MastodonUrl is not null)
             {
                 <MastodonReplyForm Slug="@Slug" />
+                @if (discussion.MastodonCounts is { } mastodonCounts)
+                {
+                    <span class="discussion__counts">@CountsText(mastodonCounts)</span>
+                }
             }
         </div>
 
@@ -50,4 +59,8 @@
 
     /// <summary>The post's slug: the Mastodon reply form carries it (item 3).</summary>
     [Parameter] public string Slug { get; set; } = string.Empty;
+
+    /// <summary>"12 likes · 3 reposts": the platform's own numbers for its announcement (brief 17e); the replies are the section's own count.</summary>
+    private static string CountsText(SocialCountsDto counts) =>
+        $"{SocialCountFormat.Compact(counts.Likes)} {(counts.Likes == 1 ? "like" : "likes")} · {SocialCountFormat.Compact(counts.Reposts)} {(counts.Reposts == 1 ? "repost" : "reposts")}";
 }

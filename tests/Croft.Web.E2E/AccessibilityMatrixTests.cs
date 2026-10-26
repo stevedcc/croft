@@ -71,6 +71,15 @@ public abstract class AccessibilityScan : StaticReadingTest
         var published = await MockIdpApi.PostJsonAsync(client, ApiUrl, $"/api/posts/{PostId}/publish", "{}", token);
         PostSlug = published.RootElement.GetProperty("slug").GetString()!;
 
+        // The scanned post carries the announcements' counts (brief 17e), so the pill on the hero and on the home card is inside the scans
+        // of both themes and both viewports (white on its dark backdrop must hold over whatever banner is under it).
+        await using (var db = await OpenInstanceDatabaseAsync())
+        {
+            await DiscussionSeed.LinkAsync(db, PostId, PostSlug, RunId, counts: (new Croft.Shared.Contracts.Social.SocialCountsDto(5, 2, 1), new Croft.Shared.Contracts.Social.SocialCountsDto(7, 3, 4)));
+        }
+
+        DiscussionSeed.WaitForCounts(ApiUrl, PostSlug);
+
         PageSlug = (await PublishAsync($"Scan page {RunId}", $"A static page {RunId}.", kind: PostKind.Page)).Slug;
 
         DraftTitle = $"Scan draft {RunId}";

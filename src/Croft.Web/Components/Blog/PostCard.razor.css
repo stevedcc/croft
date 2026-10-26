@@ -39,6 +39,14 @@
     }
 }
 
+/* The counts pill (brief 17e): inside the media, top-right (the category chip is top-left), above the featured overlay. */
+.post-card__media ::deep .social-counts {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 3;
+}
+
 .post-card__overlay {
     position: absolute;
     left: 16px;
