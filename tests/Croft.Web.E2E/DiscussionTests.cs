@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Deque.AxeCore.Commons;
 using Deque.AxeCore.Playwright;
+using Croft.Shared.Contracts.Social;
 
 namespace Croft.Web.E2E;
 
@@ -17,11 +18,17 @@ public class DiscussionTests : WebTest
     private static string NewRunId() => Guid.NewGuid().ToString("N")[..12];
 
     /// <summary>A published post linked to both announcements, with the full thread (or none).</summary>
-    private async Task<DiscussionSeed.SeededPost> SeedPostAsync(string runId, bool withReplies = true)
+    private async Task<DiscussionSeed.SeededPost> SeedPostAsync(string runId, bool withReplies = true, bool withCounts = false)
     {
         var (id, slug) = await DiscussionSeed.PublishPostAsync(ApiUrl, $"Discussion post {runId}", $"A post about paths {runId}.\n\n## A section\n\nSome more text.");
         await using var db = await OpenInstanceDatabaseAsync();
-        var post = await DiscussionSeed.LinkAsync(db, id, slug, runId);
+        var post = await DiscussionSeed.LinkAsync(db, id, slug, runId,
+            counts: withCounts ? (new SocialCountsDto(5, 2, 1), new SocialCountsDto(7, 3, 4)) : null);
+        if (withCounts)
+        {
+            DiscussionSeed.WaitForCounts(ApiUrl, slug);
+        }
+
         if (withReplies)
         {
             await DiscussionSeed.AddRepliesAsync(db, InstanceNumber, post, DiscussionSeed.TheThread(runId));
@@ -76,6 +83,33 @@ public class DiscussionTests : WebTest
         Assert.That(requestLog.Snapshot().Where(url => !url.StartsWith(BaseUrl, StringComparison.Ordinal) && !url.StartsWith("data:", StringComparison.Ordinal)),
             Is.Empty, "the discussion page makes no third-party request");
         Assert.That(await Context.CookiesAsync(), Is.Empty, "a reader gets no cookie");
+    }
+
+    [Test]
+    public async Task EachReplyAction_ShowsItsPlatformsOwnLikesAndReposts()
+    {
+        var post = await SeedPostAsync(NewRunId(), withReplies: false, withCounts: true);
+
+        await Page.GotoAsync($"{BaseUrl}/post/{post.Slug}");
+
+        // Seeded: Mastodon 5 likes / 2 reposts, Bluesky 7 / 3. Each follows its own reply action, not the other's.
+        await WaitedFor("the Bluesky numbers next to its action",
+            () => Expect(Page.Locator("a.discussion__reply-bluesky + .discussion__counts")).ToHaveTextAsync("7 likes · 3 reposts"));
+        await Expect(Page.Locator("form.mastodon-reply + .discussion__counts")).ToHaveTextAsync("5 likes · 2 reposts");
+        await Expect(Page.Locator(".discussion__counts")).ToHaveCountAsync(2);
+        await Expect(Page.Locator(".discussion__counts").First).ToBeVisibleAsync();
+    }
+
+    [Test]
+    public async Task APostLinkedWithoutCounts_ShowsNoNumbersNextToItsActions()
+    {
+        var post = await SeedPostAsync(NewRunId(), withReplies: false);
+
+        await Page.GotoAsync($"{BaseUrl}/post/{post.Slug}");
+
+        await Expect(Page.Locator("a.discussion__reply-bluesky")).ToBeVisibleAsync();
+        await Expect(Page.Locator(".discussion__counts")).ToHaveCountAsync(0);
+        await Expect(Page.Locator(".post-hero .social-counts")).ToHaveCountAsync(0);
     }
 
     [Test]

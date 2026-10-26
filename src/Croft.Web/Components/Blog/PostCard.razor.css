@@ -39,6 +39,26 @@
     }
 }
 
+/* The counts pill (brief 17e), a sibling of the card link like the chip: over the media's top-right corner (the chip is top-left),
+   above the link. The featured media spans the card, so the card's own right edge is the media's; the list media is --list-img-w wide. */
+.post-card ::deep .social-counts {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 3;
+}
+
+.post-card--list ::deep .social-counts {
+    right: auto;
+    left: calc(var(--list-img-w) - 8px);
+    transform: translateX(-100%);
+}
+
+/* The featured card's fallback banner keeps its category icon top-right; with the counts pill there it moves below the pill. */
+.post-card--featured.post-card--counts .post-card__media ::deep .banner-or-fallback__icon {
+    inset: 44px 18px auto auto;
+}
+
 .post-card__overlay {
     position: absolute;
     left: 16px;

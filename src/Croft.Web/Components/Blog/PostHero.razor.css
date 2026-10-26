@@ -64,6 +64,14 @@
     inset: 14px 18px auto auto;
 }
 
+/* The counts pill (brief 17e): top-left, above the media and the gradient (the fallback's icon owns the top-right, the text the bottom). */
+.post-hero ::deep .social-counts {
+    position: absolute;
+    top: 14px;
+    left: 18px;
+    z-index: 2;
+}
+
 .post-hero__title {
     margin: 0;
     color: #FFFFFF;
@@ -106,5 +114,10 @@
         --post-hero-pad-b: 14px;
         min-height: 240px;
         padding: 18px var(--post-hero-pad-x) var(--post-hero-pad-b);
+    }
+
+    .post-hero ::deep .social-counts {
+        top: 10px;
+        left: 12px;
     }
 }

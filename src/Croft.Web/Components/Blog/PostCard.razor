@@ -41,6 +41,9 @@
             </div>
         </div>
     </a>
+    @* The platforms' counts (brief 17e): a sibling of the link like the chip, not inside it, so the label of the group is not the start
+       of the link's accessible name. Laid over the media top-right (the chip is top-left); pointer-events: none lets clicks through. *@
+    <SocialCounts Counts="@Post.Social" Size="@(Variant == PostCardVariant.Featured ? "normal" : "compact")" />
     @if (Post.Category is not null)
     {
         <div class="post-card__chip"><CategoryChip Category="@Post.Category" /></div>
@@ -70,5 +73,6 @@
 
     private string CssClass =>
         $"post-card post-card--{(Variant == PostCardVariant.Featured ? "featured" : "list")}" +
-        (Post.Category is null ? " post-card--no-chip" : string.Empty);
+        (Post.Category is null ? " post-card--no-chip" : string.Empty) +
+        (Post.Social is null ? string.Empty : " post-card--counts");
 }

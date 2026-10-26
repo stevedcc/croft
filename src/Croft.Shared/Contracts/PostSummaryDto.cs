@@ -10,4 +10,6 @@ public record PostSummaryDto(Guid Id, string Slug, string Title, string? Subtitl
     int ReadingMinutes, PostStatus Status, DateTime? PublishedAt, DateTime UpdatedAt, string AuthorName, CategoryDto? Category,
     IReadOnlyList<TagDto> Tags, BannerRefDto? Banner, long? ViewCount, int? OpenFeedbackCount,
     PostKind Kind = PostKind.Post, NavigationPlacement NavigationPlacement = NavigationPlacement.None,
-    int NavigationOrder = 0);
+    int NavigationOrder = 0,
+    // The announcements' counts on both networks together (brief 17e); null when no thread has counts. Attached after the posts cache.
+    Croft.Shared.Contracts.Social.SocialCountsDto? Social = null);

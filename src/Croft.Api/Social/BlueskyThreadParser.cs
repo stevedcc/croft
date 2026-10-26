@@ -39,6 +39,18 @@ public static class BlueskyThreadParser
         return replies;
     }
 
+    /// <summary>The root post's own like, repost and reply counts (<c>likeCount</c>, <c>repostCount</c>, <c>replyCount</c>); null when the answer has no root post or lacks any of them.</summary>
+    public static SocialCounts? ParseCounts(string threadJson)
+    {
+        using var document = SocialJson.Parse(threadJson, "Bluesky thread");
+        var root = document.RootElement.Prop("thread").Prop("post");
+        return SocialJson.Count(root, "likeCount") is { } likes
+            && SocialJson.Count(root, "repostCount") is { } reposts
+            && SocialJson.Count(root, "replyCount") is { } replies
+                ? new SocialCounts(likes, reposts, replies)
+                : null;
+    }
+
     private static IEnumerable<string> HiddenReplies(JsonElement threadgate) =>
         threadgate.Prop("record").Prop("hiddenReplies").Items()
             .Where(h => h.ValueKind == JsonValueKind.String).Select(h => h.GetString()!);

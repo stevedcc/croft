@@ -16,7 +16,7 @@ using Microsoft.Extensions.Options;
 
 namespace Croft.Api.Services;
 
-public partial class PostService(BlogDbContext db, ISlugService slugService, IFileStorage fileStorage, ILogger<PostService> logger, TimeProvider time, IScheduledPublishWakeup scheduledPublishWakeup, ICacheNotifier cacheNotifier, IPublicReadCache cache, IHttpContextAccessor httpContextAccessor, DateTimeNormalizer normalizer, ISocialLinkService socialLinks, IOptions<SocialOptions> socialOptions, IAnnouncementOutbox announcements) : IPostService
+public partial class PostService(BlogDbContext db, ISlugService slugService, IFileStorage fileStorage, ILogger<PostService> logger, TimeProvider time, IScheduledPublishWakeup scheduledPublishWakeup, ICacheNotifier cacheNotifier, IPublicReadCache cache, IHttpContextAccessor httpContextAccessor, DateTimeNormalizer normalizer, ISocialLinkService socialLinks, IOptions<SocialOptions> socialOptions, IAnnouncementOutbox announcements, ISocialCountsReader socialCounts) : IPostService
 {
     private const int MaxTitleLength = 400;
 
@@ -138,11 +138,15 @@ public partial class PostService(BlogDbContext db, ISlugService slugService, IFi
 
     public async Task<PostDto?> GetBySlugAsync(string slug, bool publicOnly, CancellationToken ct = default)
     {
+        PostDto? post;
         if (CacheablePublicVariant(publicOnly, includeAdminCounts: false))
-            return await cache.GetOrCreateAsync(CacheGroup.Posts, CacheKey("posts:slug", slug),
+            post = await cache.GetOrCreateAsync(CacheGroup.Posts, CacheKey("posts:slug", slug),
                 token => LoadBySlugAsync(slug, publicOnly, token), ct);
+        else
+            post = await LoadBySlugAsync(slug, publicOnly, ct);
 
-        return await LoadBySlugAsync(slug, publicOnly, ct);
+        // After the posts cache: a count change invalidates Discussion only (brief 17e).
+        return post is not null && publicOnly ? await socialCounts.WithSocialAsync(post, ct) : post;
     }
 
     private async Task<PostDto?> LoadBySlugAsync(string slug, bool publicOnly, CancellationToken ct)
@@ -274,15 +278,20 @@ public partial class PostService(BlogDbContext db, ISlugService slugService, IFi
     /// </summary>
     public async Task<IReadOnlyList<PostSummaryDto>?> RelatedAsync(string slug, int count, bool publicOnly, bool includeAdminCounts, CancellationToken ct = default)
     {
+        IReadOnlyList<PostSummaryDto>? related;
         if (CacheablePublicVariant(publicOnly, includeAdminCounts))
         {
             // The loader clamps the count to 1..10 (MaxRelated); so does the key.
             count = Math.Clamp(count, 1, MaxRelated);
-            return await cache.GetOrCreateAsync(CacheGroup.Posts, CacheKey("posts:related", slug, count),
+            related = await cache.GetOrCreateAsync(CacheGroup.Posts, CacheKey("posts:related", slug, count),
                 token => LoadRelatedAsync(slug, count, publicOnly, includeAdminCounts, token), ct);
         }
+        else
+        {
+            related = await LoadRelatedAsync(slug, count, publicOnly, includeAdminCounts, ct);
+        }
 
-        return await LoadRelatedAsync(slug, count, publicOnly, includeAdminCounts, ct);
+        return related is not null && publicOnly ? await socialCounts.WithSocialAsync(related, ct) : related;
     }
 
     private async Task<IReadOnlyList<PostSummaryDto>?> LoadRelatedAsync(string slug, int count, bool publicOnly, bool includeAdminCounts, CancellationToken ct)
@@ -326,6 +335,14 @@ public partial class PostService(BlogDbContext db, ISlugService slugService, IFi
     }
 
     public async Task<PagedResult<PostSummaryDto>> ListAsync(PostListRequest request, bool publicOnly, bool includeAdminCounts, CancellationToken ct = default)
+    {
+        var result = await ListCachedAsync(request, publicOnly, includeAdminCounts, ct);
+
+        // After the posts cache: a count change invalidates Discussion only (brief 17e).
+        return publicOnly ? result with { Items = await socialCounts.WithSocialAsync(result.Items, ct) } : result;
+    }
+
+    private async Task<PagedResult<PostSummaryDto>> ListCachedAsync(PostListRequest request, bool publicOnly, bool includeAdminCounts, CancellationToken ct)
     {
         if (!CacheablePublicVariant(publicOnly, includeAdminCounts))
             return await LoadListAsync(request, publicOnly, includeAdminCounts, ct);

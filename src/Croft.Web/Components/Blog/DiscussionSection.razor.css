@@ -59,6 +59,13 @@
     text-decoration: none;
 }
 
+/* The platform's own like and repost numbers, beside its reply action (brief 17e). */
+.discussion__counts {
+    align-self: center;
+    color: var(--muted);
+    font-size: 13.5px;
+}
+
 .discussion__reply-bluesky:hover {
     background: var(--primary-container);
 }

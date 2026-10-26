@@ -42,6 +42,14 @@ public class BlueskyThreadSourceTests
     }
 
     [Fact]
+    public async Task ASuccess_CarriesTheRootsCounts()
+    {
+        var outcome = await FetchAsync(new StubHandler(_ => SocialFetchHarness.BlueskyAnswer(SocialFixtures.Read("bluesky-thread.json"))));
+
+        outcome.Should().BeOfType<SocialFetchOutcome.Fetched>().Which.Counts.Should().Be(new SocialCounts(63724, 9545, 8675));
+    }
+
+    [Fact]
     public async Task TheBlocklist_IsAppliedToTheReplies()
     {
         var blocks = new SocialBlockSet([], ["did:plc:alpha"]);

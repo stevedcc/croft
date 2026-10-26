@@ -11,8 +11,8 @@ public sealed record SocialClaim(Guid PostId, SocialPlatform Platform, string Re
 /// <summary>What asking a platform for a thread came to.</summary>
 public closed record SocialFetchOutcome
 {
-    /// <summary>The thread, filtered. <c>PlatformBusyUntil</c> is set when the answer itself said the rate limit is used up: no further request before then.</summary>
-    public sealed record Fetched(IReadOnlyList<IngestedReply> Replies, DateTime? PlatformBusyUntil = null) : SocialFetchOutcome;
+    /// <summary>The thread, filtered; <c>Counts</c> are the platform's own counts of the announcement, null when the answer had none. <c>PlatformBusyUntil</c> is set when the answer itself said the rate limit is used up: no further request before then.</summary>
+    public sealed record Fetched(IReadOnlyList<IngestedReply> Replies, DateTime? PlatformBusyUntil = null, SocialCounts? Counts = null) : SocialFetchOutcome;
 
     /// <summary>The platform answered 429: no further request to it before <c>Until</c>.</summary>
     public sealed record RateLimited(DateTime Until) : SocialFetchOutcome;

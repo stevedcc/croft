@@ -31,6 +31,25 @@ public class BlueskyThreadParserTests
     }
 
     [Fact]
+    public void TheRecordedThread_RootCarriesThePlatformsOwnCounts()
+    {
+        BlueskyThreadParser.ParseCounts(SocialFixtures.Read("bluesky-thread.json")).Should().Be(new SocialCounts(Likes: 63724, Reposts: 9545, Replies: 8675));
+    }
+
+    [Fact]
+    public void ARootWithoutTheCountFields_YieldsNullCounts_NotZero()
+    {
+        var thread = Thread([Node("only")]);
+        var root = System.Text.Json.Nodes.JsonNode.Parse(thread)!;
+        var post = (JsonObject)root["thread"]!["post"]!;
+        post.Remove("likeCount");
+        post.Remove("repostCount");
+        post.Remove("replyCount");
+
+        BlueskyThreadParser.ParseCounts(root.ToJsonString()).Should().BeNull();
+    }
+
+    [Fact]
     public void AReplyIsMappedToItsStoredFields_AndTopLevelHasNoParent()
     {
         var child = Node("child");

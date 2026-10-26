@@ -182,7 +182,7 @@ public class PostPartialIndexTests(PostgresDatabaseFixture fixture) : IClassFixt
         new LocalFileStorage(Path.Combine(Path.GetTempPath(), $"blog-tests-{Guid.NewGuid():N}")),
         NullLogger<PostService>.Instance,
         TimeProvider.System,
-        new ScheduledPublishWakeup(), TestCache.NewNotifier(), TestCache.NewCache(), new HttpContextAccessor(), new DateTimeNormalizer(TimeProvider.System), new NoSocialLinks(), NoSocialLinks.Options, NoSocialLinks.Outbox(db));
+        new ScheduledPublishWakeup(), TestCache.NewNotifier(), TestCache.NewCache(), new HttpContextAccessor(), new DateTimeNormalizer(TimeProvider.System), new NoSocialLinks(), NoSocialLinks.Options, NoSocialLinks.Outbox(db), NoSocialLinks.Counts(db));
 
     private static string OrderByClause(IEnumerable<SqlCommandCapture.CapturedCommand> commands)
     {

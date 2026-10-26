@@ -32,6 +32,31 @@ public class PostPageTests : WebTest
     private static string _relOneSlug = string.Empty;
 
     [Test]
+    public async Task TheHero_ShowsTheSummedCountsOfTheAnnouncements_InItsTopLeftCorner()
+    {
+        await using var db = await OpenInstanceDatabaseAsync();
+        var (post, _) = await DiscussionSeed.PublishLinkedAsync(ApiUrl, db, Guid.NewGuid().ToString("N")[..12], withCounts: true);
+        await Page.SetViewportSizeAsync(1440, 900);
+
+        await Page.GotoAsync($"{BaseUrl}/post/{post.Slug}");
+
+        // Mastodon (5, 2, 1) + Bluesky (7, 3, 4).
+        var pill = Page.Locator(".post-hero .social-counts");
+        await Expect(pill).ToBeVisibleAsync();
+        await Expect(pill).ToHaveAttributeAsync("aria-label", "12 likes, 5 reposts, 5 replies");
+        await Expect(pill.Locator(".social-counts__item")).ToHaveTextAsync(["12", "5", "5"]);
+        await Expect(pill).ToHaveCSSAsync("pointer-events", "none");
+        var hero = (await Page.Locator(".post-hero").BoundingBoxAsync())!;
+        var box = (await pill.BoundingBoxAsync())!;
+        Assert.Multiple(() =>
+        {
+            Assert.That(box.X - hero.X, Is.EqualTo(18).Within(1), "the pill sits 18px from the hero's left edge");
+            Assert.That(box.Y - hero.Y, Is.EqualTo(14).Within(1), "and 14px from its top");
+            Assert.That(box.Width, Is.GreaterThan(40), "with the three numbers in it");
+        });
+    }
+
+    [Test]
     public async Task PostPage_At1440_ShowsRailWithTocTagsAndRelated()
     {
         await EnsureFixturesAsync();

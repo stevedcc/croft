@@ -1,4 +1,5 @@
 using Croft.Api.Data;
+using Croft.Api.Social;
 using Croft.Shared.Contracts;
 using Croft.Shared.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -17,9 +18,17 @@ namespace Croft.Api.Services;
 /// (the full-text query ignores case and spacing), so what the key means is what the query asked.
 /// </summary>
 public class SearchService(
-    BlogDbContext db, TimeProvider time, IPublicReadCache cache, IHttpContextAccessor httpContextAccessor) : ISearchService
+    BlogDbContext db, TimeProvider time, IPublicReadCache cache, IHttpContextAccessor httpContextAccessor, ISocialCountsReader socialCounts) : ISearchService
 {
     public async Task<PagedResult<PostSummaryDto>> SearchAsync(string query, bool includeAdminCounts, int page = 1, int pageSize = 10, CancellationToken ct = default)
+    {
+        var result = await SearchCachedAsync(query, includeAdminCounts, page, pageSize, ct);
+
+        // After the posts cache: a count change invalidates Discussion only (brief 17e). Search finds published posts only.
+        return includeAdminCounts ? result : result with { Items = await socialCounts.WithSocialAsync(result.Items, ct) };
+    }
+
+    private async Task<PagedResult<PostSummaryDto>> SearchCachedAsync(string query, bool includeAdminCounts, int page, int pageSize, CancellationToken ct)
     {
         var term = PostService.NormalizeSearchTerm(query);
         if (term is null)

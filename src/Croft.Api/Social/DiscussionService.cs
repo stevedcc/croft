@@ -16,7 +16,8 @@ public sealed class DiscussionService(
     ICacheNotifier notifier,
     IHttpContextAccessor httpContextAccessor,
     TimeProvider time,
-    IOptions<SocialOptions> options) : IDiscussionService
+    IOptions<SocialOptions> options,
+    ISocialCountsReader counts) : IDiscussionService
 {
     /// <summary>A thread whose last successful fetch is older than this shows no replies: what was deleted meanwhile cannot be known.</summary>
     public static readonly TimeSpan StaleAfter = TimeSpan.FromHours(48);
@@ -26,7 +27,7 @@ public sealed class DiscussionService(
     private const int MaxNoteLength = 2000;
 
     /// <summary>What the public cache holds for one post: its links and, per thread, the last successful fetch and the nested replies. Not yet judged by the 48-hour rule.</summary>
-    private sealed record CachedDiscussion(string? MastodonUrl, string? BlueskyUrl, IReadOnlyList<CachedThread> Threads);
+    private sealed record CachedDiscussion(Guid PostId, string? MastodonUrl, string? BlueskyUrl, IReadOnlyList<CachedThread> Threads);
 
     private sealed record CachedThread(SocialPlatform Platform, DateTime? LastSuccessAt, IReadOnlyList<DiscussionReplyDto> Replies, int Count);
 
@@ -40,7 +41,9 @@ public sealed class DiscussionService(
             return null;
 
         // After the cache, so a cached entry cannot outlive the 48-hour rule, and so the setting is not baked into an entry.
-        return Compose(cached, time.GetUtcNow().UtcDateTime, options.Value.Enabled);
+        // The platforms' counts come from the counts reader, cached under the same group, so a count change shows without a reply change.
+        var postCounts = (await counts.GetAsync(ct)).GetValueOrDefault(cached.PostId);
+        return Compose(cached, time.GetUtcNow().UtcDateTime, options.Value.Enabled, postCounts);
     }
 
     private async Task<CachedDiscussion?> LoadAsync(string slug, CancellationToken ct)
@@ -54,14 +57,14 @@ public sealed class DiscussionService(
             return null;
 
         var (threads, rows) = await ReadThreadsAsync(post.Id, ct);
-        return new CachedDiscussion(post.MastodonUrl, post.BlueskyUrl, [.. threads.Select(t =>
+        return new CachedDiscussion(post.Id, post.MastodonUrl, post.BlueskyUrl, [.. threads.Select(t =>
         {
             var tree = ReplyTree.Build(rows.Where(r => r.Platform == t.Platform));
             return new CachedThread(t.Platform, t.LastSuccessAt, tree.Replies, tree.Count);
         })]);
     }
 
-    private static PostDiscussionDto Compose(CachedDiscussion cached, DateTime now, bool enabled)
+    private static PostDiscussionDto Compose(CachedDiscussion cached, DateTime now, bool enabled, PostSocialCounts? postCounts)
     {
         if (!enabled)
             return new PostDiscussionDto(null, null, 0, []);
@@ -70,7 +73,7 @@ public sealed class DiscussionService(
         var replies = fresh.SelectMany(t => t.Replies)
             .OrderBy(r => r.CreatedAt).ThenBy(r => r.Platform).ThenBy(r => r.ExternalId, StringComparer.Ordinal)
             .ToList();
-        return new PostDiscussionDto(cached.MastodonUrl, cached.BlueskyUrl, fresh.Sum(t => t.Count), replies);
+        return new PostDiscussionDto(cached.MastodonUrl, cached.BlueskyUrl, fresh.Sum(t => t.Count), replies, postCounts?.Mastodon, postCounts?.Bluesky);
     }
 
     private async Task<(List<SocialThread> Threads, List<SocialReply> Rows)> ReadThreadsAsync(Guid postId, CancellationToken ct)

@@ -17,7 +17,7 @@ partial class BlogDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261026134409_PageViewTextBounds";
+    public override string LastMigrationId => "20261026174607_SocialThreadCounts";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -528,6 +528,9 @@ partial class BlogDbContextModelSnapshot : ModelSnapshot
                 b.Property<int>("Platform")
                     .HasColumnType("integer");
 
+                b.Property<DateTime?>("CountsAt")
+                    .HasColumnType("timestamp with time zone");
+
                 b.Property<DateTime?>("LastAttemptAt")
                     .HasColumnType("timestamp with time zone");
 
@@ -541,8 +544,17 @@ partial class BlogDbContextModelSnapshot : ModelSnapshot
                 b.Property<DateTime?>("LeaseUntil")
                     .HasColumnType("timestamp with time zone");
 
+                b.Property<int?>("LikeCount")
+                    .HasColumnType("integer");
+
                 b.Property<DateTime>("NextDueAt")
                     .HasColumnType("timestamp with time zone");
+
+                b.Property<int?>("ReplyCount")
+                    .HasColumnType("integer");
+
+                b.Property<int?>("RepostCount")
+                    .HasColumnType("integer");
 
                 b.Property<string>("SnapshotHash")
                     .HasMaxLength(64)

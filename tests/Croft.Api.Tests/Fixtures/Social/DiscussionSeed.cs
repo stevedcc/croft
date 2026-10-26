@@ -64,6 +64,18 @@ internal static class DiscussionSeed
         await db.SaveChangesAsync();
     }
 
+    /// <summary>Gives the platform's thread the counts a fetch would have stored (brief 17e), without touching anything else.</summary>
+    public static async Task SetCountsAsync(BlogApiFactory factory, Guid postId, SocialPlatform platform, int likes, int reposts, int replies)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BlogDbContext>();
+        await db.SocialThreads.Where(t => t.PostId == postId && t.Platform == platform).ExecuteUpdateAsync(set => set
+            .SetProperty(t => t.LikeCount, (int?)likes)
+            .SetProperty(t => t.RepostCount, (int?)reposts)
+            .SetProperty(t => t.ReplyCount, (int?)replies)
+            .SetProperty(t => t.CountsAt, (DateTime?)Noon));
+    }
+
     public static async Task<List<string>> StoredIdsAsync(BlogApiFactory factory, Guid postId, SocialPlatform platform)
     {
         await using var scope = factory.Services.CreateAsyncScope();

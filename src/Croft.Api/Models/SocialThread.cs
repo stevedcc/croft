@@ -21,6 +21,12 @@ public class SocialThread
     /// <summary>The hash of the stored snapshot: a fetch that yields the same hash changes and invalidates nothing.</summary>
     public string? SnapshotHash { get; set; }
 
+    /// <summary>The platform's own counts of the announcement (brief 17e); null until a fetch returned them.</summary>
+    public int? LikeCount { get; set; }
+    public int? RepostCount { get; set; }
+    public int? ReplyCount { get; set; }
+    public DateTime? CountsAt { get; set; }
+
     public DateTime NextDueAt { get; set; }
 
     /// <summary>Set while a replica fetches this thread; a replica that dies leaves a lease that expires.</summary>

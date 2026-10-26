@@ -1,0 +1,38 @@
+@namespace Croft.Web.Components
+@using Croft.Shared.Contracts.Social
+@using Croft.Web.Components.Admin
+@using Croft.Web.Services
+
+@* Brief 17e: a small pill with how many likes, reposts and replies a post's announcements have on
+   Mastodon and Bluesky together. Presentational static markup (no script, no inline style, no
+   event handler): it sits on the hero and, on the cards, as a sibling laid over the card link
+   (pointer-events: none lets clicks reach the link below, whose name stays the title). Nothing
+   renders without counts. The icons are the catalogue's, drawn by CategoryIcon (decorative,
+   aria-hidden, currentColor); the group's label carries the exact numbers, the pill the compact ones. *@
+@if (Counts is { } counts)
+{
+    <span class="@CssClass" role="group" aria-label="@Label(counts)">
+        <span class="social-counts__item"><CategoryIcon Name="Favorite" Size="@IconSize" /><span>@SocialCountFormat.Compact(counts.Likes)</span></span>
+        <span class="social-counts__item"><CategoryIcon Name="Repeat" Size="@IconSize" /><span>@SocialCountFormat.Compact(counts.Reposts)</span></span>
+        <span class="social-counts__item"><CategoryIcon Name="ChatBubble" Size="@IconSize" /><span>@SocialCountFormat.Compact(counts.Replies)</span></span>
+    </span>
+}
+
+@code {
+    /// <summary>The counts to show; null renders nothing.</summary>
+    [Parameter] public SocialCountsDto? Counts { get; set; }
+
+    /// <summary>"normal" (the hero) or "compact" (the list cards).</summary>
+    [Parameter] public string Size { get; set; } = "normal";
+
+    private bool IsCompact => Size == "compact";
+
+    private double IconSize => IsCompact ? 12 : 14;
+
+    private string CssClass => IsCompact ? "social-counts social-counts--compact" : "social-counts";
+
+    private static string Label(SocialCountsDto counts) =>
+        $"{Noun(counts.Likes, "like", "likes")}, {Noun(counts.Reposts, "repost", "reposts")}, {Noun(counts.Replies, "reply", "replies")}";
+
+    private static string Noun(int count, string one, string many) => $"{count} {(count == 1 ? one : many)}";
+}
