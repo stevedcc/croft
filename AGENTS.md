@@ -266,17 +266,10 @@ nothing; each role is added at most once.
   operations without it.
   **Pending contracts** (columns kept only for older releases; drop each in a later contract
   migration once no pod older than the named release runs, then delete its line here):
-  - `Posts.ShowInNavigation` (replaced by `NavigationPlacement` in 0.6.1, kept as a shadow
-    property in `PostConfiguration`): drop once no pod older than 0.6.1 runs.
-  - `Posts.ViewCount` (replaced by the narrow `PostViewCounts` table in the release after 0.6.3, brief 13c; the model maps it as
-    `Post.LegacyViewCount` and nothing of the new release writes or reads it): a pod of the release before brief 13c (0.6.3 and older) still adds
-    its views to it during a rolling deploy, and those views are not in `PostViewCounts` (the migration copied the
-    totals once, a small accepted loss). Drop the column once no pod older than the release of brief 13c (the release after 0.6.3) runs.
-  - `PageViews.Referrer` and `PageViews.UserAgent` are unbounded `text` (review 2026-10-19,
-    finding 3): the API truncates them to 2048 and 512 characters on write since brief 13a (the release after 0.6.2). A
-    pod older than that may still write longer values during a rolling deploy, so the
-    `HasMaxLength(2048)` / `HasMaxLength(512)` migration (and a one-off trim of existing rows) ships one
-    release later, once no pod older than the truncation runs.
+  - `Posts.ShowInNavigation` and `Posts.ViewCount` are unmapped since this release (brief 17c; the
+    new release neither reads nor writes them, `ViewCount` has a default); drop both in a
+    hand-written `[ContractMigration]` `DropColumn` migration once no pod older than this release
+    runs, and delete `RetiredPostColumnsTests.TheRetiredColumns_StillExist_ForPodsOfThePreviousRelease`.
 - **Rules for data migrations (expand/contract, continued):** the migration guard reads raw SQL for
   `DROP`, `RENAME`, `SET NOT NULL` and `ALTER COLUMN ... TYPE`, and flags a `NOT NULL` column with no
   default; moving data is the other half of the rule.

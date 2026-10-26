@@ -45,13 +45,6 @@ public class Post
     public ICollection<Feedback> Feedback { get; set; } = [];
     public ICollection<PageView> PageViews { get; set; } = [];
 
-    /// <summary>
-    /// The view total of releases before 13c, kept for the rolling deploy: a pod older than that still
-    /// updates this column, and "Pending contracts" in AGENTS.md drops it later. Nothing of this release
-    /// writes it (views go to <see cref="Views"/>) and nothing reads it but the migration that copied it.
-    /// </summary>
-    public long LegacyViewCount { get; set; }
-
     /// <summary>The post's view total: a row of its own, so counting a view never rewrites this row.</summary>
     public PostViewCount? Views { get; set; }
     public NpgsqlTsVector SearchVector { get; set; } = null!;

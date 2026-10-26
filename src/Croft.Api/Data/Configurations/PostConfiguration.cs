@@ -30,17 +30,7 @@ public class PostConfiguration : IEntityTypeConfiguration<Post>
             .HasForeignKey(x => x.CategoryId)
             .OnDelete(DeleteBehavior.SetNull);
 
-        // The column keeps its name: pods of the release before brief 13c (0.6.3 and older) still update "ViewCount" while they roll
-        // out (see "Pending contracts" in AGENTS.md); the totals live in PostViewCounts.
-        builder.Property(x => x.LegacyViewCount).HasColumnName("ViewCount");
-
         builder.Property(x => x.Kind).HasDefaultValue(PostKind.Post);
-        // The retired ShowInNavigation flag stays in the table until a later contract migration
-        // drops it (see "Pending contracts" in AGENTS.md): releases older than 0.6.1 still read
-        // and write it while the API pods roll. Kept as a shadow property so the model, the
-        // snapshot and the migrations know the column; no code of this release sets it, so inserts
-        // leave it at its database default (false).
-        builder.Property<bool>("ShowInNavigation").HasDefaultValue(false);
         builder.Property(x => x.NavigationPlacement)
             .HasConversion<string>()
             .HasMaxLength(16)
