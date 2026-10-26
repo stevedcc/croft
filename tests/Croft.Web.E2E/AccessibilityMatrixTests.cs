@@ -349,8 +349,16 @@ public class AccessibilityAdminMatrixTests : AccessibilityScan
         await button.EvaluateAsync("""
             el => new Promise((resolve, reject) => {
                 const deadline = Date.now() + 10000;
+                // The alpha of a computed colour: rgba(r, g, b, a), rgb(r g b / a), color(srgb r g b / a), oklab(... / a);
+                // no alpha component means opaque, 'transparent' means none; a percentage is a fraction of 1.
+                const alphaOf = colour => {
+                    if (colour === 'transparent') { return 0; }
+                    const match = /(?:,\s*|\/\s*)([\d.]+)(%?)\s*\)$/.exec(colour);
+                    if (!/^rgba\(/.test(colour) && !colour.includes('/')) { return 1; }
+                    return match ? Number(match[1]) / (match[2] ? 100 : 1) : 1;
+                };
                 const check = () => {
-                    if (el.matches(':hover') && getComputedStyle(el).backgroundColor !== 'rgba(0, 0, 0, 0)') { resolve(); }
+                    if (el.matches(':hover') && alphaOf(getComputedStyle(el).backgroundColor) > 0) { resolve(); }
                     else if (Date.now() > deadline) { reject(new Error('the button never showed its hover tint')); }
                     else { requestAnimationFrame(check); }
                 };
