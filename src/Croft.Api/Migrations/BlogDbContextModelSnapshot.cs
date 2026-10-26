@@ -17,7 +17,7 @@ partial class BlogDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261026133825_RetiredPostColumnsDefault";
+    public override string LastMigrationId => "20261026134409_PageViewTextBounds";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -168,13 +168,15 @@ partial class BlogDbContextModelSnapshot : ModelSnapshot
                     .HasColumnType("uuid");
 
                 b.Property<string>("Referrer")
-                    .HasColumnType("text");
+                    .HasMaxLength(2048)
+                    .HasColumnType("character varying(2048)");
 
                 b.Property<DateTime>("Timestamp")
                     .HasColumnType("timestamp with time zone");
 
                 b.Property<string>("UserAgent")
-                    .HasColumnType("text");
+                    .HasMaxLength(512)
+                    .HasColumnType("character varying(512)");
 
                 b.HasKey("Id");
 

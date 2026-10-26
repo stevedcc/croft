@@ -1,4 +1,5 @@
 using Croft.Api.Models;
+using Croft.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -10,6 +11,8 @@ public class PageViewConfiguration : IEntityTypeConfiguration<PageView>
     {
         builder.HasKey(x => x.Id);
         builder.Property(x => x.IpHash).HasMaxLength(128).IsRequired();
+        builder.Property(x => x.Referrer).HasMaxLength(AnalyticsService.MaxReferrerLength);
+        builder.Property(x => x.UserAgent).HasMaxLength(AnalyticsService.MaxUserAgentLength);
         builder.Property(x => x.Day).HasColumnType("date");
         // One view per post, visitor and day; the insert itself is the dedupe check.
         builder.HasIndex(x => new { x.PostId, x.IpHash, x.Day }).IsUnique();
