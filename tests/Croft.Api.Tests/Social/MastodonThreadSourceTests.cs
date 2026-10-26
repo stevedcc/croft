@@ -29,10 +29,73 @@ public class MastodonThreadSourceTests
 
         await FetchAsync(handler);
 
-        handler.Requests.Should().ContainSingle().Which.ToString()
-            .Should().Be("https://mastodon.example/api/v1/statuses/110054900866478823/context");
+        // Brief 17e adds a second request (the status itself, for its counts); the context request is still the first, unchanged.
+        handler.Requests[0].ToString().Should().Be("https://mastodon.example/api/v1/statuses/110054900866478823/context");
         handler.Messages[0].Method.Should().Be(HttpMethod.Get);
         handler.Messages[0].Headers.Authorization.Should().BeNull("12a sends no credentials");
+    }
+
+    private static StubHandler Routed(Func<HttpRequestMessage, HttpResponseMessage> status) =>
+        new(request => request.RequestUri!.AbsolutePath.EndsWith("/context", StringComparison.Ordinal) ? SocialFetchHarness.MastodonAnswer() : status(request));
+
+    [Fact]
+    public async Task AfterTheContext_AsksForTheStatusItself_AndYieldsItsCounts()
+    {
+        var handler = new StubHandler(request => SocialFetchHarness.MastodonAnswerFor(request));
+
+        var outcome = await FetchAsync(handler);
+
+        handler.Requests.Select(r => r.ToString()).Should().Equal(
+            "https://mastodon.example/api/v1/statuses/110054900866478823/context",
+            "https://mastodon.example/api/v1/statuses/110054900866478823");
+        handler.Messages[1].Headers.Authorization.Should().BeNull();
+        // The recorded status: favourites_count 0, reblogs_count 1, replies_count 2.
+        outcome.Should().BeOfType<SocialFetchOutcome.Fetched>().Which.Counts.Should().Be(new SocialCounts(Likes: 0, Reposts: 1, Replies: 2));
+    }
+
+    [Fact]
+    public async Task AFailedStatusRequest_StillYieldsTheReplies_WithNoCounts()
+    {
+        var outcome = await FetchAsync(Routed(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError)));
+
+        var fetched = outcome.Should().BeOfType<SocialFetchOutcome.Fetched>().Subject;
+        fetched.Replies.Should().HaveCount(4);
+        fetched.Counts.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ANetworkErrorOnTheStatusRequest_StillYieldsTheReplies_WithNoCounts()
+    {
+        var calls = 0;
+        var handler = new StubHandler(_ => ++calls == 1 ? SocialFetchHarness.MastodonAnswer() : throw new HttpRequestException("reset"));
+
+        var outcome = await FetchAsync(handler);
+
+        outcome.Should().BeOfType<SocialFetchOutcome.Fetched>().Which.Should().Match<SocialFetchOutcome.Fetched>(f => f.Replies.Count == 4 && f.Counts == null);
+    }
+
+    [Fact]
+    public async Task AStatusRequestThatIsRateLimited_HasNoCounts_ButItsRetryAfterMarksThePlatformBusy()
+    {
+        var outcome = await FetchAsync(Routed(_ =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+            response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromSeconds(120));
+            return response;
+        }));
+
+        var fetched = outcome.Should().BeOfType<SocialFetchOutcome.Fetched>().Subject;
+        fetched.Replies.Should().HaveCount(4);
+        fetched.Counts.Should().BeNull();
+        fetched.PlatformBusyUntil.Should().Be(Now.UtcDateTime.AddSeconds(120));
+    }
+
+    [Fact]
+    public async Task AStatusAnswerWithoutCounts_YieldsNullCounts_NotZero()
+    {
+        var outcome = await FetchAsync(Routed(_ => SocialFetchHarness.MastodonAnswer("{\"id\":\"1\"}")));
+
+        outcome.Should().BeOfType<SocialFetchOutcome.Fetched>().Which.Counts.Should().BeNull();
     }
 
     [Fact]

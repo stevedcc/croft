@@ -35,7 +35,7 @@ public class SocialFetchTests(PostgresDatabaseFixture fixture) : IClassFixture<P
         var tick = await replica.TickAsync();
 
         tick.Should().Be(new SocialTickResult(Skipped: false, Claimed: 1));
-        h.Mastodon.Requests.Should().ContainSingle();
+        h.Mastodon.ContextRequests.Should().ContainSingle();
         var replies = await h.RepliesAsync(post, SocialPlatform.Mastodon);
         replies.Select(r => (r.ExternalId, r.ParentExternalId)).Should().BeEquivalentTo(
         [
@@ -281,7 +281,7 @@ public class SocialFetchTests(PostgresDatabaseFixture fixture) : IClassFixture<P
         var tick = await replica.TickAsync();
 
         tick.Claimed.Should().Be(1);
-        h.Mastodon.Requests.Should().HaveCount(2);
+        h.Mastodon.ContextRequests.Should().HaveCount(2);
         replica.Notifier.Notified.Should().HaveCount(1, "an unchanged snapshot notifies nobody");
         replica.Notifier.ClearedLocally.Should().HaveCount(1, "and clears nothing locally");
         var after = await h.ThreadAsync(post, SocialPlatform.Mastodon);
@@ -410,7 +410,7 @@ public class SocialFetchTests(PostgresDatabaseFixture fixture) : IClassFixture<P
 
         await h.NewReplica().TickAsync();
 
-        h.Mastodon.Requests.Should().ContainSingle();
+        h.Mastodon.ContextRequests.Should().ContainSingle();
         var stored = (await h.RepliesAsync(first, SocialPlatform.Mastodon)).Count
             + (await h.RepliesAsync(second, SocialPlatform.Mastodon)).Count
             + (await h.RepliesAsync(third, SocialPlatform.Mastodon)).Count;
@@ -521,7 +521,7 @@ public class SocialFetchTests(PostgresDatabaseFixture fixture) : IClassFixture<P
 
         first.Claimed.Should().Be(SocialFetchHostedService.MaxClaimsPerTick).And.Be(20);
         second.Claimed.Should().Be(5, "the others were due all along; they are taken in the next tick");
-        h.Mastodon.Requests.Should().HaveCount(25);
+        h.Mastodon.ContextRequests.Should().HaveCount(25);
     }
 
     [Fact]

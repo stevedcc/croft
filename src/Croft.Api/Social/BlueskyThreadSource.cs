@@ -32,7 +32,8 @@ public sealed class BlueskyThreadSource(IHttpClientFactory clients, TimeProvider
 
         try
         {
-            return new SocialFetchOutcome.Fetched(BlueskyThreadParser.Parse(Encoding.UTF8.GetString(response.Body), blocks));
+            var json = Encoding.UTF8.GetString(response.Body);
+            return new SocialFetchOutcome.Fetched(BlueskyThreadParser.Parse(json, blocks), Counts: BlueskyThreadParser.ParseCounts(json));
         }
         catch (SocialParseException)
         {

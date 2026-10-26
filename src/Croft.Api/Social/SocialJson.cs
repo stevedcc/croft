@@ -26,6 +26,10 @@ internal static class SocialJson
     public static string? Str(this JsonElement element, string name) =>
         element.Prop(name) is { ValueKind: JsonValueKind.String } value ? value.GetString() : null;
 
+    /// <summary>A non-negative integer property that fits an int, or null when absent, mistyped or out of range.</summary>
+    public static int? Count(this JsonElement element, string name) =>
+        element.Prop(name) is { ValueKind: JsonValueKind.Number } value && value.TryGetInt32(out var n) && n >= 0 ? n : null;
+
     public static bool IsTrue(this JsonElement element, string name) => element.Prop(name).ValueKind == JsonValueKind.True;
 
     public static bool IsObject(this JsonElement element) => element.ValueKind == JsonValueKind.Object;

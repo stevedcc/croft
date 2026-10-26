@@ -18,6 +18,16 @@ internal sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> 
 
     public List<HttpRequestMessage> Messages { get; } = [];
 
+    /// <summary>The Mastodon thread (<c>.../context</c>) requests: since brief 17e a fetch also asks for the status itself, which these tests do not count.</summary>
+    public IReadOnlyList<Uri> ContextRequests
+    {
+        get
+        {
+            lock (Requests)
+                return [.. Requests.Where(r => r.AbsolutePath.EndsWith("/context", StringComparison.Ordinal))];
+        }
+    }
+
     public static StubHandler Json(string json, HttpStatusCode status = HttpStatusCode.OK) =>
         new(_ => new HttpResponseMessage(status) { Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json") });
 

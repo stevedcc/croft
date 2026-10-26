@@ -14,6 +14,26 @@ public static class MastodonThreadParser
     /// <summary>The longest id the replies table stores.</summary>
     public const int MaxIdLength = 512;
 
+    /// <summary>
+    /// The status's own counts (<c>GET /api/v1/statuses/{id}</c>: <c>favourites_count</c>, <c>reblogs_count</c>, <c>replies_count</c>); null when the
+    /// answer is not JSON or lacks any of them. Never throws: the counts are an extra, not part of the thread.
+    /// </summary>
+    public static SocialCounts? ParseCounts(string statusJson)
+    {
+        try
+        {
+            using var document = SocialJson.Parse(statusJson, "Mastodon status");
+            var status = document.RootElement;
+            return status.Count("favourites_count") is { } likes && status.Count("reblogs_count") is { } reposts && status.Count("replies_count") is { } replies
+                ? new SocialCounts(likes, reposts, replies)
+                : null;
+        }
+        catch (SocialParseException)
+        {
+            return null;
+        }
+    }
+
     public static IReadOnlyList<IngestedReply> Parse(string contextJson, string rootStatusId, string server, SocialBlockSet blocks)
     {
         using var document = SocialJson.Parse(contextJson, "Mastodon context");

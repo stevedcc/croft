@@ -82,6 +82,9 @@ internal sealed class SocialFetchHarness : IAsyncDisposable
     public static HttpResponseMessage MastodonAnswerFor(HttpRequestMessage request, int remaining = 299)
     {
         var segments = request.RequestUri!.AbsolutePath.Split('/');
+        if (segments[^1] != "context") // /api/v1/statuses/{id}: the status itself, with its counts (brief 17e)
+            return MastodonAnswer(SocialFixtures.Read("mastodon-status.json"), remaining);
+
         var statusId = segments[^2]; // /api/v1/statuses/{id}/context
         return MastodonAnswer(SocialFixtures.Read("mastodon-context.json").Replace(SocialFixtures.MastodonRootId, statusId, StringComparison.Ordinal), remaining);
     }
@@ -263,6 +266,7 @@ internal sealed class GatedHandler(Func<HttpRequestMessage, HttpResponseMessage>
 
     public Task Arrived => _arrived.Task;
 
+    /// <summary>The thread requests; the status request that follows each (brief 17e) is not counted.</summary>
     public int Requests => Volatile.Read(ref _count);
 
     public void Release() => _release.TrySetResult();
@@ -280,6 +284,10 @@ internal sealed class GatedHandler(Func<HttpRequestMessage, HttpResponseMessage>
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
+        // Every user of this gate is a Mastodon test: the status request that follows a thread request passes straight through.
+        if (!request.RequestUri!.AbsolutePath.EndsWith("/context", StringComparison.Ordinal))
+            return respond(request);
+
         var number = Interlocked.Increment(ref _count);
         if (number == 1)
         {
