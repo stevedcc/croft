@@ -1,3 +1,5 @@
+using System.Threading.Channels;
+
 namespace Croft.Web.E2E;
 
 [Parallelizable(ParallelScope.Fixtures)]
@@ -66,20 +68,50 @@ public class AnalyticsViewCountTests : WebTest
         return (slug, postId);
     }
 
+    /// <summary>Opens the post and reloads it until the page has sent <paramref name="visits"/> view
+    /// beacons, asserting that each was answered 204. The beacon is observed by routing it: Playwright
+    /// performs the request itself and hands the page the response, so what the test awaits is the
+    /// route handler's own result, not a <c>Response</c> event for a keepalive request.</summary>
     private static async Task VisitPostCountingBeaconsAsync(IPage page, string url, int visits)
     {
-        for (var visit = 0; visit < visits; visit++)
+        var answers = Channel.CreateUnbounded<int>();
+        var beaconsSent = 0;
+        await page.RouteAsync("**/api/analytics/pageview", async route =>
         {
-            var beacon = page.WaitForResponseAsync(r =>
-                r.Url.EndsWith("/api/analytics/pageview") && r.Request.Method == "POST");
+            Interlocked.Increment(ref beaconsSent);
+            var response = await route.FetchAsync();
+            answers.Writer.TryWrite(response.Status);
+            await route.FulfillAsync(new RouteFulfillOptions { Response = response });
+        });
 
-            if (visit == 0)
-                await page.GotoAsync(url);
-            else
-                await page.ReloadAsync();
+        try
+        {
+            for (var visit = 0; visit < visits; visit++)
+            {
+                if (visit == 0)
+                    await page.GotoAsync(url);
+                else
+                    await page.ReloadAsync();
 
-            var response = await beacon;
-            Assert.That(response.Status, Is.EqualTo(204), "View beacon was not accepted by the Web app.");
+                using var giveUp = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                int status;
+                try
+                {
+                    status = await answers.Reader.ReadAsync(giveUp.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw new TimeoutException(
+                        $"Visit {visit + 1} of {visits}: no view beacon was answered; the page sent {Volatile.Read(ref beaconsSent)} beacon(s) in total"
+                        + (Volatile.Read(ref beaconsSent) > visit ? " (this visit's beacon was sent, the Web app did not answer it)." : " (this visit sent none)."));
+                }
+
+                Assert.That(status, Is.EqualTo(204), "View beacon was not accepted by the Web app.");
+            }
+        }
+        finally
+        {
+            await page.UnrouteAsync("**/api/analytics/pageview");
         }
     }
 
