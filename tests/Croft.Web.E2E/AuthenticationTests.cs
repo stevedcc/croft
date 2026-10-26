@@ -10,7 +10,7 @@ public class AuthenticationTests : WebTest
 
         // Ruling R2-R4: the selectors follow the new sidebar's accessible names (the Admin
         // section is the "Posts" link); the assertions are unchanged — admin sees the Admin section.
-        await Expect(Page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Posts" })).ToBeVisibleAsync();
+        await Expect(Page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Posts", Exact = true })).ToBeVisibleAsync();
     }
 
     [Test]
@@ -21,7 +21,7 @@ public class AuthenticationTests : WebTest
         // Ruling R2-R4: the Editor section is the "Drafts" link; the assertions are unchanged —
         // editor sees the Editor section and NOT the Admin section.
         await Expect(Page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Drafts" })).ToBeVisibleAsync();
-        await Expect(Page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Posts" })).Not.ToBeVisibleAsync();
+        await Expect(Page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Posts", Exact = true })).Not.ToBeVisibleAsync();
     }
 
     [TestCase("/admin/posts")]

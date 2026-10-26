@@ -38,8 +38,10 @@ public class HomeTests : WebTest
     private static string _pageCatSlug = string.Empty;
     private static string _tagSlug = string.Empty;
 
+    // The Z prefix runs these after the other tests of the class (NUnit runs a fixture's tests in name order): they publish posts newer
+    // than the fixture's own, and HomePage_Page1_HasExactlyOneFeaturedCardThenListCards expects its Beta post to be the newest.
     [Test]
-    public async Task ACardOfALinkedPost_ShowsItsCountsPill_AndAPostWithoutCountsShowsNone()
+    public async Task ZCounts_ACardOfALinkedPost_ShowsItsCountsPill_AndAPostWithoutCountsShowsNone()
     {
         await using var db = await OpenInstanceDatabaseAsync();
         var runId = Guid.NewGuid().ToString("N")[..12];
@@ -64,7 +66,7 @@ public class HomeTests : WebTest
     }
 
     [Test]
-    public async Task EveryListCardOfThePage_ShowsItsPill_InTheCompactSize()
+    public async Task ZCounts_EveryListCardOfThePage_ShowsItsPill_InTheCompactSize()
     {
         await using var db = await OpenInstanceDatabaseAsync();
         var runId = Guid.NewGuid().ToString("N")[..12];
