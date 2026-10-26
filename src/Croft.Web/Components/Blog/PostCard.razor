@@ -11,8 +11,6 @@
             <BannerOrFallback Banner="@Post.Banner" Category="@Post.Category" IconSize="@IconSize"
                             ShowIcon="@(Variant == PostCardVariant.Featured)"
                             Overlay="@(Variant == PostCardVariant.Featured)" />
-            @* The platforms' counts (brief 17e): inside the card link, top-right (the category chip is top-left); not a click target. *@
-            <SocialCounts Counts="@Post.Social" Size="@(Variant == PostCardVariant.Featured ? "normal" : "compact")" />
             @if (Variant == PostCardVariant.Featured)
             {
                 <div class="post-card__overlay">
@@ -43,6 +41,9 @@
             </div>
         </div>
     </a>
+    @* The platforms' counts (brief 17e): a sibling of the link like the chip, not inside it, so the label of the group is not the start
+       of the link's accessible name. Laid over the media top-right (the chip is top-left); pointer-events: none lets clicks through. *@
+    <SocialCounts Counts="@Post.Social" Size="@(Variant == PostCardVariant.Featured ? "normal" : "compact")" />
     @if (Post.Category is not null)
     {
         <div class="post-card__chip"><CategoryChip Category="@Post.Category" /></div>

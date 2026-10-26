@@ -41,7 +41,8 @@ public class PostCardTests : BlogBunitContext
 
         var cut = RenderCard(post, variant);
 
-        var pill = cut.Find(".post-card__link .post-card__media .social-counts");
+        var pill = cut.Find("article.post-card > .social-counts");
+        cut.FindAll(".post-card__link .social-counts").Should().BeEmpty("the pill is a sibling of the link, so its label is not the start of the link's name");
         pill.GetAttribute("aria-label").Should().Be("12 likes, 5 reposts, 5 replies");
         pill.ClassList.Contains("social-counts--compact").Should().Be(compact);
         cut.Find("article").ClassList.Should().Contain("post-card--counts", "the featured fallback icon makes room for the pill");

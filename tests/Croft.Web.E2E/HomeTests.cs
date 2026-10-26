@@ -53,10 +53,12 @@ public class HomeTests : WebTest
 
         // The newest post is the page's featured card, the one before it a list card: both carry their pill, in their own variant.
         var card = Page.Locator(".post-card", new PageLocatorOptions { HasText = countedTitle });
-        var pill = card.Locator(".post-card__media .social-counts");
+        var pill = card.Locator(".social-counts");
         await Expect(pill).ToHaveAttributeAsync("aria-label", "12 likes, 5 reposts, 5 replies");
         await Expect(pill.Locator(".social-counts__item")).ToHaveTextAsync(["12", "5", "5"]);
         await Expect(Page.Locator(".post-card", new PageLocatorOptions { HasText = plainTitle }).Locator(".social-counts")).ToHaveCountAsync(0);
+        await Expect(card.Locator(".post-card__link")).Not.ToHaveAccessibleNameAsync(new Regex("likes|reposts"));
+        await Expect(card.GetByRole(AriaRole.Link, new LocatorGetByRoleOptions { Name = countedTitle })).ToHaveCountAsync(1);
 
         // The pill is not a click target of its own: a click on it goes through to the card's link.
         var box = (await pill.BoundingBoxAsync())!;
@@ -77,7 +79,7 @@ public class HomeTests : WebTest
         await Page.GotoAsync(BaseUrl);
 
         var listCard = Page.Locator(".post-card--list", new PageLocatorOptions { HasText = olderTitle });
-        var pill = listCard.Locator(".post-card__media .social-counts");
+        var pill = listCard.Locator(".social-counts");
         await Expect(pill).ToHaveAttributeAsync("aria-label", "12 likes, 5 reposts, 5 replies");
         await Expect(pill).ToHaveClassAsync(new Regex("social-counts--compact"));
         var media = (await listCard.Locator(".post-card__media").BoundingBoxAsync())!;
