@@ -78,6 +78,14 @@ internal static partial class MigrationContractGuard
         // release reads, whatever else it also changes; flag it and require the attribute.
         AlterColumnOperation { IsNullable: false } alter
             => $"{migrationId}: AlterColumn({alter.Table}.{alter.Name}, nullable: false)",
+        // A new or smaller max length rejects values the previous release may still write; so does a type change.
+        AlterColumnOperation { MaxLength: { } newLength } alter
+            when alter.OldColumn.MaxLength is not { } oldLength || oldLength > newLength
+            => $"{migrationId}: AlterColumn({alter.Table}.{alter.Name}, max length {newLength})",
+        // (a bounded column's type string changes with its length; the arm above judges that)
+        AlterColumnOperation { ColumnType: { } newType, MaxLength: null } alter
+            when alter.OldColumn.ColumnType is { } oldType && oldType != newType
+            => $"{migrationId}: AlterColumn({alter.Table}.{alter.Name}, type {newType})",
         // Raw SQL is read as text: a statement that drops, renames or tightens is a contraction whatever
         // EF operation would have said it (the rule's escape hatch for "EF has no operation for it").
         SqlOperation sql when ContractingSql().IsMatch(sql.Sql) => $"{migrationId}: Sql({Excerpt(sql.Sql)})",
