@@ -28,7 +28,7 @@ branding and a handful of settings, so the same images serve any number of sites
   replicas, invalidated over PostgreSQL LISTEN/NOTIFY; an output cache; ReadyToRun images; load
   shedding. On four Raspberry Pi 4 it serves about 600 page requests a second (800 compressed)
   without errors, limited by TLS on the Pis
-  ([the measurement](docs/measurements/2026-10-23-load-test.md), with its caveats).
+  ([the measurement](docs/measurements/2026-10-26-load-test.md), on .NET 11, with its caveats).
 - **SEO and sharing:** canonical URLs, Open Graph, JSON-LD (`BlogPosting`, `BreadcrumbList`),
   sitemap, RSS.
 - **Per-site branding at deploy time:** name, palette (light and dark), logo, icons, fallback
