@@ -748,10 +748,10 @@ app.MapGet("/manifest.webmanifest", (HttpContext context, BrandingService brandi
     return Results.Text(branding.ManifestJson, "application/manifest+json; charset=utf-8");
 }).WithMetadata(CrossOriginResource.Instance);
 
-// The five branding images: the site's file if present, else the framework default from
-// wwwroot/branding-default. Only these names are served (anything else, including encoded
-// traversal, is 404) and every link to them carries the file's content hash (?v=), so they
-// are cached forever.
+// The branding images (the site's file if present, else the framework default from
+// wwwroot/branding-default) and the site's optional site.css (no default). Only these names
+// are served (anything else, including encoded traversal, is 404) and every link to them
+// carries the file's content hash (?v=), so they are cached forever.
 app.MapGet("/branding/{file}", (HttpContext context, BrandingService branding, string file) =>
 {
     if (branding.ResolveFile(file) is not { } path)
@@ -769,6 +769,7 @@ static string BrandingContentType(string path) => Path.GetExtension(path) switch
     ".ico" => "image/x-icon",
     ".png" => "image/png",
     ".jpg" => "image/jpeg",
+    ".css" => "text/css; charset=utf-8",
     _ => "application/octet-stream",
 };
 

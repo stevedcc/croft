@@ -29,6 +29,11 @@
     <link rel="stylesheet" href="/branding/theme.css?v=@Theme.Version" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["Croft.Web.styles.css"]" />
+    @* The site's optional site.css comes last, after every framework stylesheet, so its rules win the cascade. *@
+    @if (Branding.SuppliedFiles.Contains("site.css"))
+    {
+        <link rel="stylesheet" href="@(Branding.FileUrl("site.css"))" />
+    }
     <link rel="icon" type="image/svg+xml" href="@(Branding.FileUrl("logo.svg"))" />
     <link rel="icon" type="image/x-icon" href="@(Branding.FileUrl("favicon.ico"))" />
     <link rel="apple-touch-icon" href="@(Branding.FileUrl("apple-touch-icon.png"))" />

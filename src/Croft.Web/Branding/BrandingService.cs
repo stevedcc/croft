@@ -21,6 +21,9 @@ public sealed partial class BrandingService(Branding branding, IReadOnlyDictiona
         ["logo.svg", "favicon.ico", "apple-touch-icon.png", "fallback-banner.svg", "fallback-banner.png", "fallback-banner.jpg",
          "masthead-banner.svg", "masthead-banner.png", "masthead-banner.jpg"];
 
+    /// <summary>The site's optional stylesheet: served only when the site supplies it.</summary>
+    private const string SiteCssFile = "site.css";
+
     private static readonly string[] MastheadBannerFiles = ["masthead-banner.svg", "masthead-banner.png", "masthead-banner.jpg"];
 
     private static readonly string[] FallbackBannerFiles = ["fallback-banner.svg", "fallback-banner.png", "fallback-banner.jpg"];
@@ -47,7 +50,8 @@ public sealed partial class BrandingService(Branding branding, IReadOnlyDictiona
         return new(withFiles, paths);
     }
 
-    /// <summary>The file behind a /branding/{file} request: one of the served names — for the
+    /// <summary>The file behind a /branding/{file} request: one of the served names (the images, and
+    /// the site's optional site.css, which has no framework default) — for the
     /// fallback and masthead banners the resolved file, whatever extension the request used (a
     /// masthead banner the site did not supply is 404) — or null (404) for any other name.</summary>
     public string? ResolveFile(string requestName)
@@ -57,6 +61,7 @@ public sealed partial class BrandingService(Branding branding, IReadOnlyDictiona
             "logo.svg" or "favicon.ico" or "apple-touch-icon.png" => requestName,
             "fallback-banner.svg" or "fallback-banner.png" or "fallback-banner.jpg" => Current.FallbackBannerFile,
             "masthead-banner.svg" or "masthead-banner.png" or "masthead-banner.jpg" => Current.MastheadBannerFile,
+            SiteCssFile => requestName,
             _ => null,
         };
         return servedName is null ? null : _filePaths.GetValueOrDefault(servedName);
@@ -348,7 +353,7 @@ public sealed partial class BrandingService(Branding branding, IReadOnlyDictiona
         return (light, dark);
     }
 
-    /// <summary>Records which image files the site supplied, hashes every served file —
+    /// <summary>Records which files (images, site.css) the site supplied, hashes every served file —
     /// the site's file if present, else the framework default — and keeps its path for serving.</summary>
     private static (Branding Branding, IReadOnlyDictionary<string, string> Paths) ResolveImageFiles(
         Branding branding, string? folderPath, string? defaultFilesPath)
@@ -356,7 +361,7 @@ public sealed partial class BrandingService(Branding branding, IReadOnlyDictiona
         HashSet<string> supplied = [with(StringComparer.Ordinal)];
         if (!string.IsNullOrWhiteSpace(folderPath) && Directory.Exists(folderPath))
         {
-            foreach (var file in ImageFiles)
+            foreach (var file in (string[])[.. ImageFiles, SiteCssFile])
             {
                 if (File.Exists(Path.Combine(folderPath, file)))
                 {
@@ -373,10 +378,13 @@ public sealed partial class BrandingService(Branding branding, IReadOnlyDictiona
 
         Dictionary<string, string> hashes = [with(StringComparer.Ordinal)];
         Dictionary<string, string> paths = [with(StringComparer.Ordinal)];
-        foreach (var servedName in new[] { "logo.svg", "favicon.ico", "apple-touch-icon.png", fallback, mastheadBanner }
+        foreach (var servedName in new[] { "logo.svg", "favicon.ico", "apple-touch-icon.png", fallback, mastheadBanner, SiteCssFile }
             .OfType<string>())
         {
-            if (ResolvedFile(servedName, supplied, folderPath, defaultFilesPath) is { } path)
+            // site.css has no framework default: ResolvedFile finds none in the defaults folder
+            // unless the site supplied it.
+            if ((servedName == SiteCssFile && !supplied.Contains(SiteCssFile)
+                    ? null : ResolvedFile(servedName, supplied, folderPath, defaultFilesPath)) is { } path)
             {
                 paths[servedName] = path;
                 hashes[servedName] = Convert.ToHexString(
