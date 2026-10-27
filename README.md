@@ -221,6 +221,10 @@ dev/run-e2e.sh --instances 2
 dev/run-ha-e2e.sh                                  # the HaTests category
 ```
 
+## Reporting a vulnerability
+
+Report vulnerabilities privately, as described in [SECURITY.md](SECURITY.md); please do not open a public issue.
+
 ## Security headers and Content Security Policy
 
 Every response from both apps carries the same plain security headers, written first in the
