@@ -140,7 +140,8 @@ dev/run-e2e.sh                                # Playwright E2E; starts instances
 Two suites running at once have twice taken this machine down (swap on 2026-10-23, OOM kills on
 2026-10-25), so suites go through `dev/with-suite-lock.sh`: it takes a per-machine lock
 (`~/.cache/croft/suite.lock`), prints who holds it while it waits, and passes the command's exit
-code through (`--try` exits 75 instead of waiting). `dev/run-e2e.sh`, `dev/run-ha-e2e.sh` and
+code through (`--try` exits 75 instead of waiting). `CROFT_SUITE_LOCK_DIR` moves the lock to another directory: the Chargehand
+sandbox gives its agent user its own `$HOME` and `/tmp`, so the default path is a different lock there, and both users must point it at one directory they share through a group. `dev/run-e2e.sh`, `dev/run-ha-e2e.sh` and
 `dev/run-large-data-e2e.sh` take the lock themselves. Those three scripts also carry the same
 guard (`dev/lib/test-summary.sh`): when `dotnet test` exits 0 they exit 70 (no NUnit summary line in
 the log), 71 (more than one) or 72 (the summary reports failures); a non-zero `dotnet test` code is

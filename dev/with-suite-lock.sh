@@ -6,8 +6,18 @@
 # Usage: dev/with-suite-lock.sh [--try] <command...>
 #   --try   do not wait: exit 75 at once when another suite holds the lock
 #
-# The lock is flock on ${XDG_CACHE_HOME:-$HOME/.cache}/croft/suite.lock. The holder writes
-# suite.lock.owner (pid|start-time|command) and removes it on exit; a waiter prints that once.
+# The lock is flock on suite.lock in ${CROFT_SUITE_LOCK_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/croft}.
+# The holder writes suite.lock.owner (pid|start-time|command) and removes it on exit; a waiter
+# prints that once.
+#
+# One lock for every user (issue #88): the Chargehand sandbox gives its agent user an in-memory
+# $HOME and a private /tmp, so the default directory is a different directory there and a sandboxed
+# suite and the owner's suite would run at the same time. Point CROFT_SUITE_LOCK_DIR at one
+# directory both users can reach, shared through a common group (setgid, mode 2770). The script
+# creates its files group-writable (umask 0002) and opens the lock file read-only (flock works on a
+# read-only descriptor), so a lock file the other user created still locks. If the owner file the
+# other user left behind cannot be written, a warning is printed and the command still runs under
+# the lock: the owner line is information, not the lock.
 # The command's exit code is passed through. The command does not inherit the lock's file
 # descriptor, so a process it leaves running cannot keep the lock after the wrapper exits.
 # Re-entrancy: with CROFT_SUITE_LOCK_HELD=1 (set for the command) the command runs unlocked, so
@@ -29,12 +39,16 @@ if [ "${CROFT_SUITE_LOCK_HELD:-}" = "1" ]; then
     exec "$@"
 fi
 
-LOCK_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/croft"
+LOCK_DIR="${CROFT_SUITE_LOCK_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/croft}"
 LOCK_FILE="$LOCK_DIR/suite.lock"
 OWNER_FILE="$LOCK_FILE.owner"
 mkdir -p "$LOCK_DIR"
 
-exec 9>"$LOCK_FILE"
+# Group-writable files, for a lock directory shared by two users through a group.
+if [ ! -e "$LOCK_FILE" ]; then
+    (umask 0002; : >>"$LOCK_FILE")
+fi
+exec 9<"$LOCK_FILE"
 if ! flock -n 9; then
     if [ "$TRY" -eq 1 ]; then
         echo "with-suite-lock: another suite is running; not waiting (--try)" >&2
@@ -50,11 +64,13 @@ if ! flock -n 9; then
     flock 9
 fi
 
-printf '%s|%s|%s\n' "$$" "$(date +%FT%T)" "$*" >"$OWNER_FILE"
+if ! (umask 0002; printf '%s|%s|%s\n' "$$" "$(date +%FT%T)" "$*" >"$OWNER_FILE") 2>/dev/null; then
+    echo "with-suite-lock: warning: cannot write $OWNER_FILE (owned by another user?); running under the lock without an owner record" >&2
+fi
 remove_owner() {
     # Only the holder's own record: a successor writes its record only after this process exits.
     if [ "$(cut -d'|' -f1 "$OWNER_FILE" 2>/dev/null)" = "$$" ]; then
-        rm -f "$OWNER_FILE"
+        rm -f "$OWNER_FILE" 2>/dev/null || true
     fi
 }
 trap remove_owner EXIT
