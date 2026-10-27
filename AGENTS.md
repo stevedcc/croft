@@ -276,10 +276,7 @@ nothing; each role is added at most once.
   operations without it.
   **Pending contracts** (columns kept only for older releases; drop each in a later contract
   migration once no pod older than the named release runs, then delete its line here):
-  - `Posts.ShowInNavigation` and `Posts.ViewCount` are unmapped since this release (brief 17c; the
-    new release neither reads nor writes them, `ViewCount` has a default); drop both in a
-    hand-written `[ContractMigration]` `DropColumn` migration once no pod older than this release
-    runs, and delete `RetiredPostColumnsTests.TheRetiredColumns_StillExist_ForPodsOfThePreviousRelease`.
+  (none at the moment)
 - **Rules for data migrations (expand/contract, continued):** the migration guard reads raw SQL for
   `DROP`, `RENAME`, `SET NOT NULL` and `ALTER COLUMN ... TYPE`, and flags a `NOT NULL` column with no
   default; moving data is the other half of the rule.

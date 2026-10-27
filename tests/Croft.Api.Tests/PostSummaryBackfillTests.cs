@@ -36,12 +36,12 @@ public class PostSummaryBackfillTests(PostgresDatabaseFixture fixture)
 
             // Insert two posts with Summary = NULL via SQL.
             await db.Database.ExecuteSqlAsync($"""
-                INSERT INTO "Posts" ("Id", "Slug", "Title", "MarkdownContent", "Status", "CreatedAt", "UpdatedAt", "AuthorId", "AuthorName", "ViewCount")
-                VALUES ({firstId}, 'one', 'One', {longMarkdown}, 0, {fixedUpdatedAt}, {fixedUpdatedAt}, 'a', 'A', 0)
+                INSERT INTO "Posts" ("Id", "Slug", "Title", "MarkdownContent", "Status", "CreatedAt", "UpdatedAt", "AuthorId", "AuthorName")
+                VALUES ({firstId}, 'one', 'One', {longMarkdown}, 0, {fixedUpdatedAt}, {fixedUpdatedAt}, 'a', 'A')
                 """);
             await db.Database.ExecuteSqlAsync($"""
-                INSERT INTO "Posts" ("Id", "Slug", "Title", "MarkdownContent", "Status", "CreatedAt", "UpdatedAt", "AuthorId", "AuthorName", "ViewCount")
-                VALUES ({secondId}, 'two', 'Two', {"# Two\n\nBeta text."}, 0, {fixedUpdatedAt}, {fixedUpdatedAt}, 'a', 'A', 0)
+                INSERT INTO "Posts" ("Id", "Slug", "Title", "MarkdownContent", "Status", "CreatedAt", "UpdatedAt", "AuthorId", "AuthorName")
+                VALUES ({secondId}, 'two', 'Two', {"# Two\n\nBeta text."}, 0, {fixedUpdatedAt}, {fixedUpdatedAt}, 'a', 'A')
                 """);
         }
 
@@ -167,8 +167,8 @@ public class PostSummaryBackfillTests(PostgresDatabaseFixture fixture)
             foreach (var (id, slug) in new[] { (targetId, targetSlug) }.Concat(others))
             {
                 await db.Database.ExecuteSqlAsync($"""
-                    INSERT INTO "Posts" ("Id", "Slug", "Title", "MarkdownContent", "Status", "CreatedAt", "UpdatedAt", "AuthorId", "AuthorName", "ViewCount")
-                    VALUES ({id}, {slug}, {slug}, {"# Heading\n\nBeta text."}, 0, {DateTime.UtcNow}, {DateTime.UtcNow}, 'a', 'A', 0)
+                    INSERT INTO "Posts" ("Id", "Slug", "Title", "MarkdownContent", "Status", "CreatedAt", "UpdatedAt", "AuthorId", "AuthorName")
+                    VALUES ({id}, {slug}, {slug}, {"# Heading\n\nBeta text."}, 0, {DateTime.UtcNow}, {DateTime.UtcNow}, 'a', 'A')
                     """);
             }
         }
@@ -241,8 +241,8 @@ public class PostSummaryBackfillTests(PostgresDatabaseFixture fixture)
         {
             var db = scope.ServiceProvider.GetRequiredService<BlogDbContext>();
             await db.Database.ExecuteSqlAsync($"""
-                INSERT INTO "Posts" ("Id", "Slug", "Title", "MarkdownContent", "Status", "CreatedAt", "UpdatedAt", "AuthorId", "AuthorName", "ViewCount")
-                VALUES ({postId}, {slug}, {slug}, {"# Heading\n\nBeta text."}, 0, {DateTime.UtcNow}, {DateTime.UtcNow}, 'a', 'A', 0)
+                INSERT INTO "Posts" ("Id", "Slug", "Title", "MarkdownContent", "Status", "CreatedAt", "UpdatedAt", "AuthorId", "AuthorName")
+                VALUES ({postId}, {slug}, {slug}, {"# Heading\n\nBeta text."}, 0, {DateTime.UtcNow}, {DateTime.UtcNow}, 'a', 'A')
                 """);
         }
 
