@@ -1,6 +1,8 @@
 services:
   postgres:
-    image: postgres:18-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
+    # Fully qualified: Podman's enforcing short-name mode cannot ask which registry without a TTY,
+    # so `docker compose up -d` from a script failed whenever the pinned digest had to be pulled.
+    image: docker.io/library/postgres:18-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
     environment:
       POSTGRES_USER: blog
       POSTGRES_PASSWORD: blog
@@ -8,7 +10,9 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - blog-postgres-data:/var/lib/postgresql/data
+      # Postgres 18 images keep their data under /var/lib/postgresql/18/docker and refuse to start
+      # with a volume at /var/lib/postgresql/data (issue #34), so the volume is the parent folder.
+      - blog-postgres-data:/var/lib/postgresql
     networks:
       - blog-network
 
