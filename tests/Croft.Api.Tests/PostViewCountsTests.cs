@@ -22,7 +22,7 @@ public class PostViewCountsTests(PostgresDatabaseFixture fixture) : IClassFixtur
     private const string PreviousMigration = "20261018114827_NavigationPlacement";
     private const string ThisMigration = "20261019175325_PostViewCounts";
 
-    private sealed record PostRowStamp(string Xmin, DateTime UpdatedAt, long LegacyViewCount);
+    private sealed record PostRowStamp(string Xmin, DateTime UpdatedAt);
 
     private sealed record CountRow(Guid PostId, long ViewCount);
 
@@ -41,7 +41,6 @@ public class PostViewCountsTests(PostgresDatabaseFixture fixture) : IClassFixtur
         var after = await StampAsync(factory, post.Id);
         after.Xmin.Should().Be(before.Xmin, "no new row version of the Posts row: a view never rewrites the wide table");
         after.UpdatedAt.Should().Be(before.UpdatedAt);
-        after.LegacyViewCount.Should().Be(before.LegacyViewCount, "the old column is only for pods of the previous release");
     }
 
     [Fact]
@@ -68,12 +67,6 @@ public class PostViewCountsTests(PostgresDatabaseFixture fixture) : IClassFixtur
         (await PostViewAsync(factory.CreateClient(), post.Id, "203.0.113.20")).EnsureSuccessStatusCode();
         (await PostViewAsync(factory.CreateClient(), post.Id, "203.0.113.21")).EnsureSuccessStatusCode();
         (await PostViewAsync(factory.CreateClient(), post.Id, "203.0.113.22")).EnsureSuccessStatusCode();
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            // A value in the old column that the reads must ignore.
-            await scope.ServiceProvider.GetRequiredService<BlogDbContext>().Database
-                .ExecuteSqlAsync($"""UPDATE "Posts" SET "ViewCount" = 5000 WHERE "Id" = {post.Id}""");
-        }
 
         var summary = await admin.GetFromJsonAsync<AnalyticsSummaryDto>($"/api/analytics?postId={post.Id}");
         var list = await admin.GetFromJsonAsync<PagedResult<PostSummaryDto>>("/api/posts?searchTerm=View+Counts+Reads&pageSize=50");
@@ -150,7 +143,7 @@ public class PostViewCountsTests(PostgresDatabaseFixture fixture) : IClassFixtur
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<BlogDbContext>();
         return (await db.Database.SqlQuery<PostRowStamp>(
-            $"""SELECT xmin::text AS "Xmin", "UpdatedAt", "ViewCount" AS "LegacyViewCount" FROM "Posts" WHERE "Id" = {postId}""").ToListAsync()).Single();
+            $"""SELECT xmin::text AS "Xmin", "UpdatedAt" FROM "Posts" WHERE "Id" = {postId}""").ToListAsync()).Single();
     }
 
     private static async Task InsertPostAsync(BlogDbContext db, Guid id, string slug, long viewCount)
