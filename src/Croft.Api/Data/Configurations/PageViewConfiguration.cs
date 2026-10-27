@@ -14,7 +14,8 @@ public class PageViewConfiguration : IEntityTypeConfiguration<PageView>
         builder.Property(x => x.Referrer).HasMaxLength(AnalyticsService.MaxReferrerLength);
         builder.Property(x => x.UserAgent).HasMaxLength(AnalyticsService.MaxUserAgentLength);
         builder.Property(x => x.Day).HasColumnType("date");
-        // One view per post, visitor and day; the insert itself is the dedupe check.
+        // One view per post, visitor and day; the insert itself is the dedupe check. A visit that crosses midnight UTC
+        // counts once too (AnalyticsService.MidnightGrace: the first 30 minutes of a day look back one day).
         builder.HasIndex(x => new { x.PostId, x.IpHash, x.Day }).IsUnique();
         builder.HasIndex(x => new { x.PostId, x.Timestamp });
     }
