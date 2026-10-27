@@ -54,8 +54,13 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
+      # Only the two apps (Croft.Shared comes with them), not Croft.slnx: the paths-ignore of a CodeQL
+      # config does not stop extraction of code a manual build compiles, so the test projects (stub
+      # tokens in them raised false cs/sensitive-data-transmission alerts) stay out of the build.
       - if: matrix.language == 'csharp'
-        run: dotnet build Croft.slnx
+        run: |
+          dotnet build src/Croft.Api/Croft.Api.csproj
+          dotnet build src/Croft.Web/Croft.Web.csproj
       - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           category: /language:${{ matrix.language }}
