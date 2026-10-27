@@ -409,6 +409,38 @@ public class BrandingServiceTests : IDisposable
     }
 
     [Fact]
+    public void Load_SiteCss_IsSuppliedAndHashedByItsBytes()
+    {
+        WriteFile(_siteFolder, "site.css", ":root { --primary: red; }");
+
+        var service = Load();
+
+        service.Current.SuppliedFiles.Should().Contain("site.css");
+        service.Current.FileHashes["site.css"].Should().Be(Sha256Prefix(":root { --primary: red; }"));
+        service.ResolveFile("site.css").Should().Be(Path.Combine(_siteFolder, "site.css"));
+    }
+
+    [Fact]
+    public void Load_SiteCss_IsNotTakenFromTheFrameworkDefaults()
+    {
+        WriteFile(_defaultsFolder, "site.css", "/* stray default */");
+
+        var service = Load();
+
+        service.Current.SuppliedFiles.Should().NotContain("site.css");
+        service.Current.FileHashes.Should().NotContainKey("site.css");
+        service.ResolveFile("site.css").Should().BeNull("there is no framework default stylesheet");
+    }
+
+    [Fact]
+    public void Load_SiteCss_WithNoFolder_IsNotServed()
+    {
+        var service = BrandingService.Load(null, _defaultsFolder, _log);
+
+        service.ResolveFile("site.css").Should().BeNull();
+    }
+
+    [Fact]
     public void Load_MastheadBanner_IsNotTakenFromTheFrameworkDefaults()
     {
         // Unlike the fallback banner there is no framework default masthead file: unset means

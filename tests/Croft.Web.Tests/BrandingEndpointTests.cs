@@ -56,13 +56,13 @@ public class BrandingEndpointTests : IDisposable
     // The factories the client calls are kept and disposed with the class: a dropped factory's host lives to process exit.
     private readonly List<WebApplicationFactory<Program>> _factories = [];
 
-    private HttpClient CreateClient()
+    private HttpClient CreateClient(string? brandingPath = null)
     {
         var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseSetting("ApiBaseUrl", "http://blog-api.blog.svc.cluster.local/");
             builder.UseSetting("Blog:BaseUrl", "https://example.com/");
-            builder.UseSetting("Blog:BrandingPath", _brandingFolder);
+            builder.UseSetting("Blog:BrandingPath", brandingPath ?? _brandingFolder);
             // Pages render against a stub API, so "/" answers (the pages' own data is not under test).
             builder.ConfigureServices(services => services.AddHttpClient("BlogApi")
                 .ConfigurePrimaryHttpMessageHandler(() => new StubBlogApiHandler()));
@@ -210,6 +210,41 @@ public class BrandingEndpointTests : IDisposable
             "one logical file: the resolved png goes out with its own content type");
         (await response.Content.ReadAsStringAsync()).Should().Be("the png masthead");
         AssertImmutableCacheHeaders(response);
+    }
+
+    [Fact]
+    public async Task SiteCss_TheSiteSupplied_IsServedAsCssUnchangedAndImmutable()
+    {
+        byte[] bytes = [.. "/* site */\r\n:root { --primary: #123456; }\n"u8, 0xC3, 0xA9];
+        File.WriteAllBytes(Path.Combine(_brandingFolder, "site.css"), bytes);
+        using var client = CreateClient();
+
+        using var response = await client.GetAsync("/branding/site.css");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType!.ToString().Should().Be("text/css; charset=utf-8");
+        AssertImmutableCacheHeaders(response);
+        (await response.Content.ReadAsByteArrayAsync()).Should().Equal(bytes, "the file is served as it is, byte for byte");
+    }
+
+    [Fact]
+    public async Task SiteCss_TheSiteDidNotSupply_Is404()
+    {
+        using var client = CreateClient();
+
+        using var response = await client.GetAsync("/branding/site.css");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound, "there is no framework default stylesheet");
+    }
+
+    [Fact]
+    public async Task SiteCss_WithoutABrandingFolder_Is404()
+    {
+        using var client = CreateClient(Path.Combine(Path.GetTempPath(), $"blog-branding-missing-{Guid.NewGuid():N}"));
+
+        using var response = await client.GetAsync("/branding/site.css");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Theory]

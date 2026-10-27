@@ -21,7 +21,7 @@ public sealed record Branding
 
     public BrandPalette Dark { get; init; } = BrandPalette.DefaultDark;
 
-    /// <summary>The image file names the site's own folder supplied.</summary>
+    /// <summary>The file names (images and site.css) the site's own folder supplied.</summary>
     public IReadOnlySet<string> SuppliedFiles { get; init; } = FrozenSet<string>.Empty;
 
     /// <summary>Content hash per served file (its served name, e.g. "fallback-banner.png").</summary>
