@@ -701,13 +701,6 @@ entry and a marker in the same commit (AGENTS.md, "Workarounds").
 - **Fails without it:** none deterministically (a rare timeout, about 1 in 15 full runs before the change); manual check: the probe above.
 - **Upgrade check:** on a Playwright upgrade, re-run the probe against `WaitForURLAsync`; if it no longer times out, the helpers can go back to it (or stay: they are correct either way).
 
-### W-106: Warm-up contract tests call `UseKestrel` on the root factory
-
-- **Library:** `WebApplicationFactory<TEntryPoint>` (Microsoft.AspNetCore.Mvc.Testing 11.0 RC 2): `WithWebHostBuilder` returns a derived factory, and a `UseKestrel(0)` called on that derived factory does not reach the host (the host then binds Kestrel's `DefaultAddressStrategy`, `http://localhost:5000`, and fails with "address already in use" while E2E instance 1 holds the port). Called on the root factory before `WithWebHostBuilder`, the same call gives an OS-assigned port. Reproduced on 2026-10-27 with a listener on 127.0.0.1:5000: red with the call on the derived factory, green with it on the root.
-- **Our code:** `WarmupHostSetup.UseRealKestrelOnRoot` (in `WarmupContractTests.cs`, compiled into both test projects), called by `WebWarmupContractTests.Start` and `ApiWarmupContractTests.Start` on the factory they create.
-- **Fails without it:** `WebWarmupContractTests.EveryWarmupRequest_RunsInsideTheCroftWarmupActivity` and its API twin, whenever 127.0.0.1:5000 is in use (a running E2E instance 1).
-- **Upgrade check:** on a Mvc.Testing upgrade, call `UseKestrel(0)` on the derived factory again with a listener on 127.0.0.1:5000; if the host gets its own port, `Launch` can call it directly and W-106 can be retired.
-
 ## Tier F: deployment and dev tooling
 
 ### W-081: Network-policy labels for K3s and Traefik
@@ -797,6 +790,7 @@ compensates for a dependency's behaviour.
 IDs that no longer have an entry. They are never reused. These are plain lines, not headings, so
 `WorkaroundRegisterTests` checks that none of them has a `###` entry or a marker.
 
+- W-106: the warm-up contract tests' real-Kestrel set-up was registered in brief 18a as a workaround for `UseKestrel(0)`, then retired in the same brief: `UseKestrel(int port)` on a `WithWebHostBuilder`-derived factory never delivers its port to the host (Kestrel falls back to localhost:5000), and on the root factory it does not reach the derived host at all (TestServer, address `http://127.0.0.1:0`), but the code that works, the `urls` setting `http://127.0.0.1:0` plus a port-less `UseKestrel()` read back through `IServerAddressesFeature`, is the documented way to choose a URL and the pattern `ClientRequestLimitTests` already uses; no framework behaviour is compensated, so no marker. `EveryWarmupRequest_RunsInsideTheCroftWarmupActivity` (Web and API) fails on port 0 or a refused request if the set-up breaks.
 - W-066: the URL-wait hang capture (`AdminTests.WaitForUrlCapturingAsync` and its in-flight request tracking, a diagnostic for a rare 15 s hang in `WaitForURLAsync`) was retired in brief 17a: the hang was Playwright .NET's `WaitForURLAsync` missing a navigation between its URL check and its event subscription (see W-105), and the three waits are `Expect(Page).ToHaveURLAsync` now.
 - W-005: the MudBlazor dark-palette append on static pages (the palette variables stayed light there) was removed when brief 09i took MudBlazor off the reading pages; `Theme/MudDarkPaletteCss.cs` is deleted and `Branding.ThemeHash` is retired.
 - W-047: the OIDC authority in `form-action` (`OidcFormActionCspContributor`) was removed in brief 10c at the owner's decision: sign-in is a 302 challenge and sign-out a GET link chain (`/logout` to `/logout/interstitial` to `/logout/complete` to a redirect), so no form of ours posts to the IdP and Chrome's form-redirect check never applied (brief 13b made `/logout/complete` a POST, so the check applies again: see W-096); `SidebarAuthLinksTests` and `DraftBackupTests.Logout_ClearsEveryDraftBackupKey` pass in Chromium and Firefox with `form-action 'self'`.
