@@ -12,7 +12,7 @@ public sealed class WebWarmupContractTests : WarmupContractTests
 {
     protected override WarmupTestHost Start(WarmupHostSetup setup)
     {
-        var configured = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        var configured = setup.UseRealKestrelOnRoot(new WebApplicationFactory<Program>()).WithWebHostBuilder(builder =>
         {
             builder.UseSetting("ApiBaseUrl", "http://blog-api.blog.svc.cluster.local/");
             builder.UseSetting("Blog:BaseUrl", "https://example.com/");

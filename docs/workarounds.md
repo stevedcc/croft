@@ -701,6 +701,13 @@ entry and a marker in the same commit (AGENTS.md, "Workarounds").
 - **Fails without it:** none deterministically (a rare timeout, about 1 in 15 full runs before the change); manual check: the probe above.
 - **Upgrade check:** on a Playwright upgrade, re-run the probe against `WaitForURLAsync`; if it no longer times out, the helpers can go back to it (or stay: they are correct either way).
 
+### W-106: Warm-up contract tests call `UseKestrel` on the root factory
+
+- **Library:** `WebApplicationFactory<TEntryPoint>` (Microsoft.AspNetCore.Mvc.Testing 11.0 RC 2): `WithWebHostBuilder` returns a derived factory, and a `UseKestrel(0)` called on that derived factory does not reach the host (the host then binds Kestrel's `DefaultAddressStrategy`, `http://localhost:5000`, and fails with "address already in use" while E2E instance 1 holds the port). Called on the root factory before `WithWebHostBuilder`, the same call gives an OS-assigned port. Reproduced on 2026-10-27 with a listener on 127.0.0.1:5000: red with the call on the derived factory, green with it on the root.
+- **Our code:** `WarmupHostSetup.UseRealKestrelOnRoot` (in `WarmupContractTests.cs`, compiled into both test projects), called by `WebWarmupContractTests.Start` and `ApiWarmupContractTests.Start` on the factory they create.
+- **Fails without it:** `WebWarmupContractTests.EveryWarmupRequest_RunsInsideTheCroftWarmupActivity` and its API twin, whenever 127.0.0.1:5000 is in use (a running E2E instance 1).
+- **Upgrade check:** on a Mvc.Testing upgrade, call `UseKestrel(0)` on the derived factory again with a listener on 127.0.0.1:5000; if the host gets its own port, `Launch` can call it directly and W-106 can be retired.
+
 ## Tier F: deployment and dev tooling
 
 ### W-081: Network-policy labels for K3s and Traefik

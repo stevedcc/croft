@@ -61,6 +61,25 @@ public sealed class WarmupHostSetup
         });
     }
 
+    /// <summary>Switches a root factory (the one a test creates before <c>WithWebHostBuilder</c>) to real Kestrel on
+    /// an OS-assigned port when the setup asks for it, and returns it. It must be called on the root:
+    /// <c>WithWebHostBuilder</c> derives a new factory that does not carry the setting over, and a
+    /// <c>UseKestrel</c> call on the derived one is ignored, so the host binds Kestrel's default
+    /// localhost:5000 (and fails while E2E instance 1 holds that port).</summary>
+    // WORKAROUND(W-106, ASP.NET Core): UseKestrel on a WithWebHostBuilder-derived factory is silently ignored, so it is called on the root
+    public Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<TEntry> UseRealKestrelOnRoot<TEntry>(
+        Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<TEntry> root)
+        where TEntry : class
+    {
+        if (Kestrel)
+        {
+            root.UseKestrel(0);
+        }
+
+        return root;
+    }
+    // END WORKAROUND(W-106)
+
     /// <summary>Starts the configured factory (on real Kestrel when asked) and wraps it for the tests.</summary>
     public WarmupTestHost Launch<TEntry>(Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<TEntry> factory)
         where TEntry : class
@@ -70,7 +89,6 @@ public sealed class WarmupHostSetup
             return new WarmupTestHost(factory, factory.CreateClient(), factory.Services);
         }
 
-        factory.UseKestrel(0);
         factory.StartServer();
         return new WarmupTestHost(factory, new HttpClient { BaseAddress = new Uri(factory.Services.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>()
             .Features.Get<Microsoft.AspNetCore.Hosting.Server.Features.IServerAddressesFeature>()!.Addresses.First()) }, factory.Services);

@@ -15,7 +15,8 @@ public sealed class ApiWarmupContractTests(PostgresDatabaseFixture fixture)
     {
         var storagePath = Path.Combine(Path.GetTempPath(), $"blog-tests-{Guid.NewGuid():N}");
         Directory.CreateDirectory(storagePath);
-        var configured = new BlogApiFactory(fixture.ConnectionString, storagePath).WithWebHostBuilder(setup.Apply);
+        var configured = setup.UseRealKestrelOnRoot(new BlogApiFactory(fixture.ConnectionString, storagePath))
+            .WithWebHostBuilder(setup.Apply);
         return setup.Launch(configured);
     }
 
