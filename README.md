@@ -686,7 +686,7 @@ addresses only, no redirects) to the configured Mastodon server, to `bsky.social
 
 ### The branding folder
 
-The Web app reads its identity — name, tagline, palette, logo, icons, fallback banner, and optionally the home page masthead's own banner — from a
+The Web app reads its identity — name, tagline, palette, logo, icons, fallback banner, optionally the home page masthead's own banner, and optionally a `site.css` with the site's own styling, loaded after the framework's stylesheets — from a
 folder (`Blog__BrandingPath`, default `/app/branding`). Every file is optional: with no folder the
 site runs on neutral built-in defaults. The format is documented in
 [`branding.example/README.md`](branding.example/README.md), and `branding.example/` is a complete
@@ -722,6 +722,7 @@ configMapGenerator:
       - branding/apple-touch-icon.png
       - branding/fallback-banner.svg
       # - branding/masthead-banner.png   # optional: the home page masthead's own picture
+      # - branding/site.css              # optional: the site's own CSS, loaded last on every page
 patches:
   - target:
       group: networking.k8s.io

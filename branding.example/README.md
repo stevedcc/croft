@@ -15,6 +15,7 @@ favicon.ico            16x16, 32x32 and 48x48
 apple-touch-icon.png   180x180
 fallback-banner.svg    or fallback-banner.png / fallback-banner.jpg
 masthead-banner.svg    optional; or masthead-banner.png / masthead-banner.jpg
+site.css               optional; the site's own CSS, loaded last (see "site.css" below)
 ```
 
 `branding.json` merges over the built-in defaults field by field and token by token: a field
@@ -80,6 +81,30 @@ Exactly these 18, each with a light and a dark value (`palette.light.<token>` /
 | `code-bg` | code block background |
 | `code-text` | code block text |
 | `fallback-wash` | the wash under the fallback banner |
+
+## site.css
+
+An optional `site.css` next to `branding.json` styles the site without rebuilding the image.
+
+- It is linked on **every page**, reading pages and staff pages alike, **after** the framework's
+  stylesheets, so its rules win the cascade. Without the file there is no link and no request,
+  and `/branding/site.css` is a 404.
+- It is served as it is (no parsing or rewriting) and cached forever under a content-hash `?v=`
+  (like the images): a changed file is a new URL after the Web app restarts, because the folder
+  is read once at startup. A changed ConfigMap rolls the Web pods, which does exactly that.
+- The Content-Security-Policy allows **same-origin stylesheets only** (`style-src` and
+  `style-src-elem` are `'self'`), and `site.css` is one, so the policy is unchanged. An `@import`
+  or a `url()` to another origin is blocked. `img-src` is `'self'` as well, so `data:` images are
+  blocked too. The branding images' URLs change with their content (`?v=`), so `site.css`
+  should not reference them either: images in `site.css` are not supported yet.
+- The stable thing to override is the theme's CSS custom properties (the generated
+  `/branding/theme.css`, one `--<token>` per palette token above, set on `:root` and again for
+  dark mode), for example `--primary` (links and primary controls), `--bg` (the page background)
+  and `--surface` (cards and panels).
+
+`branding.example/site.css` carries a single rule, `:root { --site-css: "branding.example"; }`.
+It changes nothing visible: it is the marker the E2E suite reads to prove the browser applied
+the file, and a real site can delete it.
 
 ## The colour syntax
 
