@@ -91,9 +91,10 @@ jobs:
         id: decide
         run: |
           renovate='29139614+renovate[bot]@users.noreply.github.com'
-          # The dependency allow-list: project and SDK pins, Dockerfiles, compose files, workflow
+          # The dependency allow-list: project and SDK pins, NuGet lock files (Renovate rewrites
+          # packages.lock.json with every package bump), Dockerfiles, compose files, workflow
           # action pins and Renovate's own configuration. Anything else is a code change.
-          allowed='^(.+\.csproj|Directory\.Build\.props|Directory\.Packages\.props|global\.json|dotnet-tools\.json|src/[^/]+/Dockerfile|compose\.yaml|\.github/compose\.ci\.yaml|\.github/workflows/[^/]+\.yml|renovate\.json5)$'
+          allowed='^(.+\.csproj|.+/packages\.lock\.json|Directory\.Build\.props|Directory\.Packages\.props|global\.json|dotnet-tools\.json|src/[^/]+/Dockerfile|compose\.yaml|\.github/compose\.ci\.yaml|\.github/workflows/[^/]+\.yml|renovate\.json5)$'
 
           sha=$(git rev-parse HEAD)
           author="$(git log -1 --format='%an <%ae>')"

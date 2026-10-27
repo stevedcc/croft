@@ -378,7 +378,7 @@ Flux `ImagePolicy` semver range skips them, so they deploy nowhere unless pinned
 **Dependency merges release themselves.** When `ci` passes on a push to `main`,
 `.github/workflows/auto-release.yml` looks at the merged commit. If Renovate wrote it (author or
 committer `renovate[bot]`) and every file it changed is on the allow-list (`**/*.csproj`,
-`Directory.Build.props`, `Directory.Packages.props`, `global.json`, `dotnet-tools.json`,
+`**/packages.lock.json`, `Directory.Build.props`, `Directory.Packages.props`, `global.json`, `dotnet-tools.json`,
 `src/*/Dockerfile`, `compose.yaml`, `.github/compose.ci.yaml`, `.github/workflows/*.yml`,
 `renovate.json5`), it tags the commit as the next patch (the highest stable `vX.Y.Z` plus one)
 and dispatches `release.yml` on that tag; from there Flux's image automation rolls the site out.
