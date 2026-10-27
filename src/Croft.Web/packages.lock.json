@@ -477,7 +477,6 @@
           "OpenTelemetry.Instrumentation.Runtime": "[1.20.1, )"
         }
       }
-    },
-    "net11.0/linux-arm64": {}
+    }
   }
 }
