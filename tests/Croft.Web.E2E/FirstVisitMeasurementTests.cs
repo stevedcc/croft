@@ -11,7 +11,9 @@ namespace Croft.Web.E2E;
 /// rounded up to the next 5 KB (1 KB = 1024 bytes) and a count rounded up to a whole request. It
 /// holds the three things 14c gained: only the faces a page uses are downloaded (font bytes and font
 /// requests), as Latin subsets, with the HTML compressed (total). A change that costs a visitor more
-/// must raise a number here on purpose: measure, change the "after" figure, say why.
+/// must raise a number here on purpose: measure, change the "after" figure, say why. Since brief 18a
+/// the home page's total excludes image bytes (the cards' images depend on the suite's data); the
+/// post page's total is unchanged.
 /// </para>
 /// </summary>
 [Parallelizable(ParallelScope.Fixtures)]
@@ -20,14 +22,20 @@ public class FirstVisitMeasurementTests : FirstVisitTest
     /// <summary>What a first visit downloaded when brief 14c was finished: total bytes, font bytes, font requests.</summary>
     private sealed record After(long TotalBytes, long FontBytes, int FontRequests);
 
+    // Brief 18a (issue #82) redefined the home figure: the home page shows whatever posts the instance holds, with their card
+    // images, so its total moved with the other classes' data and with worker scheduling. For home, TotalBytes below is the
+    // total MINUS image bytes (the image bytes are written to the FIRST-VISIT line, not asserted); the post page keeps its total,
+    // its content being the test's own. Measured alone on a fresh instance (no posts, so 650 image bytes of the shell):
+    // home 1440: total 440,650 - image 650 = 440,000; home 390: 440,652 - 650 = 440,002. Budget: 440,000 x 1.1 = 484,000, rounded
+    // up to the next 5 KB (5,120) = 486,400 (BytesBudget). Font bytes, font requests and the post figures are unchanged.
     // Brief 16a re-measured the totals on .NET 11 RC 2 (the fonts are unchanged): ASP.NET Core 11's
     // blazor.web.js is 245,494 bytes instead of 200,645, and a Debug build (what the suite runs)
     // now sends it as an effectively uncompressed gzip stream (245,562 bytes; .NET 10: 55,644).
     // Brief 14c's figures were home 349,885 / 349,883 and post 492,176 / 492,177.
     private static readonly Dictionary<(string Page, int Width), After> Measured = new()
     {
-        [("home", 1440)] = new(440_188, 147_824, 5),
-        [("home", 390)] = new(440_175, 147_824, 5),
+        [("home", 1440)] = new(440_000, 147_824, 5),
+        [("home", 390)] = new(440_002, 147_824, 5),
         [("post", 1440)] = new(520_409, 183_444, 6),
         [("post", 390)] = new(520_396, 183_444, 6),
     };
@@ -62,11 +70,13 @@ public class FirstVisitMeasurementTests : FirstVisitTest
                 }
 
                 var after = Measured[(page, width)];
+                // Home: the total without image bytes (the cards' images are the suite's data, not the page's); post: the total.
+                var comparedBytes = page == "home" ? visit.TotalBytes - visit.BytesByKind.GetValueOrDefault("image") : visit.TotalBytes;
                 var fontRequests = visit.RequestsByKind.GetValueOrDefault("font");
                 Assert.Multiple(() =>
                 {
-                    Assert.That(visit.TotalBytes, Is.LessThanOrEqualTo(BytesBudget(after.TotalBytes)),
-                        $"{page} at {width}: a first visit downloaded {visit.TotalBytes} bytes, budget {BytesBudget(after.TotalBytes)} ({visit}).");
+                    Assert.That(comparedBytes, Is.LessThanOrEqualTo(BytesBudget(after.TotalBytes)),
+                        $"{page} at {width}: a first visit downloaded {comparedBytes} bytes{(page == "home" ? " without images" : string.Empty)}, budget {BytesBudget(after.TotalBytes)} ({visit}).");
                     Assert.That(visit.FontBytes, Is.LessThanOrEqualTo(BytesBudget(after.FontBytes)),
                         $"{page} at {width}: fonts were {visit.FontBytes} bytes, budget {BytesBudget(after.FontBytes)}: {string.Join(", ", visit.FontUrls.Select(FaceFile))}.");
                     Assert.That(fontRequests, Is.LessThanOrEqualTo(CountBudget(after.FontRequests)),
