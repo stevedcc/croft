@@ -146,6 +146,88 @@ public class AnalyticsControllerTests(PostgresDatabaseFixture fixture)
         (await GetPageViewRowCountAsync(factory, post.Id)).Should().Be(2);
     }
 
+    // A day is a UTC calendar day and the IP hash is salted with it, so the stored rows of a reader can't be
+    // linked across days. A view in the first 30 minutes of a day is a duplicate when the same reader viewed
+    // the same post the day before (issue #81).
+    private static DateTimeOffset Utc(int day, int hour, int minute, int second = 0) =>
+        new(2026, 10, day, hour, minute, second, TimeSpan.Zero);
+
+    // The fake clock only advances; moving to an absolute time keeps the times in the tests readable.
+    private static void MoveTo(FakeTimeProvider clock, DateTimeOffset target) =>
+        clock.Advance(target - clock.GetUtcNow());
+
+    [Fact]
+    public async Task AcrossMidnight_AReloadCountsOnce()
+    {
+        var clock = new FakeTimeProvider(Utc(5, 23, 59, 50));
+        await using var factory = CreateFactoryAsync(IngestConfig, s => s.AddSingleton<TimeProvider>(clock));
+        var admin = factory.CreateClient().WithRole("Admin");
+        var post = await CreatePublishedPostAsync(admin, "Midnight Reload Test", publishedAt: new DateTime(2026, 10, 1));
+        var anonymous = factory.CreateClient().AsAnonymous();
+
+        await PostPageViewAsync(anonymous, post.Id, "203.0.113.5", TestIngestKey);
+        clock.Advance(TimeSpan.FromSeconds(20)); // 2026-10-06 00:00:10
+        await PostPageViewAsync(anonymous, post.Id, "203.0.113.5", TestIngestKey);
+
+        (await GetViewCountAsync(factory, post.Id)).Should().Be(1);
+        (await GetPageViewRowCountAsync(factory, post.Id)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task JustInsideTheGrace_IsADuplicate_AtItsEdgeItCounts()
+    {
+        var clock = new FakeTimeProvider(Utc(5, 23, 50, 0));
+        await using var factory = CreateFactoryAsync(IngestConfig, s => s.AddSingleton<TimeProvider>(clock));
+        var admin = factory.CreateClient().WithRole("Admin");
+        var post = await CreatePublishedPostAsync(admin, "Grace Edge Test", publishedAt: new DateTime(2026, 10, 1));
+        var anonymous = factory.CreateClient().AsAnonymous();
+
+        await PostPageViewAsync(anonymous, post.Id, "203.0.113.5", TestIngestKey); // 10-05 23:50:00
+        MoveTo(clock, Utc(6, 0, 29, 59));
+        await PostPageViewAsync(anonymous, post.Id, "203.0.113.5", TestIngestKey); // 10-06 00:29:59, inside
+        (await GetViewCountAsync(factory, post.Id)).Should().Be(1);
+
+        MoveTo(clock, Utc(6, 0, 30, 0));
+        await PostPageViewAsync(anonymous, post.Id, "203.0.113.5", TestIngestKey); // 10-06 00:30:00, the edge counts
+        (await GetViewCountAsync(factory, post.Id)).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task AnotherReaderAfterMidnight_Counts()
+    {
+        var clock = new FakeTimeProvider(Utc(5, 23, 59, 50));
+        await using var factory = CreateFactoryAsync(IngestConfig, s => s.AddSingleton<TimeProvider>(clock));
+        var admin = factory.CreateClient().WithRole("Admin");
+        var post = await CreatePublishedPostAsync(admin, "Other Reader Test", publishedAt: new DateTime(2026, 10, 1));
+        var anonymous = factory.CreateClient().AsAnonymous();
+
+        await PostPageViewAsync(anonymous, post.Id, "203.0.113.5", TestIngestKey); // 10-05 23:59:50
+        MoveTo(clock, Utc(6, 0, 0, 10));
+        await PostPageViewAsync(anonymous, post.Id, "203.0.113.6", TestIngestKey); // 10-06 00:00:10, another reader
+
+        (await GetViewCountAsync(factory, post.Id)).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task YesterdaysReader_LaterToday_Counts()
+    {
+        var clock = new FakeTimeProvider(Utc(5, 10, 0));
+        await using var factory = CreateFactoryAsync(IngestConfig, s => s.AddSingleton<TimeProvider>(clock));
+        var admin = factory.CreateClient().WithRole("Admin");
+        var post = await CreatePublishedPostAsync(admin, "Later Today Test", publishedAt: new DateTime(2026, 10, 1));
+        var anonymous = factory.CreateClient().AsAnonymous();
+
+        await PostPageViewAsync(anonymous, post.Id, "203.0.113.5", TestIngestKey); // 10-05 10:00
+        MoveTo(clock, Utc(6, 0, 10));
+        await PostPageViewAsync(anonymous, post.Id, "203.0.113.5", TestIngestKey); // 10-06 00:10, a duplicate
+        (await GetViewCountAsync(factory, post.Id)).Should().Be(1);
+
+        MoveTo(clock, Utc(6, 14, 0));
+        await PostPageViewAsync(anonymous, post.Id, "203.0.113.5", TestIngestKey); // 10-06 14:00, counts
+        (await GetViewCountAsync(factory, post.Id)).Should().Be(2);
+        (await GetPageViewRowCountAsync(factory, post.Id)).Should().Be(2);
+    }
+
     [Fact]
     public async Task RecordPageView_DraftPost_IsNotCounted()
     {

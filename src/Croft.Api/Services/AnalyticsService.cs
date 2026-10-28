@@ -19,6 +19,15 @@ public class AnalyticsService(BlogDbContext db, IConfiguration configuration, Ti
     /// <summary>The longest User-Agent stored (cut the same way).</summary>
     public const int MaxUserAgentLength = 512;
 
+    /// <summary>
+    /// A view in the first 30 minutes of a UTC day doesn't count when the same reader already has a view of
+    /// the same post on the previous UTC day. The IP hash is salted with the day (so stored rows can't be
+    /// linked across days), which would otherwise count a visit that crosses midnight twice (issue #81).
+    /// The check hashes the IP with yesterday's salt; nothing linking days is stored. Two requests in the
+    /// same instant that straddle midnight are not handled (at most one extra view).
+    /// </summary>
+    private static readonly TimeSpan MidnightGrace = TimeSpan.FromMinutes(30);
+
     private readonly byte[] _hashKey = Encoding.UTF8.GetBytes(configuration["Analytics:HashKey"] ?? string.Empty);
 
     public async Task RecordPageViewAsync(Guid postId, string? ipAddress, string? userAgent, string? referrer, CancellationToken ct = default)
@@ -38,9 +47,22 @@ public class AnalyticsService(BlogDbContext db, IConfiguration configuration, Ti
         userAgent = Truncate(userAgent, MaxUserAgentLength);
         referrer = Truncate(referrer, MaxReferrerLength);
 
-        if (await InsertPageViewOnceAsync(postId, now, day, HashIp(ipAddress ?? "unknown", day), userAgent, referrer, ct) == 0)
+        var ip = ipAddress ?? "unknown";
+        if (now - day.ToDateTime(TimeOnly.MinValue) < MidnightGrace)
         {
-            // Same post, visitor and day already recorded: the unique index did the dedupe.
+            var yesterday = day.AddDays(-1);
+            var yesterdaysHash = HashIp(ip, yesterday);
+            if (await db.PageViews.AnyAsync(v => v.PostId == postId && v.Day == yesterday && v.IpHash == yesterdaysHash, ct))
+            {
+                // The same reader's visit continued past midnight: it is one view.
+                ApiMetrics.PageViewDuplicate();
+                return;
+            }
+        }
+
+        if (await InsertPageViewOnceAsync(postId, now, day, HashIp(ip, day), userAgent, referrer, ct) == 0)
+        {
+            // Same post, visitor and day already recorded: the unique index did the dedupe (a visit across midnight UTC was caught above).
             ApiMetrics.PageViewDuplicate();
             return;
         }

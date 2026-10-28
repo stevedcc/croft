@@ -60,6 +60,34 @@ public class ApiMetricsTests(PostgresDatabaseFixture fixture) : IClassFixture<Po
     }
 
     [Fact]
+    public async Task PageView_AcrossMidnight_CountsDuplicate_NotRecorded()
+    {
+        using var metrics = new MetricCapture("Croft.Api").Start();
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 10, 5, 23, 59, 50, TimeSpan.Zero));
+        await using var factory = new BlogApiFactory(
+            fixture.ConnectionString,
+            storagePath: Path.Combine(Path.GetTempPath(), $"blog-tests-{Guid.NewGuid():N}"),
+            configuration: new Dictionary<string, string?> { ["Analytics:IngestKey"] = TestIngestKey },
+            configureServices: s => s.AddSingleton<TimeProvider>(clock));
+        var admin = factory.CreateClient().WithRole("Admin");
+        var postResponse = await admin.PostAsJsonAsync("/api/posts", new CreatePostRequest("Midnight Metric Test", "content"));
+        postResponse.EnsureSuccessStatusCode();
+        var post = (await postResponse.Content.ReadFromJsonAsync<PostDto>())!;
+        (await admin.PostAsJsonAsync($"/api/posts/{post.Id}/publish", new PublishRequest(new DateTime(2026, 10, 1)))).EnsureSuccessStatusCode();
+        var anonymous = factory.CreateClient();
+
+        await PostPageViewAsync(anonymous, post.Id, "203.0.113.92", TestIngestKey);
+        clock.Advance(TimeSpan.FromSeconds(20)); // 2026-10-06 00:00:10
+        await PostPageViewAsync(anonymous, post.Id, "203.0.113.92", TestIngestKey);
+
+        metrics.Measurements.Where(m => m.Instrument == "croft.page_views.recorded" && m.HasTag("outcome", "recorded"))
+            .Should().HaveCount(1, "the view after midnight is not a new view");
+        metrics.Measurements.Should().ContainSingle(
+            m => m.Instrument == "croft.page_views.recorded" && m.Value == 1 && m.HasTag("outcome", "duplicate"),
+            "the reload across midnight counts as duplicate, like a same-day repeat");
+    }
+
+    [Fact]
     public async Task ScheduledPublisher_CountsEachPublishedPostWithSourceScheduled()
     {
         using var metrics = new MetricCapture("Croft.Api").Start();
