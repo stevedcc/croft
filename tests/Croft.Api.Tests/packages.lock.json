@@ -95,8 +95,8 @@
       },
       "AngleSharp": {
         "type": "Transitive",
-        "resolved": "1.8.5",
-        "contentHash": "BUgFIpmkjwMPi6QneHUHaprjUOGSXoWEF/xi/2seHCpnI8XMHACNiC09rn9qL8jbxrP8jWyJ3DnOjsGvXWNGmw=="
+        "resolved": "1.8.6",
+        "contentHash": "tdvrWSsHz8iRcb8U2cbFtYF6/1Mvhbe5ZxN/VdhVeIfp5vOvbwz3Bn7OZknnm2QSyGvM9ZaZLNLvfanPzNa61Q=="
       },
       "BouncyCastle.Cryptography": {
         "type": "Transitive",
@@ -938,7 +938,7 @@
       "croft.api": {
         "type": "Project",
         "dependencies": {
-          "AngleSharp": "[1.8.5, )",
+          "AngleSharp": "[1.8.6, )",
           "Croft.Shared": "[0.6.9, )",
           "Markdig": "[1.5.0, )",
           "Microsoft.AspNetCore.Authentication.JwtBearer": "[11.0.0-rc.2.26504.105, )",
