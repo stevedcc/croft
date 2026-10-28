@@ -13,6 +13,17 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
+  <!-- Lock files (packages.lock.json) record a content hash for every package, so a restore cannot
+       silently pick up different bytes (Scorecard Pinned-Dependencies). CI restores in locked mode
+       and refuses a restore that does not match the committed lock files; local restores keep
+       updating them. Only no-RID restores are locked: the image builds and the ReadyToRun tests
+       publish with -a (a RuntimeIdentifier), which the plain lock files do not cover, so those
+       stay unlocked even with CI=true (the ReadyToRun tests run in ci.yml). The plain restore CI
+       does is the pinned one. -->
+  <PropertyGroup>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode Condition="'$(CI)' == 'true' and '$(RuntimeIdentifier)' == ''">true</RestoreLockedMode>
+  </PropertyGroup>
   <!-- WORKAROUND(W-088, .NET): crossgen2 11 targets armv8.0-a + LSE for linux-arm64, which the Raspberry Pi 4 lacks, so its ReadyToRun code would be rejected there -->
   <!-- The cluster's Pi 4 nodes (Cortex-A72: fp, asimd, crc32, no atomics) run .NET 11, but an
        image whose ReadyToRun code needs LSE ("Atomics") is rejected at start and every method
