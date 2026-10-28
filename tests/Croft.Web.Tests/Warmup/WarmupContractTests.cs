@@ -4,6 +4,7 @@ using System.Net;
 using System.Text.RegularExpressions;
 using AwesomeAssertions;
 using Croft.Shared.Warmup;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,12 +36,19 @@ public sealed class WarmupHostSetup
     /// requests are real HTTP and the HttpClient makes its client Activities.</summary>
     public bool Kestrel { get; init; }
 
+    /// <summary>A path a Kestrel test host answers with an empty 200 ahead of the app's own pipeline.
+    /// It is not under <c>/health</c>: the apps' HttpClient tracing filters health paths out, and a
+    /// filtered request's Activity is un-recorded, so it carries no response tags, whenever any
+    /// tracer with that filter is alive in the test process (another class's host, in parallel).</summary>
+    public const string ProbePath = "/warmup-contract-probe";
+
     /// <summary>The part of host set-up every app needs the same way.</summary>
     public void Apply(IWebHostBuilder builder)
     {
         if (Kestrel)
         {
             builder.UseSetting("urls", "http://127.0.0.1:0");
+            builder.ConfigureServices(services => services.AddSingleton<IStartupFilter, ProbeEndpoint>());
         }
 
         builder.ConfigureAppConfiguration(config => config.AddInMemoryCollection(Config));
@@ -87,6 +95,15 @@ public sealed class WarmupHostSetup
         }
 
         return new WarmupTestHost(factory, new HttpClient { BaseAddress = address }, factory.Services);
+    }
+
+    private sealed class ProbeEndpoint : IStartupFilter
+    {
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+        {
+            app.Map(ProbePath, probe => probe.Run(_ => Task.CompletedTask));
+            next(app);
+        };
     }
 
     private sealed class TestPlan(IReadOnlyList<WarmupStep> steps) : IWarmupPlan
@@ -456,7 +473,8 @@ public abstract partial class WarmupContractTests
     {
         // The HttpClient redacts query strings in its Activity (url.full ends "?*"), so a query
         // cannot carry a marker; this test's host has its own port, which is the marker instead.
-        var path = "/health/live";
+        // The probe path, not /health/live: health requests are filtered out of HttpClient tracing.
+        var path = WarmupHostSetup.ProbePath;
         ConcurrentQueue<Activity> started = new();
         using var listener = new ActivityListener
         {
