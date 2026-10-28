@@ -26,6 +26,7 @@ public class PageViewRetentionTests(PostgresDatabaseFixture fixture) : IClassFix
     public async Task Purge_DeletesOnlyRowsMoreThanNinetyDaysOld_AndKeepsViewCountTotals()
     {
         var day = DateOnly.FromDateTime(Today.UtcDateTime);
+        await ClearPageViewsAsync();
         var post = await AddPostAsync("retention-ninety", viewCount: 7);
         await AddPageViewsAsync(1, "retention-ninety-91", day.AddDays(-91), post.Id);
         await AddPageViewsAsync(1, "retention-ninety-90", day.AddDays(-90), post.Id);
@@ -69,6 +70,7 @@ public class PageViewRetentionTests(PostgresDatabaseFixture fixture) : IClassFix
     public async Task Purge_HonoursRetentionDaysThirty()
     {
         var day = DateOnly.FromDateTime(Today.UtcDateTime);
+        await ClearPageViewsAsync();
         var post = await AddPostAsync("retention-thirty", viewCount: 3);
         await AddPageViewsAsync(1, "retention-thirty-31", day.AddDays(-31), post.Id);
         await AddPageViewsAsync(1, "retention-thirty-30", day.AddDays(-30), post.Id);
@@ -84,6 +86,7 @@ public class PageViewRetentionTests(PostgresDatabaseFixture fixture) : IClassFix
     public async Task Purge_DeletesTwelveThousandRows_InAtLeastThreeStatements()
     {
         var day = DateOnly.FromDateTime(Today.UtcDateTime);
+        await ClearPageViewsAsync();
         var post = await AddPostAsync("retention-batches", viewCount: 1);
         await AddPageViewsAsync(12_000, "retention-batches-old", day.AddDays(-100), post.Id);
 
@@ -101,6 +104,7 @@ public class PageViewRetentionTests(PostgresDatabaseFixture fixture) : IClassFix
     public async Task TwoInstancesRunningAtTheSameMoment_OneDeletesOneSkips()
     {
         var day = DateOnly.FromDateTime(Today.UtcDateTime);
+        await ClearPageViewsAsync();
         var post = await AddPostAsync("retention-race", viewCount: 1);
         await AddPageViewsAsync(5, "retention-race-old", day.AddDays(-200), post.Id);
 
@@ -146,6 +150,18 @@ public class PageViewRetentionTests(PostgresDatabaseFixture fixture) : IClassFix
             .UseNpgsql(fixture.ConnectionString)
             .AddInterceptors(interceptors)
             .Options);
+
+    /// <summary>
+    /// The purge deletes table-wide, so <c>result.Deleted</c> counts every old row in the table, not only
+    /// the calling test's. The database belongs to this class and its tests run one at a time, so a test
+    /// that asserts a deleted count starts from an empty PageViews table instead of inheriting rows a
+    /// previous test left behind.
+    /// </summary>
+    private async Task ClearPageViewsAsync()
+    {
+        await using var db = CreateDb();
+        await db.Database.ExecuteSqlRawAsync("""DELETE FROM "PageViews" """);
+    }
 
     private async Task<Post> AddPostAsync(string slug, int viewCount)
     {

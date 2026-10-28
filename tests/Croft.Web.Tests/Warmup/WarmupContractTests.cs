@@ -38,6 +38,11 @@ public sealed class WarmupHostSetup
     /// <summary>The part of host set-up every app needs the same way.</summary>
     public void Apply(IWebHostBuilder builder)
     {
+        if (Kestrel)
+        {
+            builder.UseSetting("urls", "http://127.0.0.1:0");
+        }
+
         builder.ConfigureAppConfiguration(config => config.AddInMemoryCollection(Config));
         builder.ConfigureLogging(logging => logging.AddProvider(Logs));
         builder.ConfigureServices(services =>
@@ -70,10 +75,18 @@ public sealed class WarmupHostSetup
             return new WarmupTestHost(factory, factory.CreateClient(), factory.Services);
         }
 
-        factory.UseKestrel(0);
+        // Real Kestrel on an OS-assigned loopback port (the ClientRequestLimitTests pattern): the "urls" setting is applied to
+        // the derived factory's host in Apply, and the port-less UseKestrel() switches the derived factory from TestServer.
+        factory.UseKestrel();
         factory.StartServer();
-        return new WarmupTestHost(factory, new HttpClient { BaseAddress = new Uri(factory.Services.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>()
-            .Features.Get<Microsoft.AspNetCore.Hosting.Server.Features.IServerAddressesFeature>()!.Addresses.First()) }, factory.Services);
+        var address = new Uri(factory.Services.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>()
+            .Features.Get<Microsoft.AspNetCore.Hosting.Server.Features.IServerAddressesFeature>()!.Addresses.First());
+        if (address.Port == 0)
+        {
+            throw new InvalidOperationException($"The host did not report a real Kestrel port: {address}");
+        }
+
+        return new WarmupTestHost(factory, new HttpClient { BaseAddress = address }, factory.Services);
     }
 
     private sealed class TestPlan(IReadOnlyList<WarmupStep> steps) : IWarmupPlan
@@ -456,7 +469,8 @@ public abstract partial class WarmupContractTests
         await using var host = Start(setup);
         await host.Gate.WhenOpen.WaitAsync(Patience);
 
-        var port = host.Client.BaseAddress!.Port.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        host.Client.BaseAddress!.Port.Should().NotBe(0, "the host listens on a real OS-assigned port, not the unassigned port 0");
+        var port = host.Client.BaseAddress.Port.ToString(System.Globalization.CultureInfo.InvariantCulture);
         var clientActivities = started
             .Where(a => a.Kind == ActivityKind.Client
                 && a.Tags.Any(t => t is { Key: "url.full" } && t.Value!.Contains($":{port}/", StringComparison.Ordinal)))
@@ -464,6 +478,8 @@ public abstract partial class WarmupContractTests
         clientActivities.Should().NotBeEmpty("the warm-up's request went out over real HTTP, so the HttpClient made its Activity");
         foreach (var client in clientActivities)
         {
+            client.Status.Should().NotBe(ActivityStatusCode.Error, "the warm-up's request reached the host (a refused connection is an Error)");
+            client.GetTagItem("http.response.status_code").Should().Be(200, "the host answered the warm-up's request");
             Ancestors(client).Should().Contain(a => a.OperationName == CroftActivity.WarmupName,
                 "every warm-up request belongs to the one croft.warmup trace");
         }
