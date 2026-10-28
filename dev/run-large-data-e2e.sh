@@ -35,7 +35,7 @@ if [ "${CROFT_SUITE_LOCK_HELD:-}" != "1" ]; then
     esac
 fi
 
-# global.json pins SDK 11.0.100 (RC 2). Fedora ships 10.0.1xx in /usr/bin, so prefer ~/dotnet when present.
+# global.json pins SDK 11.0.100 (RC 3). Fedora ships 10.0.1xx in /usr/bin, so prefer ~/dotnet when present.
 if [ -x "$HOME/dotnet/dotnet" ]; then
     export DOTNET_ROOT="$HOME/dotnet"
     export PATH="$HOME/dotnet:$PATH"

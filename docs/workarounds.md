@@ -15,14 +15,16 @@ keep anyway, or an ordinary use of a documented API is not a workaround; the clo
 
 ## Written against
 
-.NET 11.0.0-rc.2.26504.105 packages (SDK 11.0.100-rc.2.26504.105), MudBlazor 9.11.0,
-Npgsql.EntityFrameworkCore.PostgreSQL 11.0.0-rc.2 (Npgsql 10.0.3), Markdig 1.5.0, Playwright
+.NET 11.0.0-rc.3.26522.148 packages (SDK 11.0.100-rc.3.26522.148), MudBlazor 9.11.0,
+Npgsql.EntityFrameworkCore.PostgreSQL 11.0.0-rc.3 (Npgsql 10.0.3), Markdig 1.5.0, Playwright
 1.64.1, Testcontainers 4.16.0, bUnit 2.12.5, xunit.v3 4.0.2 (the `xunit.v3.mtp-off` package,
 runner 4.0.1), NUnit 5.0.0 (NUnit3TestAdapter 6.3.1), Microsoft.NET.Test.Sdk 18.11.0, Postgres 18.
 The first sweep covered `blog-framework` at 998583c (2026-10-16) on .NET 10.0.13 (SDK 10.0.401);
 brief 16a walked every entry on 11.0 RC 2 (each entry's "Re-checked on 11.0 RC 2" note says what
 was run); brief 16b moved the test tooling to the versions above (W-063 retired, W-062 re-checked
-on xunit.v3).
+on xunit.v3). The move to 11.0 RC 3 (2026-10-28) re-ran the three entries whose upgrade check
+names every SDK or image update (W-104, W-088, W-082, see their "Re-checked on 11.0 RC 3" notes);
+the rest are covered by the full suites passing on RC 3.
 
 ## How to use it on an upgrade
 
@@ -692,7 +694,7 @@ entry and a marker in the same commit (AGENTS.md, "Workarounds").
 - **Library:** the .NET 11 SDK (`Microsoft.NET.Sdk.StaticWebAssets.DotNetWatch.targets`, RC 2) adds build-only static web assets to every Debug build of a Blazor Web app, among them a JS initializer (`Microsoft.NET.Sdk.BlazorWeb.DotNetWatch.lib.module.js`). A full page load then ends in a `<!--Blazor-Web-Initializers:...-->` comment that an enhanced-navigation response does not carry, and every page fetches `/_framework/dotnet-browser-tools/hot-reload-settings.json` (a 404 outside `dotnet watch`). Publish output never contains them (a Release publish has no `lib.module.js` at all), so production is unaffected; the suites, which run Debug builds, would see documents production never serves.
 - **Our code:** the `CroftOmitDotNetWatchBrowserTools` target in `src/Croft.Web/Croft.Web.csproj` clears `DotNetWatchBrowserToolsAssetPrefix` before `ResolveProjectStaticWebAssets`, which skips the SDK's `_DefineDotNetWatchBrowserToolsAssetsCore` (its condition needs the prefix). `EnableHotReloadInRuntimeConfigDevFile` (the switch the SDK documents) is left alone, because it also turns off Hot Reload's runtime options. The cost: `dotnet watch` loses whatever these browser tools add for the Web app (not measured; the owner's hand testing does not use `dotnet watch`, as far as the repo shows: no script or doc runs it).
 - **Fails without it:** `OutputCacheReadingPageTests.AnEnhancedNavigationRequest_GetsTheSameResponseAsAFullLoad` (all six reading routes: "differ on line ... `<!--Blazor-Web-Initializers:WwogICJfZnJh...`").
-- **Upgrade check:** on each SDK update, delete the target and run that test; if the SDK stops emitting the initializer in Debug builds (or offers a switch for the browser tools alone), use that and retire W-104. The target relies on the SDK's private target and property names: if they change, the test fails again, which is the signal. **Re-checked on 11.0 RC 2 (16a):** added in 16a for SDK 11 RC 2 (item 2); its upgrade check applies from the next SDK on.
+- **Upgrade check:** on each SDK update, delete the target and run that test; if the SDK stops emitting the initializer in Debug builds (or offers a switch for the browser tools alone), use that and retire W-104. The target relies on the SDK's private target and property names: if they change, the test fails again, which is the signal. **Re-checked on 11.0 RC 2 (16a):** added in 16a for SDK 11 RC 2 (item 2); its upgrade check applies from the next SDK on. **Re-checked on 11.0 RC 3:** still needed: with the target deleted, `AnEnhancedNavigationRequest_GetsTheSameResponseAsAFullLoad` fails on all six routes (the same `<!--Blazor-Web-Initializers:...-->` difference); with it back, 6/6 pass.
 
 ### W-105: URL waits after in-circuit navigations are `Expect(Page).ToHaveURLAsync`
 
@@ -715,7 +717,7 @@ entry and a marker in the same commit (AGENTS.md, "Workarounds").
 - **Library:** the .NET 8+ images listen on 8080 by default and run as a user named `app`, and `runAsNonRoot` can only verify a numeric user (`APP_UID=1654`, matched by `fsGroup`).
 - **Our code:** `src/Croft.Api/Dockerfile` and `src/Croft.Web/Dockerfile`.
 - **Fails without it:** `K8sBaseTests`.
-- **Upgrade check:** .NET 11 image changes (UID or port). **Re-checked on 11.0 RC 2 (16a):** still needed: the `aspnet:11.0` image (RC 2, `DOTNET_VERSION=11.0.0-rc.2.26504.105`) still sets `APP_UID=1654` and `ASPNETCORE_HTTP_PORTS=8080`; `K8sBaseTests` pass.
+- **Upgrade check:** .NET 11 image changes (UID or port). **Re-checked on 11.0 RC 2 (16a):** still needed: the `aspnet:11.0` image (RC 2, `DOTNET_VERSION=11.0.0-rc.2.26504.105`) still sets `APP_UID=1654` and `ASPNETCORE_HTTP_PORTS=8080`; `K8sBaseTests` pass. **Re-checked on 11.0 RC 3:** the digest-pinned `aspnet:11.0` image (`ASPNET_VERSION=11.0.0-rc.3.26522.148`) still sets `APP_UID=1654` and `ASPNETCORE_HTTP_PORTS=8080`.
 
 ### W-083: The mock OIDC proxy rewrites only `token_endpoint`
 
@@ -736,7 +738,7 @@ entry and a marker in the same commit (AGENTS.md, "Workarounds").
 - **Library:** the SDK's crossgen2 decides which arm64 instruction sets the precompiled code may assume. .NET 10 targeted `armv8.0-a` for `linux-arm64`, which the Raspberry Pi 4 (Cortex-A72) supports; .NET 11's crossgen2 also requires LSE ("Atomics"), which the Pi 4 lacks (`/proc/cpuinfo`: `fp asimd evtstrm crc32 cpuid`), so the runtime would reject the image's ReadyToRun code there and JIT-compile everything again, silently. Without ReadyToRun code a new Web pod spent about five minutes at 1.2 to 1.5 cores while the tiered JIT recompiled the hot paths (load test 2026-10-16, results README finding 3).
 - **Our code:** `-p:PublishReadyToRun=true` on the `dotnet publish` line of `src/Croft.Api/Dockerfile` and `src/Croft.Web/Dockerfile`; since 11.0 RC 2 also `PublishReadyToRunCrossgen2ExtraArgs` = `--instruction-set:neon,crc,-lse` for `linux-arm64` in `Directory.Build.props` (the Dockerfiles copy it). The `-lse` matters: `--instruction-set:neon,crc` alone (or `armv8-a`) still lets crossgen2's optimistic light-up require Atomics. The framework's own precompiled code in the `aspnet:11.0` base image is built for the new target and is not covered by this: on the Pi 4 it is JIT-compiled at start (`writing-dotnet11-code/whats-new.md`), so start-up to ready on those nodes is expected to be slower than on .NET 10 (not measured here).
 - **Fails without it:** `ReadyToRunPublishTests` (`--filter "Category=ReadyToRun"`; it publishes with the Dockerfile's own line for linux-arm64 and reads the ReadyToRun header and machine type of the published assemblies) for ReadyToRun itself. The instruction-set pin has no automated check; manual check (16a, 11.0 RC 2): publish `src/Croft.Web` with the Dockerfile's flags for `-a arm64` plus `-p:PublishReadyToRunCrossgen2ExtraArgs=--map` and read `obj/Release/net11.0/linux-arm64/R2R/Croft.Web.map`: the eager import is `ReadyToRunInstructionSets_ArmBase+AdvSimd+Atomics` without the pin and `ReadyToRunInstructionSets_ArmBase+AdvSimd+Crc32` with it (Croft.Shared and the package assemblies, e.g. MudBlazor, the same).
-- **Upgrade check:** re-checked on 11.0 RC 2: still needed while the cluster has Pi 4 nodes. On each SDK update repeat the manual check above (crossgen2's option names: `crossgen2 --help`, "--instruction-set"); drop the pin once no node lacks LSE (the planned x86 mini PCs and any Armv8.1+ board have it).
+- **Upgrade check:** re-checked on 11.0 RC 2: still needed while the cluster has Pi 4 nodes. On each SDK update repeat the manual check above (crossgen2's option names: `crossgen2 --help`, "--instruction-set"); drop the pin once no node lacks LSE (the planned x86 mini PCs and any Armv8.1+ board have it). **Re-checked on 11.0 RC 3:** still needed: the manual check on SDK 11.0.100-rc.3.26522.148 gives `ArmBase+AdvSimd+Atomics` in `Croft.Web.map` without the pin and `ArmBase+AdvSimd+Crc32` with it.
 
 ### W-096: sign-out answers a 200 page with a meta refresh, not a redirect
 

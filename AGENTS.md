@@ -3,7 +3,7 @@
 Croft, a self-hosted blog engine: Blazor front end (static SSR reading pages, Blazor Server + MudBlazor for admin) (`src/Croft.Web`) calling an ASP.NET Core Web API
 (`src/Croft.Api`) backed by PostgreSQL via EF Core. Shared request/response records live in
 `src/Croft.Shared`. Auth is any OIDC provider; local dev uses navikt/mock-oauth2-server.
-.NET 11 (RC 2), PostgreSQL 18.
+.NET 11 (RC 3), PostgreSQL 18.
 
 This file is read by everyone and every agent working here. The rules apply to whoever is writing
 code.
@@ -87,7 +87,7 @@ where they disagree with this file, this file wins.
 
 ## Running things
 
-**Prerequisites.** SDK 11.0.100 (RC 2, `11.0.100-rc.2.26504.105`) is pinned in `global.json`; on this
+**Prerequisites.** SDK 11.0.100 (RC 3, `11.0.100-rc.3.26522.148`) is pinned in `global.json`; on this
 machine it lives in `~/dotnet` (Fedora's `/usr/bin/dotnet` is 10.0.1xx and will refuse to build). If
 `dotnet --version` isn't 11.0.1xx, run `export DOTNET_ROOT=$HOME/dotnet PATH=$HOME/dotnet:$PATH` first. Containers run on rootless Podman
 via the **current user's** socket, `$XDG_RUNTIME_DIR/podman/podman.sock` (enabled with
