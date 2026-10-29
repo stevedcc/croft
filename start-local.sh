@@ -44,9 +44,20 @@ fi
 
 # Load .env into the current shell.
 # .env values may contain semicolons, so a plain `source` would truncate them.
+# Rule (one rule everywhere, also dev/run-e2e.sh and tests/Croft.Web.E2E/WebTest.cs): a variable already set and non-empty in the environment is never overwritten by .env; .env only fills what is missing.
+# PRESET_KEYS snapshots that environment before the loop, so a key .env itself set on an earlier line (Oidc__Authority repeats) is still overwritten by a later .env line.
+PRESET_KEYS=" "
+while IFS= read -r name; do
+    if [ -n "${!name:-}" ]; then
+        PRESET_KEYS="$PRESET_KEYS$name "
+    fi
+done < <(compgen -e)
 while IFS='=' read -r key value; do
     case "$key" in
         ''|\#*) continue ;;
+    esac
+    case "$PRESET_KEYS" in
+        *" $key "*) continue ;;
     esac
     export "$key=$value"
 done < .env

@@ -303,11 +303,23 @@ export E2E_FIRST_INSTANCE="$FIRST_INSTANCE"
 # CircuitAdmissionTests starts a Web instance of its own and signs staff in on it (circuits are
 # for signed-in staff only, brief 13a), so the test process needs the sign-in settings the
 # instances got. start-local.sh has created .env by now; only these three keys are passed on,
-# loaded the way start-local.sh loads .env (values may contain semicolons).
+# loaded the way start-local.sh loads .env (values may contain semicolons) and with the same
+# precedence: a variable already set and non-empty in the environment is never overwritten by
+# .env (PRESET_KEYS snapshots it before the loop, so a repeat inside .env still takes the last line).
 if [ -f "$ROOT/.env" ]; then
+    PRESET_KEYS=" "
+    while IFS= read -r name; do
+        if [ -n "${!name:-}" ]; then
+            PRESET_KEYS="$PRESET_KEYS$name "
+        fi
+    done < <(compgen -e)
     while IFS='=' read -r key value; do
         case "$key" in
-            Oidc__Authority|Oidc__ClientId|Oidc__ClientSecret) export "$key=$value" ;;
+            Oidc__Authority|Oidc__ClientId|Oidc__ClientSecret)
+                case "$PRESET_KEYS" in
+                    *" $key "*) continue ;;
+                esac
+                export "$key=$value" ;;
         esac
     done < "$ROOT/.env"
 fi
