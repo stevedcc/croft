@@ -13,7 +13,9 @@ namespace Croft.Web.E2E;
 /// </summary>
 internal static class MockIdpApi
 {
-    public const string OAuthAuthority = "http://localhost:5556/default";
+    /// <summary>The mock IdP's address: Oidc__Authority, else the default (WebTest's rule).</summary>
+    public static readonly string OAuthAuthority =
+        WebTest.ResolveOAuthAuthority(Environment.GetEnvironmentVariable("Oidc__Authority"));
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 

@@ -18,7 +18,21 @@ public abstract class WebTest : PageTest
     protected string BaseUrl => _baseUrl;
     protected string ApiUrl => _apiUrl;
 
-    protected const string OAuthAuthority = "http://localhost:5556/default";
+    /// <summary>The default mock IdP address, the one the owner's .env.example carries.</summary>
+    private const string DefaultOAuthAuthority = "http://localhost:5556/default";
+
+    /// <summary>
+    /// The one IdP address rule shared with start-local.sh and dev/run-e2e.sh: the mock IdP's
+    /// address is Oidc__Authority from the environment when it is set and non-empty, else the
+    /// default. dev/run-e2e.sh passes the variable on to the test process (from the environment
+    /// or .env, its own precedence rule), so the fallback below is the last resort only.
+    /// </summary>
+    internal static string ResolveOAuthAuthority(string? environmentValue) =>
+        environmentValue is { Length: > 0 } ? environmentValue : DefaultOAuthAuthority;
+
+    /// <summary>The mock IdP's address: Oidc__Authority, else the default.</summary>
+    protected static readonly string OAuthAuthority =
+        ResolveOAuthAuthority(Environment.GetEnvironmentVariable("Oidc__Authority"));
 
     /// <summary>
     /// Pins this fixture to one stack instance before its first test. dev/run-e2e.sh starts

@@ -152,16 +152,43 @@ port_listening() {
     ss -ltnH 2>/dev/null | awk '{ print $4 }' | grep -qE ":$1\$"
 }
 
-# Pre-flight: the mock IdP is shared by every instance; bring compose up if needed.
-if ! curl -sf http://localhost:5556/default/.well-known/openid-configuration >/dev/null; then
-    echo "Mock IdP not reachable; starting docker compose ..."
-    docker compose up -d
-    for _ in {1..30}; do
-        curl -sf http://localhost:5556/default/.well-known/openid-configuration >/dev/null && break
-        sleep 1
-    done
-    if ! curl -sf http://localhost:5556/default/.well-known/openid-configuration >/dev/null; then
-        echo "Mock IdP still not reachable at http://localhost:5556/default" >&2
+# The mock IdP's address, one rule everywhere (start-local.sh, tests/Croft.Web.E2E/WebTest.cs):
+# Oidc__Authority from the environment when set and non-empty, else the last .env line (a key
+# .env repeats takes its last line, start-local.sh's rule), else the default. It feeds the
+# reachability check below, MOCK_AUTHORITY and the decision whether this script may start the
+# compose stack at all.
+MOCK_AUTHORITY_DEFAULT="http://localhost:5556/default"
+resolve_oidc_authority() {
+    if [ -n "${Oidc__Authority:-}" ]; then
+        echo "$Oidc__Authority"
+        return
+    fi
+    local value=""
+    if [ -f "$ROOT/.env" ]; then
+        while IFS='=' read -r key val; do
+            case "$key" in
+                Oidc__Authority) value="$val" ;;
+            esac
+        done < "$ROOT/.env"
+    fi
+    echo "${value:-$MOCK_AUTHORITY_DEFAULT}"
+}
+MOCK_AUTHORITY="$(resolve_oidc_authority)"
+
+# Pre-flight: the mock IdP is shared by every instance. The compose stack is started only for
+# the default address; a given address that does not answer is an error naming it — this script
+# never starts services for an address it was given.
+if ! curl -sf "$MOCK_AUTHORITY/.well-known/openid-configuration" >/dev/null; then
+    if [ "$MOCK_AUTHORITY" = "$MOCK_AUTHORITY_DEFAULT" ]; then
+        echo "Mock IdP not reachable; starting docker compose ..."
+        docker compose up -d
+        for _ in {1..30}; do
+            curl -sf "$MOCK_AUTHORITY/.well-known/openid-configuration" >/dev/null && break
+            sleep 1
+        done
+    fi
+    if ! curl -sf "$MOCK_AUTHORITY/.well-known/openid-configuration" >/dev/null; then
+        echo "Mock IdP not reachable at $MOCK_AUTHORITY" >&2
         exit 1
     fi
 fi
@@ -177,7 +204,6 @@ fi
 # token: serially until one is good (up to 30 x 1 s, which also initialises the maps before
 # anything runs concurrently), then three flows at once. It is a readiness check like the
 # discovery wait above, not a test retry.
-MOCK_AUTHORITY="http://localhost:5556/default"
 IDP_REQUIRED_GROUP="${IDP_REQUIRED_GROUP:-Admin}"
 
 # Prints the decoded payload of an access token for the posted admin identity, or a
@@ -226,8 +252,12 @@ idp_gate_failed() {
         n=$((n + 1))
         echo "  payload $n: $payload" >&2
     done
-    echo "docker compose logs --tail 50 oauth2:" >&2
-    docker compose logs --tail 50 oauth2 >&2 || true
+    # The compose logs are only a hint for the default address: for a given address the compose
+    # stack is not ours to look at.
+    if [ "$MOCK_AUTHORITY" = "$MOCK_AUTHORITY_DEFAULT" ]; then
+        echo "docker compose logs --tail 50 oauth2:" >&2
+        docker compose logs --tail 50 oauth2 >&2 || true
+    fi
     exit 1
 }
 

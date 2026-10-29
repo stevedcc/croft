@@ -62,10 +62,15 @@ while IFS='=' read -r key value; do
     export "$key=$value"
 done < .env
 
+# The mock IdP's address: Oidc__Authority (a variable set and non-empty in the environment wins
+# over .env, .env fills what is missing), else the default — one rule everywhere, also
+# dev/run-e2e.sh and tests/Croft.Web.E2E/WebTest.cs.
+Oidc__Authority="${Oidc__Authority:-http://localhost:5556/default}"
+
 instance_params "$MODE" "$INSTANCE"
 
-if ! curl -sf http://localhost:5556/default/.well-known/openid-configuration >/dev/null; then
-    echo "OAuth2 mock server is not reachable at http://localhost:5556/default"
+if ! curl -sf "$Oidc__Authority/.well-known/openid-configuration" >/dev/null; then
+    echo "OAuth2 mock server is not reachable at $Oidc__Authority"
     echo "Start dependencies first: docker compose up -d"
     exit 1
 fi
@@ -259,7 +264,7 @@ echo ""
 echo "$INSTANCE_LABEL is ready:"
 echo "  API:   http://localhost:$INSTANCE_API_PORT"
 echo "  Web:   http://localhost:$INSTANCE_WEB_PORT"
-echo "  OAuth: http://localhost:5556/default"
+echo "  OAuth: $Oidc__Authority"
 echo "  DB:    $INSTANCE_DB   uploads: $INSTANCE_UPLOADS"
 echo ""
 echo "Logs: $INSTANCE_API_LOG $INSTANCE_WEB_LOG"
