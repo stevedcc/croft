@@ -169,6 +169,12 @@ label) need Docker or Podman. A machine without one runs
 no such subset. The Web project has no default filter, so its plain run includes the labelled
 classes. (In the API project the same label name means the opt-in image-building tests, below.)
 
+**Against given services.** `CROFT_TEST_POSTGRES` points the API and Web suites at an existing
+Postgres. They then start no container, and each class creates and drops its own `blog_class_*`
+database. For E2E, export `ConnectionStrings__BlogDb` and `Oidc__Authority`; exported values win
+over `.env`, and `dev/run-e2e.sh` starts `docker compose` only for the default IdP address.
+Chargehand's verify lane runs the suites this way.
+
 **Opt-in tests (`Croft.Api.Tests`).** Two categories are excluded from a plain `dotnet test`
 (a default `VSTestTestCaseFilter` in the project file, the same mechanism as the E2E project's
 `LargeData`/`HaTests`) because they are slow and need container access or a long publish:

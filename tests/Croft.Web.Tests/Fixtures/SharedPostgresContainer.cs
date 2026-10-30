@@ -10,7 +10,9 @@ namespace Croft.Web.Tests.Fixtures;
 /// the container through this reference-counted holder: the first class to run starts it and the
 /// last class to finish disposes it, keeping the run deterministic (exactly one container per
 /// run, gone when the last database class ends) without a collection fixture that would
-/// serialise the classes. Mirrors the API suite's fixture of the same name.
+/// serialise the classes. Mirrors the API suite's fixture of the same name. When
+/// CROFT_TEST_POSTGRES is set to a non-blank connection string (Chargehand's verify lane
+/// sets it), no container is started and that server is used instead.
 /// </summary>
 public static class SharedPostgresContainer
 {
@@ -23,6 +25,15 @@ public static class SharedPostgresContainer
         await Gate.WaitAsync(cancellationToken);
         try
         {
+            // A given server replaces the container; the lease counting is unchanged, so
+            // ReleaseAsync pairs it and disposes nothing (no container was started).
+            var givenServer = TestPostgres.GivenServer(Environment.GetEnvironmentVariable("CROFT_TEST_POSTGRES"));
+            if (givenServer is not null)
+            {
+                _leases++;
+                return givenServer;
+            }
+
             if (_container is null)
             {
                 var container = new PostgreSqlBuilder("postgres:18-alpine")

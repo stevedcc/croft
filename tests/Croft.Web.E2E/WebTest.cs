@@ -18,7 +18,21 @@ public abstract class WebTest : PageTest
     protected string BaseUrl => _baseUrl;
     protected string ApiUrl => _apiUrl;
 
-    protected const string OAuthAuthority = "http://localhost:5556/default";
+    /// <summary>The default mock IdP address, the one the owner's .env.example carries.</summary>
+    private const string DefaultOAuthAuthority = "http://localhost:5556/default";
+
+    /// <summary>
+    /// The one IdP address rule shared with start-local.sh and dev/run-e2e.sh: the mock IdP's
+    /// address is Oidc__Authority from the environment when it is set and non-empty, else the
+    /// default. dev/run-e2e.sh passes the variable on to the test process (from the environment
+    /// or .env, its own precedence rule), so the fallback below is the last resort only.
+    /// </summary>
+    internal static string ResolveOAuthAuthority(string? environmentValue) =>
+        environmentValue is { Length: > 0 } ? environmentValue : DefaultOAuthAuthority;
+
+    /// <summary>The mock IdP's address: Oidc__Authority, else the default.</summary>
+    protected static readonly string OAuthAuthority =
+        ResolveOAuthAuthority(Environment.GetEnvironmentVariable("Oidc__Authority"));
 
     /// <summary>
     /// Pins this fixture to one stack instance before its first test. dev/run-e2e.sh starts
@@ -86,12 +100,32 @@ public abstract class WebTest : PageTest
     protected int InstanceNumber => (new Uri(BaseUrl).Port - FirstInstanceWebPort) / PortsPerInstance + 1;
 
     /// <summary>
-    /// Ends the admin's server-side sessions the way the purge does: deletes the user's rows from
-    /// the instance's Web database (blog_e2e_N_web, dev/instance-params.sh; the connection string
-    /// is .env's with that database). Returns how many rows went, so a test can check it really
-    /// ended a session.
+    /// The precedence rule shared with start-local.sh and dev/run-e2e.sh: a variable already set
+    /// and non-empty in the environment is never overwritten by .env — .env only fills what is
+    /// missing, so its value is read lazily and only when the environment does not supply one.
     /// </summary>
-    protected async Task<int> EndAdminSessionsAsync(string sub = "admin-id")
+    internal static string PreferEnvironment(string? environmentValue, Func<string> readDotenvValue) =>
+        environmentValue is { Length: > 0 } ? environmentValue : readDotenvValue();
+
+    /// <summary>
+    /// <c>ConnectionStrings__BlogDb</c>: from the environment when it is set and non-empty,
+    /// otherwise from <c>.env</c> at the repository root (which must hold the line), the same
+    /// precedence rule as start-local.sh and dev/run-e2e.sh. The instance databases are this
+    /// connection string with the database name swapped (dev/instance-params.sh).
+    /// </summary>
+    private static string BlogDbConnectionString() =>
+        PreferEnvironment(
+            Environment.GetEnvironmentVariable("ConnectionStrings__BlogDb"),
+            () =>
+            {
+                var line = File.ReadLines(Path.Combine(RepositoryRoot().FullName, ".env"))
+                    .FirstOrDefault(l => l.StartsWith("ConnectionStrings__BlogDb=", StringComparison.Ordinal));
+                Assert.That(line, Is.Not.Null, ".env must hold ConnectionStrings__BlogDb");
+                return line!["ConnectionStrings__BlogDb=".Length..];
+            });
+
+    /// <summary>The repository root (the directory holding Croft.slnx).</summary>
+    private static DirectoryInfo RepositoryRoot()
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (root is not null && root.GetFiles("*.slnx").Length == 0)
@@ -100,10 +134,18 @@ public abstract class WebTest : PageTest
         }
 
         Assert.That(root, Is.Not.Null, "the tests run from inside the repository");
-        var line = File.ReadLines(Path.Combine(root!.FullName, ".env"))
-            .FirstOrDefault(l => l.StartsWith("ConnectionStrings__BlogDb=", StringComparison.Ordinal));
-        Assert.That(line, Is.Not.Null, ".env must hold ConnectionStrings__BlogDb");
-        var builder = new Npgsql.NpgsqlConnectionStringBuilder(line!["ConnectionStrings__BlogDb=".Length..])
+        return root!;
+    }
+
+    /// <summary>
+    /// Ends the admin's server-side sessions the way the purge does: deletes the user's rows from
+    /// the instance's Web database (blog_e2e_N_web, dev/instance-params.sh; the connection string
+    /// is the configured one with that database). Returns how many rows went, so a test can check
+    /// it really ended a session.
+    /// </summary>
+    protected async Task<int> EndAdminSessionsAsync(string sub = "admin-id")
+    {
+        var builder = new Npgsql.NpgsqlConnectionStringBuilder(BlogDbConnectionString())
         {
             Database = $"blog_e2e_{InstanceNumber}_web"
         };
@@ -172,17 +214,7 @@ public abstract class WebTest : PageTest
 
     protected async Task<Npgsql.NpgsqlConnection> OpenInstanceDatabaseAsync()
     {
-        var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root is not null && root.GetFiles("*.slnx").Length == 0)
-        {
-            root = root.Parent;
-        }
-
-        Assert.That(root, Is.Not.Null, "the tests run from inside the repository");
-        var line = File.ReadLines(Path.Combine(root!.FullName, ".env"))
-            .FirstOrDefault(l => l.StartsWith("ConnectionStrings__BlogDb=", StringComparison.Ordinal));
-        Assert.That(line, Is.Not.Null, ".env must hold ConnectionStrings__BlogDb");
-        var builder = new Npgsql.NpgsqlConnectionStringBuilder(line!["ConnectionStrings__BlogDb=".Length..])
+        var builder = new Npgsql.NpgsqlConnectionStringBuilder(BlogDbConnectionString())
         {
             Database = $"blog_e2e_{InstanceNumber}",
             Pooling = false,
