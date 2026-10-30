@@ -76,9 +76,15 @@ if ! curl -sf "$Oidc__Authority/.well-known/openid-configuration" >/dev/null; th
 fi
 
 # Build once; migrations and both apps then run without rebuilding (avoids parallel builds
-# fighting over obj/ and repeated restores).
-echo "Building solution ..."
-dotnet build Croft.slnx -nologo -v quiet
+# fighting over obj/ and repeated restores). CROFT_SKIP_BUILD=1: the caller has already restored
+# and built this tree (Chargehand's verify lane, whose test phase is offline, so a second build's
+# implicit restore would fail its NuGet audit); everyone else builds here as before.
+if [ "${CROFT_SKIP_BUILD:-}" = 1 ]; then
+    echo "Skipping the build (CROFT_SKIP_BUILD=1: restored and built by the caller) ..."
+else
+    echo "Building solution ..."
+    dotnet build Croft.slnx -nologo -v quiet
+fi
 
 # Migrations need dotnet-ef, a local tool (dotnet-tools.json) a fresh clone has not restored.
 # Restore it here and stop with a clear message if it is still missing: a start that skipped

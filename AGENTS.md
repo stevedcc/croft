@@ -173,7 +173,10 @@ classes. (In the API project the same label name means the opt-in image-building
 Postgres. They then start no container, and each class creates and drops its own `blog_class_*`
 database. For E2E, export `ConnectionStrings__BlogDb` and `Oidc__Authority`; exported values win
 over `.env`, and `dev/run-e2e.sh` starts `docker compose` only for the default IdP address.
-Chargehand's verify lane runs the suites this way.
+`CROFT_SKIP_BUILD=1` makes `start-local.sh` (and so `dev/run-e2e.sh`) skip its build, for a caller
+that has already restored and built the tree; unset, it builds as always (it is the only build
+`dev/run-e2e.sh` and a plain `./start-local.sh` get). Chargehand's verify lane runs the suites this
+way, with all three set.
 
 **Opt-in tests (`Croft.Api.Tests`).** Two categories are excluded from a plain `dotnet test`
 (a default `VSTestTestCaseFilter` in the project file, the same mechanism as the E2E project's

@@ -36,8 +36,8 @@
 #   -- ...              passed to `dotnet test` verbatim (e.g. --filter "...")
 #
 # Instances start sequentially on purpose: every start-local.sh invocation builds the
-# solution once, and parallel builds would fight over obj/. Each start itself waits for
-# API health, Web readiness and the E2E seed.
+# solution once (unless the caller built it and set CROFT_SKIP_BUILD=1), and parallel builds
+# would fight over obj/. Each start itself waits for API health, Web readiness and the E2E seed.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
