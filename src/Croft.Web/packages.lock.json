@@ -4,9 +4,9 @@
     "net11.0": {
       "Markdig": {
         "type": "Direct",
-        "requested": "[1.5.0, )",
-        "resolved": "1.5.0",
-        "contentHash": "oEm6N4PYFPUZiJ5e89993AE6hfC8EWRGD5M8nyoSJbwD4GgW818mjlQCk++SdTV4godaN50Ybcmm4j2Dp76oIQ=="
+        "requested": "[1.5.1, )",
+        "resolved": "1.5.1",
+        "contentHash": "NtHwU5t5yKr6Gnylhs8/hlR0mOAftTFQURDz2ID8bkunxps1neOzKw0dYKKlwNuwiYIGLHjJTXK91f809Ko1ww=="
       },
       "Microsoft.AspNetCore.App.Internal.Assets": {
         "type": "Direct",
@@ -60,9 +60,9 @@
       },
       "MudBlazor": {
         "type": "Direct",
-        "requested": "[9.11.0, )",
-        "resolved": "9.11.0",
-        "contentHash": "hboxF5cQuMYjB0w6+tScmNt0ACuoCu35TGPsCmCq8OeQgvtPtzQ1s9auAOrINj/J6I/ZyBB1rmUzrcMKj14RFA=="
+        "requested": "[9.12.0, )",
+        "resolved": "9.12.0",
+        "contentHash": "T6PQUCJe60UTSy3u1F8R2nuC06Cox6WEhon5GA2/AZNVI1WstlPSJZdGPyp6pHFpWdjPpla65piLpyJsbW+1rA=="
       },
       "Npgsql.EntityFrameworkCore.PostgreSQL": {
         "type": "Direct",
@@ -467,7 +467,7 @@
       "croft.shared": {
         "type": "Project",
         "dependencies": {
-          "Markdig": "[1.5.0, )",
+          "Markdig": "[1.5.1, )",
           "Microsoft.EntityFrameworkCore.Relational": "[11.0.0-rc.3.26522.148, )",
           "Npgsql.OpenTelemetry": "[10.0.3, )",
           "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.20.1, )",
