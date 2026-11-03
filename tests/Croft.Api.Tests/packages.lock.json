@@ -95,8 +95,8 @@
       },
       "AngleSharp": {
         "type": "Transitive",
-        "resolved": "1.8.6",
-        "contentHash": "tdvrWSsHz8iRcb8U2cbFtYF6/1Mvhbe5ZxN/VdhVeIfp5vOvbwz3Bn7OZknnm2QSyGvM9ZaZLNLvfanPzNa61Q=="
+        "resolved": "1.9.0",
+        "contentHash": "NOKbXBsj4gaudXjAmdfSPxgUmKNbxP0k87ZRN56N0FW3u2z8AT7sRnTEOWjKoNrPI1vq4slV7Ld2nBCOvu/v8w=="
       },
       "BouncyCastle.Cryptography": {
         "type": "Transitive",
@@ -162,8 +162,8 @@
       },
       "Markdig": {
         "type": "Transitive",
-        "resolved": "1.5.0",
-        "contentHash": "oEm6N4PYFPUZiJ5e89993AE6hfC8EWRGD5M8nyoSJbwD4GgW818mjlQCk++SdTV4godaN50Ybcmm4j2Dp76oIQ=="
+        "resolved": "1.5.1",
+        "contentHash": "NtHwU5t5yKr6Gnylhs8/hlR0mOAftTFQURDz2ID8bkunxps1neOzKw0dYKKlwNuwiYIGLHjJTXK91f809Ko1ww=="
       },
       "Microsoft.AspNetCore.Authentication.JwtBearer": {
         "type": "Transitive",
@@ -678,8 +678,8 @@
       },
       "MudBlazor": {
         "type": "Transitive",
-        "resolved": "9.11.0",
-        "contentHash": "hboxF5cQuMYjB0w6+tScmNt0ACuoCu35TGPsCmCq8OeQgvtPtzQ1s9auAOrINj/J6I/ZyBB1rmUzrcMKj14RFA==",
+        "resolved": "9.12.0",
+        "contentHash": "T6PQUCJe60UTSy3u1F8R2nuC06Cox6WEhon5GA2/AZNVI1WstlPSJZdGPyp6pHFpWdjPpla65piLpyJsbW+1rA==",
         "dependencies": {
           "Microsoft.AspNetCore.Components": "10.0.1",
           "Microsoft.AspNetCore.Components.Web": "10.0.1",
@@ -803,27 +803,27 @@
       },
       "SkiaSharp": {
         "type": "Transitive",
-        "resolved": "4.153.1",
-        "contentHash": "TghYLOUaP3q6rTjQw7U9uQaaXh8lEs9rfA1U7/VtmyAptVDtj/SmjtcWzFWmcC/VMWxe3QgbV9uyvqDL7ySFtQ==",
+        "resolved": "4.154.0",
+        "contentHash": "R3BuszJ3tUFmni37nZIRawXL0yx+XHyx7xi1716/0TybuEQFhnBx48Ig3rFpeVFQVytpGpJZZ+NLW9d9UPG7EA==",
         "dependencies": {
-          "SkiaSharp.NativeAssets.Win32": "4.153.1",
-          "SkiaSharp.NativeAssets.macOS": "4.153.1"
+          "SkiaSharp.NativeAssets.Win32": "4.154.0",
+          "SkiaSharp.NativeAssets.macOS": "4.154.0"
         }
       },
       "SkiaSharp.NativeAssets.Linux.NoDependencies": {
         "type": "Transitive",
-        "resolved": "4.153.1",
-        "contentHash": "NrnPjcxjcRau4GMOY0BTpUdMey+MnmLU3jC5AuExEFHPS2NkX1tdkXW0n/c5nQMMHBTAMpHnt7qEOpXs2FNfIQ=="
+        "resolved": "4.154.0",
+        "contentHash": "U6HQ/n+wQ09WyXQB6PK1l46BIrHqTN/dImV84pti3mLxnlOdcSASPQzJwzuZmEgiCbriLtu5fP0t9cdzpFPHsw=="
       },
       "SkiaSharp.NativeAssets.macOS": {
         "type": "Transitive",
-        "resolved": "4.153.1",
-        "contentHash": "YTojWeWIhnpF7uC8vpMxB5wRONKkDB2t3r/nNPA3DL2pgj9fqMXRevA/rIanYazWnco4jo1ufgp3HkXuh1Tz8A=="
+        "resolved": "4.154.0",
+        "contentHash": "GgYL4ML3HT4CW33oXMHdp7BSRU87bPUfWBXdYgNduGlt4GAbAM/3eXcjjUdilS0H1r2R5iBhwvExCfSYGwFKlw=="
       },
       "SkiaSharp.NativeAssets.Win32": {
         "type": "Transitive",
-        "resolved": "4.153.1",
-        "contentHash": "Yqg6rChTVh0BUE8QQxtOA3uUBnihfgID4yex/AvDa0+os2bVcBjmI3Qj9tnOB+R1hd/Jry1Gwl8qw5JI9HZG8Q=="
+        "resolved": "4.154.0",
+        "contentHash": "GXgoY77GCXdPcveNAmy8o3gVit8sp6YtnI88h5camLPfihjulwJUajZXKhgVuZ8RhuwSTgfyt/00Dx8HRUSeAA=="
       },
       "SSH.NET": {
         "type": "Transitive",
@@ -938,21 +938,21 @@
       "croft.api": {
         "type": "Project",
         "dependencies": {
-          "AngleSharp": "[1.8.6, )",
+          "AngleSharp": "[1.9.0, )",
           "Croft.Shared": "[0.6.9, )",
-          "Markdig": "[1.5.0, )",
+          "Markdig": "[1.5.1, )",
           "Microsoft.AspNetCore.Authentication.JwtBearer": "[11.0.0-rc.3.26522.148, )",
           "Microsoft.AspNetCore.OpenApi": "[11.0.0-rc.3.26522.148, )",
           "Microsoft.Extensions.Http.Resilience": "[10.11.0, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[11.0.0-rc.3, )",
-          "SkiaSharp": "[4.153.1, )",
-          "SkiaSharp.NativeAssets.Linux.NoDependencies": "[4.153.1, )"
+          "SkiaSharp": "[4.154.0, )",
+          "SkiaSharp.NativeAssets.Linux.NoDependencies": "[4.154.0, )"
         }
       },
       "croft.shared": {
         "type": "Project",
         "dependencies": {
-          "Markdig": "[1.5.0, )",
+          "Markdig": "[1.5.1, )",
           "Microsoft.EntityFrameworkCore.Relational": "[11.0.0-rc.3.26522.148, )",
           "Npgsql.OpenTelemetry": "[10.0.3, )",
           "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.20.1, )",
@@ -966,11 +966,11 @@
         "type": "Project",
         "dependencies": {
           "Croft.Shared": "[0.6.9, )",
-          "Markdig": "[1.5.0, )",
+          "Markdig": "[1.5.1, )",
           "Microsoft.AspNetCore.Authentication.OpenIdConnect": "[11.0.0-rc.3.26522.148, )",
           "Microsoft.AspNetCore.DataProtection.EntityFrameworkCore": "[11.0.0-rc.3.26522.148, )",
           "Microsoft.Extensions.Http.Resilience": "[10.11.0, )",
-          "MudBlazor": "[9.11.0, )",
+          "MudBlazor": "[9.12.0, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[11.0.0-rc.3, )"
         }
       }
