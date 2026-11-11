@@ -14,6 +14,12 @@ public class BlazorCircuitClientTests
 {
     private const string HandshakeAck = "{}\u001e";
 
+    // A SignalR ping ([6]) as one VarInt-framed blazorpack message: length 2, array of 1, type 6.
+    private static readonly byte[] Ping = [0x02, 0x91, 0x06];
+
+    // A frame of length 1 whose body (0x00) is not a MessagePack array header: decoding it fails.
+    private static readonly byte[] Malformed = [0x01, 0x00];
+
     [Fact]
     public async Task ConnectAsync_FirstPollAnswers204_ThrowsConnectionClosedBeforeTheHandshake()
     {
@@ -42,22 +48,25 @@ public class BlazorCircuitClientTests
     [Fact]
     public async Task InvokeAsync_ServerClosesTheConnection_FailsWithWhatItWasWaitingFor()
     {
-        var hub = new ScriptedHub(Poll(HttpStatusCode.OK), Poll(HttpStatusCode.OK, HandshakeAck), Poll(HttpStatusCode.NoContent));
+        var hub = new ScriptedHub(
+            Poll(HttpStatusCode.OK), Poll(HttpStatusCode.OK, HandshakeAck), Poll(HttpStatusCode.OK, Ping), Poll(HttpStatusCode.NoContent));
         await using var client = await BlazorCircuitClient.ConnectAsync(hub.Client());
 
         var invoke = () => client.InvokeAsync("StartCircuit");
 
         var thrown = await invoke.Should().ThrowAsync<InvalidOperationException>();
         thrown.Which.Message.Should().StartWith(
-            "the server closed the connection while waiting for the completion of StartCircuit; messages seen meanwhile: ;");
+            "the server closed the connection while waiting for the completion of StartCircuit; messages seen meanwhile: "
+            + "HubMessage { Kind = Other, InvocationId = , Target = , Result = , Error = , OtherType = 6 };");
     }
 
     [Fact]
     public async Task InvokeAsync_PollFailsWith500_FailsAtOnceWithThePollsError()
     {
         var hub = new ScriptedHub(Poll(HttpStatusCode.OK), Poll(HttpStatusCode.OK, HandshakeAck), Poll(HttpStatusCode.InternalServerError));
-        // A wait limit far beyond the test's run time: only a fail-fast path can end the call.
-        await using var client = await BlazorCircuitClient.ConnectAsync(hub.Client(), TimeSpan.FromMinutes(5));
+        // A wait limit far beyond the failure's milliseconds: if fail-fast regresses, the wait ends
+        // in a TimeoutException (the wrong type) after 20 s instead.
+        await using var client = await BlazorCircuitClient.ConnectAsync(hub.Client(), TimeSpan.FromSeconds(20));
 
         var invoke = () => client.InvokeAsync("StartCircuit");
 
@@ -67,8 +76,28 @@ public class BlazorCircuitClientTests
             .Which.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
     }
 
+    [Fact]
+    public async Task InvokeAsync_MalformedFrame_FailsWithTheDecodeErrorAndDisposeDoesNotRethrowIt()
+    {
+        var hub = new ScriptedHub(Poll(HttpStatusCode.OK), Poll(HttpStatusCode.OK, HandshakeAck), Poll(HttpStatusCode.OK, Malformed));
+        var client = await BlazorCircuitClient.ConnectAsync(hub.Client(), TimeSpan.FromSeconds(20));
+
+        var invoke = () => client.InvokeAsync("StartCircuit");
+
+        var thrown = await invoke.Should().ThrowAsync<InvalidOperationException>();
+        thrown.Which.Message.Should().StartWith("the long poll failed while waiting for the completion of StartCircuit;");
+        thrown.Which.InnerException.Should().BeOfType<InvalidOperationException>();
+        // The fault already reached the caller; teardown must not throw it a second time over
+        // whatever the caller is failing with.
+        var dispose = async () => await client.DisposeAsync();
+        await dispose.Should().NotThrowAsync();
+    }
+
     private static Func<HttpResponseMessage> Poll(HttpStatusCode status, string body = "")
         => () => new HttpResponseMessage(status) { Content = new StringContent(body, Encoding.UTF8) };
+
+    private static Func<HttpResponseMessage> Poll(HttpStatusCode status, byte[] body)
+        => () => new HttpResponseMessage(status) { Content = new ByteArrayContent(body) };
 
     /// <summary>
     /// A SignalR long-polling endpoint from a script: negotiate succeeds, every send is accepted
