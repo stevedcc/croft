@@ -448,8 +448,9 @@ public class TokenSessionEventsTests
         IConfiguration? configuration = null)
     {
         var services = new ServiceCollection();
-        services.AddSingleton<ITokenStore>(store ?? new InMemoryTokenStore(new FakeTimeProvider(Now)));
-        services.AddSingleton<TimeProvider>(new FakeTimeProvider(now ?? DateTimeOffset.UnixEpoch));
+        var clock = new FakeTimeProvider(now ?? Now);
+        services.AddSingleton<ITokenStore>(store ?? new InMemoryTokenStore(clock));
+        services.AddSingleton<TimeProvider>(clock);
         services.AddSingleton(new AuthSettings(TimeSpan.FromDays(30)));
         services.Configure<RoleGroupSettings>(
             (configuration ?? new ConfigurationBuilder().Build()).GetSection(RoleGroupSettings.SectionName));
