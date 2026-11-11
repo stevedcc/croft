@@ -22,7 +22,7 @@ internal sealed class BlazorCircuitClient : IAsyncDisposable
     private readonly string _connectionToken;
     private readonly Channel<HubMessage> _messages = Channel.CreateUnbounded<HubMessage>();
     private readonly CancellationTokenSource _stop = new();
-    private readonly Task _pollLoop;
+    private Task _pollLoop = Task.CompletedTask;
     private readonly MemoryStream _inbox = new();
     private long _invocationId;
     private bool _handshakeComplete;
@@ -31,7 +31,6 @@ internal sealed class BlazorCircuitClient : IAsyncDisposable
     {
         _http = http;
         _connectionToken = connectionToken;
-        _pollLoop = PollLoopAsync();
     }
 
     /// <summary>Server-side "JS.Error" invocations, surfaced when something fails.</summary>
@@ -90,6 +89,11 @@ internal sealed class BlazorCircuitClient : IAsyncDisposable
         var client = new BlazorCircuitClient(http, connectionToken);
         try
         {
+            // Long polling: the first poll opens the transport and must complete before the first
+            // send, as in the JS client (ASP.NET Core 11 GA answers an earlier send with 400).
+            await client.PollOnceAsync(CancellationToken.None);
+            client._pollLoop = client.PollLoopAsync();
+
             // The handshake is always text, whatever the negotiated protocol is.
             await client.SendAsync(
                 Encoding.UTF8.GetBytes($"{{\"protocol\":\"blazorpack\",\"version\":2}}{RecordSeparator}"));
@@ -143,8 +147,11 @@ internal sealed class BlazorCircuitClient : IAsyncDisposable
         _stop.Dispose();
     }
 
-    private Task SendAsync(byte[] payload)
-        => _http.PostAsync($"/_blazor?id={_connectionToken}", new ByteArrayContent(payload));
+    private async Task SendAsync(byte[] payload)
+    {
+        using var response = await _http.PostAsync($"/_blazor?id={_connectionToken}", new ByteArrayContent(payload));
+        response.EnsureSuccessStatusCode();
+    }
 
     private async Task<HubMessage> WaitForMessageAsync(Func<HubMessage, bool> predicate, string because)
     {
@@ -174,20 +181,27 @@ internal sealed class BlazorCircuitClient : IAsyncDisposable
 
     private async Task PollLoopAsync()
     {
-        while (!_stop.IsCancellationRequested)
+        while (!_stop.IsCancellationRequested && await PollOnceAsync(_stop.Token))
         {
-            using var response = await _http.GetAsync(
-                $"/_blazor?id={_connectionToken}", HttpCompletionOption.ResponseHeadersRead, _stop.Token);
-            if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
-            {
-                break;
-            }
-
-            var payload = await response.Content.ReadAsByteArrayAsync(_stop.Token);
-            _inbox.Position = _inbox.Length;
-            _inbox.Write(payload);
-            DrainInbox();
         }
+    }
+
+    /// <summary>One long poll; false once the server has closed the connection (204).</summary>
+    private async Task<bool> PollOnceAsync(CancellationToken ct)
+    {
+        using var response = await _http.GetAsync(
+            $"/_blazor?id={_connectionToken}", HttpCompletionOption.ResponseHeadersRead, ct);
+        if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
+        {
+            return false;
+        }
+
+        response.EnsureSuccessStatusCode();
+        var payload = await response.Content.ReadAsByteArrayAsync(ct);
+        _inbox.Position = _inbox.Length;
+        _inbox.Write(payload);
+        DrainInbox();
+        return true;
     }
 
     private void DrainInbox()
