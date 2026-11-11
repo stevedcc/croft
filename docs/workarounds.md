@@ -15,9 +15,10 @@ keep anyway, or an ordinary use of a documented API is not a workaround; the clo
 
 ## Written against
 
-.NET 11.0.0 (SDK 11.0.100, `aspnet`/`sdk` images 11.0.0) with EF Core 11.0.0-rc.3.26522.148 (held
-there by Npgsql.EntityFrameworkCore.PostgreSQL 11.0.0-rc.3, which pins EF Core exactly; Npgsql
-10.0.3), MudBlazor 9.11.0, Markdig 1.5.0, Playwright
+.NET 11.0.0 (SDK 11.0.100, `aspnet`/`sdk` images 11.0.0) with the EF Core family on 11.0.0-rc.3.26522.148
+(EF Core, Relational, Design, Tools, `dotnet-ef`, DataProtection.EntityFrameworkCore; held there by
+Npgsql.EntityFrameworkCore.PostgreSQL 11.0.0-rc.3, which pins EF Core exactly, and they move together
+once Npgsql 11 GA ships; Npgsql 10.0.3), MudBlazor 9.11.0, Markdig 1.5.0, Playwright
 1.64.1, Testcontainers 4.16.0, bUnit 2.12.5, xunit.v3 4.0.2 (the `xunit.v3.mtp-off` package,
 runner 4.0.1), NUnit 5.0.0 (NUnit3TestAdapter 6.3.1), Microsoft.NET.Test.Sdk 18.11.0, Postgres 18.
 The first sweep covered `blog-framework` at 998583c (2026-10-16) on .NET 10.0.13 (SDK 10.0.401);
@@ -26,8 +27,9 @@ was run); brief 16b moved the test tooling to the versions above (W-063 retired,
 on xunit.v3). The move to 11.0 RC 3 (2026-10-28) re-ran the three entries whose upgrade check
 names every SDK or image update (W-104, W-088, W-082, see their "Re-checked on 11.0 RC 3" notes);
 the rest are covered by the full suites passing on RC 3. The move to 11.0 GA (2026-11-11) re-ran
-the same three (see their "Re-checked on 11.0 GA" notes; W-104 needed the GA property name); the
-rest are covered by the full suites passing on GA.
+the same three (see their "Re-checked on 11.0 GA" notes; W-104 needed the GA property name) and
+changed W-058 (the circuit client's long-polling order); the rest are covered by the full suites
+passing on GA.
 
 ## How to use it on an upgrade
 
@@ -540,10 +542,10 @@ entry and a marker in the same commit (AGENTS.md, "Workarounds").
 
 ### W-058: The hand-rolled blazorpack circuit client
 
-- **Library:** depends on the Blazor Server wire protocol: the `StartCircuit` signature and arguments, the `<!--Blazor:{json}-->` component markers in prerendered HTML, and the MessagePack and VarInt framing.
+- **Library:** depends on the Blazor Server wire protocol: SignalR long polling's order (the first poll opens the transport and must complete before the first send; 11.0 GA answers an earlier send with 400), the `StartCircuit` signature and arguments, the `<!--Blazor:{json}-->` component markers in prerendered HTML, and the MessagePack and VarInt framing.
 - **Our code:** `Croft.Web.Tests/Fixtures/BlazorCircuitClient` opens a real circuit with no browser, so circuit metrics fire.
 - **Fails without it:** `BlazorTelemetryTests`, `CircuitAdmissionTests`.
-- **Upgrade check:** the highest breakage risk on a .NET 11 Blazor change (`StartCircuit` arguments, marker format). **Re-checked on 11.0 RC 2 (16a):** still needed: `BlazorTelemetryTests` and `CircuitAdmissionTests` pass on 11.0 RC 2, so the hand-rolled client still matches the .NET 11 `StartCircuit` arguments and marker format.
+- **Upgrade check:** the highest breakage risk on a .NET 11 Blazor change (`StartCircuit` arguments, marker format). **Re-checked on 11.0 RC 2 (16a):** still needed: `BlazorTelemetryTests` and `CircuitAdmissionTests` pass on 11.0 RC 2, so the hand-rolled client still matches the .NET 11 `StartCircuit` arguments and marker format. **Re-checked on 11.0 GA:** still needed, and it needed a change: the client used to send the handshake while its first poll was still in flight, which GA rejects with 400 (all six `CircuitAdmissionTests` then timed out waiting for the handshake acknowledgement). `ConnectAsync` now completes one poll (10 s limit) before the handshake, as the JS client does; sends and polls fail at once on a non-success status, and a poll loop that ends or fails completes the message channel, so a waiting test sees the cause instead of a timeout. `BlazorTelemetryTests` and `CircuitAdmissionTests` pass.
 
 ### W-059: The migration contract guard calls `Migration.Up` by reflection
 
@@ -695,8 +697,8 @@ entry and a marker in the same commit (AGENTS.md, "Workarounds").
 ### W-104: Debug builds of the Web app leave out SDK 11's dotnet-watch browser tools
 
 - **Library:** the .NET 11 SDK (`Microsoft.NET.Sdk.StaticWebAssets.DotNetWatch.targets`, RC 2) adds build-only static web assets to every Debug build of a Blazor Web app, among them a JS initializer (`Microsoft.NET.Sdk.BlazorWeb.DotNetWatch.lib.module.js`). A full page load then ends in a `<!--Blazor-Web-Initializers:...-->` comment that an enhanced-navigation response does not carry, and every page fetches `/_framework/dotnet-browser-tools/hot-reload-settings.json` (a 404 outside `dotnet watch`). Publish output never contains them (a Release publish has no `lib.module.js` at all), so production is unaffected; the suites, which run Debug builds, would see documents production never serves.
-- **Our code:** the `CroftOmitDotNetWatchBrowserTools` target in `src/Croft.Web/Croft.Web.csproj` clears `DotNetWatchBrowserToolsAssetPrefix` before `ResolveProjectStaticWebAssets`, which skips the SDK's `_DefineDotNetWatchBrowserToolsAssetsCore` (its condition needs the prefix). `EnableHotReloadInRuntimeConfigDevFile` (the switch the SDK documents) is left alone, because it also turns off Hot Reload's runtime options. The cost: `dotnet watch` loses whatever these browser tools add for the Web app (not measured; the owner's hand testing does not use `dotnet watch`, as far as the repo shows: no script or doc runs it).
-- **Fails without it:** `OutputCacheReadingPageTests.AnEnhancedNavigationRequest_GetsTheSameResponseAsAFullLoad` (all six reading routes: "differ on line ... `<!--Blazor-Web-Initializers:WwogICJfZnJh...`").
+- **Our code:** the `CroftOmitDotNetWatchBrowserTools` target in `src/Croft.Web/Croft.Web.csproj` clears `HotReloadBrowserToolsAssetPrefix` (SDK 11.0 GA, `Microsoft.NET.Sdk.StaticWebAssets.HotReload.targets`; `DotNetWatchBrowserToolsAssetPrefix` in the RC SDKs' `...DotNetWatch.targets`) before `ResolveProjectStaticWebAssets`, which skips the SDK's `_DefineHotReloadBrowserToolsAssetsCore` (its condition needs the prefix). Release builds never define these assets (the SDK enables them only when `EnableHotReloadInRuntimeConfigDevFile` is true, by default only in Debug, and marks them build-only), so the cleared property changes nothing there. `EnableHotReloadInRuntimeConfigDevFile` (the switch the SDK documents) is left alone, because it also turns off Hot Reload's runtime options. The cost: `dotnet watch` loses whatever these browser tools add for the Web app (not measured; the owner's hand testing does not use `dotnet watch`, as far as the repo shows: no script or doc runs it).
+- **Fails without it:** `OutputCacheReadingPageTests.AnEnhancedNavigationRequest_GetsTheSameResponseAsAFullLoad` (all six reading routes: "differ on line ... `<!--Blazor-Web-Initializers:WwogICJfZnJh...`"); on 11.0 GA also `ReservedSlugsGuardTests.EveryMappedEndpointsFirstLiteralSegment_IsAReservedSlug` (the initializer's `Croft.Web.modules.json` endpoint).
 - **Upgrade check:** on each SDK update, delete the target and run that test; if the SDK stops emitting the initializer in Debug builds (or offers a switch for the browser tools alone), use that and retire W-104. The target relies on the SDK's private target and property names: if they change, the test fails again, which is the signal. **Re-checked on 11.0 RC 2 (16a):** added in 16a for SDK 11 RC 2 (item 2); its upgrade check applies from the next SDK on. **Re-checked on 11.0 RC 3:** still needed: with the target deleted, `AnEnhancedNavigationRequest_GetsTheSameResponseAsAFullLoad` fails on all six routes (the same `<!--Blazor-Web-Initializers:...-->` difference); with it back, 6/6 pass. **Re-checked on 11.0 GA:** still needed, and it had stopped working: GA renamed the SDK file to `Microsoft.NET.Sdk.StaticWebAssets.HotReload.targets` and the property to `HotReloadBrowserToolsAssetPrefix` (the initializer is now `Microsoft.NET.Sdk.BlazorWeb.HotReload.lib.module.js`), so the old `DotNetWatchBrowserToolsAssetPrefix` line cleared nothing; the six routes failed, and so did `ReservedSlugsGuardTests` (the initializer's `Croft.Web.modules.json` manifest became a mapped endpoint). With the target clearing the new property, both pass. GA documents `EnableHotReloadInRuntimeConfigDevFile` as the switch for these assets, but it still also turns off Hot Reload's runtime options, so the narrower property stays.
 
 ### W-105: URL waits after in-circuit navigations are `Expect(Page).ToHaveURLAsync`

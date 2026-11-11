@@ -3,7 +3,7 @@
 Croft, a self-hosted blog engine: Blazor front end (static SSR reading pages, Blazor Server + MudBlazor for admin) (`src/Croft.Web`) calling an ASP.NET Core Web API
 (`src/Croft.Api`) backed by PostgreSQL via EF Core. Shared request/response records live in
 `src/Croft.Shared`. Auth is any OIDC provider; local dev uses navikt/mock-oauth2-server.
-.NET 11 (GA; EF Core and the Npgsql provider still on RC 3 until Npgsql 11 GA), PostgreSQL 18.
+.NET 11 (GA; the EF Core family — EF Core, Design, Tools, `dotnet-ef`, DataProtection.EntityFrameworkCore — stays on RC 3 with the Npgsql provider until Npgsql 11 GA), PostgreSQL 18.
 
 This file is read by everyone and every agent working here. The rules apply to whoever is writing
 code.

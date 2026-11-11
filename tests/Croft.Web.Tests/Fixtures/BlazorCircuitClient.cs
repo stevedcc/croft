@@ -91,7 +91,14 @@ internal sealed class BlazorCircuitClient : IAsyncDisposable
         {
             // Long polling: the first poll opens the transport and must complete before the first
             // send, as in the JS client (ASP.NET Core 11 GA answers an earlier send with 400).
-            await client.PollOnceAsync(CancellationToken.None);
+            using (var firstPoll = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
+            {
+                if (!await client.PollOnceAsync(firstPoll.Token))
+                {
+                    throw new InvalidOperationException("the server closed the connection before the handshake");
+                }
+            }
+
             client._pollLoop = client.PollLoopAsync();
 
             // The handshake is always text, whatever the negotiated protocol is.
@@ -179,10 +186,28 @@ internal sealed class BlazorCircuitClient : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Polls until the server closes the connection or the client stops. However it ends, the
+    /// message channel is completed (with the failure, if any), so a test waiting for a message
+    /// sees why at once instead of waiting out its timeout.
+    /// </summary>
     private async Task PollLoopAsync()
     {
-        while (!_stop.IsCancellationRequested && await PollOnceAsync(_stop.Token))
+        Exception? failure = null;
+        try
         {
+            while (!_stop.IsCancellationRequested && await PollOnceAsync(_stop.Token))
+            {
+            }
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+            throw;
+        }
+        finally
+        {
+            _messages.Writer.TryComplete(failure);
         }
     }
 
