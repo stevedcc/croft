@@ -11,10 +11,10 @@ namespace Croft.Web.Services;
 /// it; <see cref="PurgeExpired"/> (run every minute by <see cref="InMemorySessionPurgeHostedService"/>)
 /// frees the memory.
 /// </summary>
-public sealed class InMemoryTokenStore(TimeProvider? time = null) : ITokenStore, ISessionLock
+public sealed class InMemoryTokenStore(TimeProvider time) : ITokenStore, ISessionLock
 {
     private readonly ConcurrentDictionary<string, TokenEntry> _entries = new();
-    private readonly TimeProvider _time = time ?? TimeProvider.System;
+    private readonly TimeProvider _time = time;
 
     /// <summary>The number of entries held, expired ones included until the purge removes them.</summary>
     public int Count => _entries.Count;

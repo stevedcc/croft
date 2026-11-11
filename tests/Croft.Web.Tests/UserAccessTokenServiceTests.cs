@@ -21,7 +21,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_NoBlogSidClaim_ReturnsNull()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-1", "rt-1", Now.AddSeconds(3600)));
         var handler = new FakeTokenEndpointHandler();
         var service = NewService(store, handler);
@@ -36,7 +36,7 @@ public class UserAccessTokenServiceTests
     public async Task GetAccessTokenAsync_NoStoreEntry_ReturnsNull()
     {
         var handler = new FakeTokenEndpointHandler();
-        var service = NewService(new InMemoryTokenStore(), handler);
+        var service = NewService(new InMemoryTokenStore(new FakeTimeProvider(Now)), handler);
 
         var token = await service.GetAccessTokenAsync(UserWithSid("s1"));
 
@@ -47,7 +47,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_FreshToken_ReturnsItWithoutHttpRequest()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-1", "rt-1", Now.AddSeconds(3600)));
         var handler = new FakeTokenEndpointHandler();
         var service = NewService(store, handler);
@@ -61,7 +61,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_NearExpiry_RefreshesAndStoresRotatedTokens()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler
         {
@@ -100,7 +100,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_RefreshWithoutNewRefreshToken_KeepsOldOne()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler
         {
@@ -117,7 +117,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_Refresh_KeepsTheIdTokenFromLogin()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30), "idt-1"));
         var handler = new FakeTokenEndpointHandler
         {
@@ -135,7 +135,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_TenConcurrentCallsNearExpiry_TriggerExactlyOneRefresh()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler
         {
@@ -157,7 +157,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_FirstCallerCancelsMidRefresh_SharedRefreshContinuesForOtherCallers()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler
         {
@@ -194,7 +194,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_Refresh_DisposesTheHttpResponseMessage()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler
         {
@@ -211,7 +211,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_InvalidGrant_ReturnsNullAndRemovesEntry()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler
         {
@@ -229,7 +229,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_NearExpiryWithoutRefreshToken_RemovesEntryAndReturnsNull()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", null, Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler();
         var service = NewService(store, handler);
@@ -244,7 +244,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_NonStringAccessToken_KeepsEntryAndReturnsStillValidToken()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler
         {
@@ -261,7 +261,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_FractionalExpiresIn_StoresTruncatedExpiry()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler
         {
@@ -278,7 +278,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_NonStringRefreshToken_KeepsOldRefreshToken()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler
         {
@@ -295,7 +295,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_MissingTokenEndpoint_KeepsEntryAndReturnsStillValidToken()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler();
         var service = NewService(store, handler, tokenEndpoint: null);
@@ -310,7 +310,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_TokenEndpoint400_RemovesEntryAndReturnsNull()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler
         {
@@ -328,7 +328,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_TokenEndpoint401_RemovesEntryAndReturnsNull()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler
         {
@@ -346,7 +346,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_TokenEndpoint503_KeepsEntryAndReturnsStillValidToken()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler { ResponseStatusCode = HttpStatusCode.ServiceUnavailable };
         var service = NewService(store, handler);
@@ -361,7 +361,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_TokenEndpoint503WithExpiredToken_KeepsEntryAndLaterRefreshSucceeds()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(-30)));
         var handler = new FakeTokenEndpointHandler { ResponseStatusCode = HttpStatusCode.ServiceUnavailable };
         var service = NewService(store, handler);
@@ -385,7 +385,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_NetworkError_KeepsEntryAndReturnsStillValidToken()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler { SendException = new HttpRequestException("connection refused") };
         var service = NewService(store, handler);
@@ -400,7 +400,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_Timeout_KeepsEntryAndReturnsStillValidToken()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler { SendException = new TaskCanceledException("timed out") };
         var service = NewService(store, handler);
@@ -415,7 +415,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_DiscoveryFailure_KeepsEntryAndReturnsStillValidToken()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler();
         var options = DefaultOptions(TokenEndpoint);
@@ -436,7 +436,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_MissingConfigurationManager_KeepsEntryAndReturnsStillValidToken()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler();
         var options = DefaultOptions(TokenEndpoint);
@@ -456,7 +456,7 @@ public class UserAccessTokenServiceTests
     [InlineData("""{"access_token":"","expires_in":3600}""")]
     public async Task GetAccessTokenAsync_ResponseWithoutUsableAccessToken_KeepsEntryAndReturnsStillValidToken(string responseBody)
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler { ResponseBody = responseBody };
         var service = NewService(store, handler);
@@ -475,7 +475,7 @@ public class UserAccessTokenServiceTests
     [InlineData("""{"access_token":"at-new","expires_in":"soon"}""")]
     public async Task GetAccessTokenAsync_ResponseWithoutUsableExpiresIn_StoresRefreshedTokensWithFallbackExpiry(string responseBody)
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler { ResponseBody = responseBody };
         var service = NewService(store, handler);
@@ -492,7 +492,7 @@ public class UserAccessTokenServiceTests
     {
         var exp = Now.AddSeconds(7200);
         var jwt = TestJwt.Create(exp);
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler
         {
@@ -510,7 +510,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task GetAccessTokenAsync_TransientFailure_LogsWarningWithoutTokenValues()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler { ResponseStatusCode = HttpStatusCode.ServiceUnavailable };
         var logger = new RecordingLogger<UserAccessTokenService>();
@@ -528,7 +528,7 @@ public class UserAccessTokenServiceTests
     public async Task AfterARefresh_AndTheSessionsLogout_NoRefreshLockRemainsForIt()
     {
         // M-15: the per-session lock map must not keep a session that has ended.
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler
         {
@@ -546,7 +546,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task WhileARefreshIsInFlight_TheSessionHasOneLock_SharedByTheCallers_AndItIsGoneWhenTheRefreshEnds()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new FakeTokenEndpointHandler
         {
@@ -577,7 +577,7 @@ public class UserAccessTokenServiceTests
     [Fact]
     public async Task ARefreshThatFailsAfterItsCallerGaveUp_LogsOneWarning_NamingTheSessionButNoTokens()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var sessionLock = new FailingSessionLock();
         var logger = new RecordingLogger<UserAccessTokenService>();
@@ -606,7 +606,7 @@ public class UserAccessTokenServiceTests
         // WaitAsync. The refresh can fault in that gap: the caller then sees OperationCanceledException
         // (its own token), the task is already complete, and `!refreshTask.IsCompleted` skipped the
         // logging, so the failure was never reported. A queueing context stands in for the circuit's.
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var sessionLock = new FailingSessionLock();
         var logger = new RecordingLogger<UserAccessTokenService>();

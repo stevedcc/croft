@@ -57,7 +57,7 @@ public class WebMetricsTests
     public async Task TokenRefresh_Stored_CountsOutcomeRefreshed()
     {
         using var metrics = new MetricCapture("Croft.Web").Start();
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new StubTokenEndpointHandler(
             HttpStatusCode.OK, """{"access_token":"at-new","refresh_token":"rt-new","expires_in":3600}""");
@@ -75,7 +75,7 @@ public class WebMetricsTests
     public async Task TokenRefresh_IdpOutage_CountsOutcomeTransientFailure()
     {
         using var metrics = new MetricCapture("Croft.Web").Start();
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new StubTokenEndpointHandler(HttpStatusCode.InternalServerError, "");
         var service = NewService(store, handler);
@@ -93,7 +93,7 @@ public class WebMetricsTests
     public async Task TokenRefresh_TokenRejected_CountsOutcomeFailed()
     {
         using var metrics = new MetricCapture("Croft.Web").Start();
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-old", "rt-old", Now.AddSeconds(30)));
         var handler = new StubTokenEndpointHandler(HttpStatusCode.BadRequest, "");
         var service = NewService(store, handler);

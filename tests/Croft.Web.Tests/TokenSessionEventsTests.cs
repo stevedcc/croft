@@ -136,7 +136,7 @@ public class TokenSessionEventsTests
     public async Task OnTokenValidated_StoresTokensUnderSessionId()
     {
         var now = new DateTimeOffset(2026, 10, 4, 12, 0, 0, TimeSpan.Zero);
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         var identity = new ClaimsIdentity([new Claim("sub", "admin-id")], "test");
         var context = NewContext(identity, new OpenIdConnectMessage
         {
@@ -155,7 +155,7 @@ public class TokenSessionEventsTests
     public async Task OnTokenValidated_StoresIdpSidAndSubInTheTokenStore()
     {
         var now = new DateTimeOffset(2026, 10, 4, 12, 0, 0, TimeSpan.Zero);
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         var identity = new ClaimsIdentity(
         [
             new Claim("sub", "admin-id"),
@@ -180,7 +180,7 @@ public class TokenSessionEventsTests
     public async Task OnTokenValidated_StoresIdTokenInTheTokenStore()
     {
         var now = new DateTimeOffset(2026, 10, 4, 12, 0, 0, TimeSpan.Zero);
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         var identity = new ClaimsIdentity([new Claim("sub", "admin-id")], "test");
         var context = NewContext(identity, new OpenIdConnectMessage
         {
@@ -219,7 +219,7 @@ public class TokenSessionEventsTests
         var now = new DateTimeOffset(2026, 10, 4, 12, 0, 0, TimeSpan.Zero);
         var exp = now.AddSeconds(7200);
         var jwt = TestJwt.Create(exp);
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         var identity = new ClaimsIdentity([new Claim("sub", "admin-id")], "test");
         var context = NewContext(identity, new OpenIdConnectMessage
         {
@@ -238,7 +238,7 @@ public class TokenSessionEventsTests
     public async Task OnTokenValidated_MissingExpiresInWithOpaqueToken_Stores300SecondExpiry()
     {
         var now = new DateTimeOffset(2026, 10, 4, 12, 0, 0, TimeSpan.Zero);
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         var identity = new ClaimsIdentity([new Claim("sub", "admin-id")], "test");
         var context = NewContext(identity, new OpenIdConnectMessage
         {
@@ -256,7 +256,7 @@ public class TokenSessionEventsTests
     [Fact]
     public async Task OnValidatePrincipal_SessionInStore_KeepsPrincipal()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-1", "rt-1", Now.AddSeconds(3600)));
         var authService = new FakeAuthenticationService();
         var context = NewCookieContext(UserWithSid("s1"), store, authService);
@@ -271,7 +271,7 @@ public class TokenSessionEventsTests
     public async Task OnValidatePrincipal_NoStoreEntry_RejectsPrincipalAndSignsOut()
     {
         var authService = new FakeAuthenticationService();
-        var context = NewCookieContext(UserWithSid("s1"), new InMemoryTokenStore(), authService);
+        var context = NewCookieContext(UserWithSid("s1"), new InMemoryTokenStore(new FakeTimeProvider(Now)), authService);
 
         await TokenSessionEvents.OnValidatePrincipal(context);
 
@@ -282,7 +282,7 @@ public class TokenSessionEventsTests
     [Fact]
     public async Task OnValidatePrincipal_NoBlogSidClaim_RejectsPrincipalAndSignsOut()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-1", "rt-1", Now.AddSeconds(3600)));
         var authService = new FakeAuthenticationService();
         var context = NewCookieContext(UserWithSid(null), store, authService);
@@ -296,7 +296,7 @@ public class TokenSessionEventsTests
     [Fact]
     public async Task RemoveSession_WithBlogSid_RemovesTheStoreEntry()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-1", "rt-1", Now.AddSeconds(3600)));
 
         await TokenSessionEvents.RemoveSessionAsync(UserWithSid("s1"), store);
@@ -307,7 +307,7 @@ public class TokenSessionEventsTests
     [Fact]
     public async Task RemoveSession_WithoutBlogSid_LeavesStoreUntouched()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-1", "rt-1", Now.AddSeconds(3600)));
 
         await TokenSessionEvents.RemoveSessionAsync(UserWithSid(null), store);
@@ -318,7 +318,7 @@ public class TokenSessionEventsTests
     [Fact]
     public async Task LogoutAsync_WithStoredIdToken_SignsOutOfCookieAndIdP()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-1", "rt-1", Now.AddSeconds(3600), "idt-1"));
         var authService = new FakeAuthenticationService();
         var httpContext = NewHttpContext(UserWithSid("s1"), store, authService);
@@ -334,7 +334,7 @@ public class TokenSessionEventsTests
     [Fact]
     public async Task LogoutAsync_WithStoredIdToken_SendsItAsIdTokenHintOnTheEndSessionRequest()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-1", "rt-1", Now.AddSeconds(3600), "idt-1"));
         var httpContext = NewHttpContext(UserWithSid("s1"), store, new FakeAuthenticationService());
 
@@ -354,7 +354,7 @@ public class TokenSessionEventsTests
     [InlineData(true)]
     public async Task LogoutAsync_NoStoredIdToken_SignsOutLocallyAndRedirectsHome(bool entryWithoutIdToken)
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         if (entryWithoutIdToken)
         {
             await store.SetAsync("s1", new TokenEntry("at-1", "rt-1", Now.AddSeconds(3600)));
@@ -448,8 +448,9 @@ public class TokenSessionEventsTests
         IConfiguration? configuration = null)
     {
         var services = new ServiceCollection();
-        services.AddSingleton<ITokenStore>(store ?? new InMemoryTokenStore());
-        services.AddSingleton<TimeProvider>(new FakeTimeProvider(now ?? DateTimeOffset.UnixEpoch));
+        var clock = new FakeTimeProvider(now ?? Now);
+        services.AddSingleton<ITokenStore>(store ?? new InMemoryTokenStore(clock));
+        services.AddSingleton<TimeProvider>(clock);
         services.AddSingleton(new AuthSettings(TimeSpan.FromDays(30)));
         services.Configure<RoleGroupSettings>(
             (configuration ?? new ConfigurationBuilder().Build()).GetSection(RoleGroupSettings.SectionName));
