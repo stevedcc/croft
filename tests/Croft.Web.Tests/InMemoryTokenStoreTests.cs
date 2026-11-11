@@ -5,13 +5,14 @@ namespace Croft.Web.Tests;
 
 public class InMemoryTokenStoreTests
 {
-    private static readonly TokenEntry Entry =
-        new("at-1", "rt-1", new DateTimeOffset(2026, 10, 4, 13, 0, 0, TimeSpan.Zero));
+    private static readonly DateTimeOffset Now = new(2026, 10, 4, 12, 0, 0, TimeSpan.Zero);
+
+    private static readonly TokenEntry Entry = new("at-1", "rt-1", Now.AddHours(1));
 
     [Fact]
     public async Task SetAndGet_RoundTripsEntry()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
 
         await store.SetAsync("s1", Entry);
 
@@ -21,7 +22,7 @@ public class InMemoryTokenStoreTests
     [Fact]
     public async Task Get_UnknownSession_ReturnsNull()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
 
         (await store.GetAsync("nope")).Should().BeNull();
     }
@@ -29,7 +30,7 @@ public class InMemoryTokenStoreTests
     [Fact]
     public async Task Remove_DeletesEntry()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", Entry);
 
         await store.RemoveAsync("s1");
@@ -40,7 +41,7 @@ public class InMemoryTokenStoreTests
     [Fact]
     public async Task RemoveBySid_RemovesOnlyEntriesWithThatSid()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", Entry with { Sid = "idp-sid-1", Sub = "admin-id" });
         await store.SetAsync("s2", Entry with { Sid = "idp-sid-2", Sub = "admin-id" });
         await store.SetAsync("s3", Entry with { Sid = "idp-sid-1", Sub = "editor-id" });
@@ -55,7 +56,7 @@ public class InMemoryTokenStoreTests
     [Fact]
     public async Task RemoveBySid_UnknownSid_RemovesNothing()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", Entry with { Sid = "idp-sid-1" });
 
         (await store.RemoveBySidAsync("nope")).Should().Be(0);
@@ -66,7 +67,7 @@ public class InMemoryTokenStoreTests
     [Fact]
     public async Task RemoveBySub_RemovesEverySessionOfThatUser()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", Entry with { Sid = "idp-sid-1", Sub = "admin-id" });
         await store.SetAsync("s2", Entry with { Sid = "idp-sid-2", Sub = "admin-id" });
         await store.SetAsync("s3", Entry with { Sid = "idp-sid-3", Sub = "editor-id" });
@@ -81,7 +82,7 @@ public class InMemoryTokenStoreTests
     [Fact]
     public async Task RemoveBySub_UnknownSub_RemovesNothing()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", Entry with { Sub = "admin-id" });
 
         (await store.RemoveBySubAsync("nope")).Should().Be(0);

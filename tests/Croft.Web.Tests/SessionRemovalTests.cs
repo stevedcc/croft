@@ -36,7 +36,7 @@ public class SessionRemovalTests(PostgresDatabaseFixture fixture) : IClassFixtur
     public async Task NoRefreshToken_IsLoggedOnceWithItsReasonAndCounted()
     {
         using var metrics = new MetricCapture("Croft.Web").Start();
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync(FullSessionId, new TokenEntry("at-old", null, Now.AddMinutes(-1)));
         var logger = new CapturingLogger<UserAccessTokenService>();
 
@@ -55,7 +55,7 @@ public class SessionRemovalTests(PostgresDatabaseFixture fixture) : IClassFixtur
     public async Task RefreshRejected_IsLoggedOnceWithStatusErrorAndDescription_AndNoTokenValue()
     {
         using var metrics = new MetricCapture("Croft.Web").Start();
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync(FullSessionId, new TokenEntry("at-old", "rt-secret", Now.AddMinutes(-1)));
         var logger = new CapturingLogger<UserAccessTokenService>();
         const string body = """
@@ -85,7 +85,7 @@ public class SessionRemovalTests(PostgresDatabaseFixture fixture) : IClassFixtur
     {
         using var metrics = new MetricCapture("Croft.Web").Start();
         var logger = new CapturingLogger<TokenSessionEventsMarker>();
-        var context = NewCookieContext(UserWithSid(FullSessionId), new InMemoryTokenStore(), logger);
+        var context = NewCookieContext(UserWithSid(FullSessionId), new InMemoryTokenStore(new FakeTimeProvider(Now)), logger);
 
         await TokenSessionEvents.OnValidatePrincipal(context);
 
@@ -125,7 +125,7 @@ public class SessionRemovalTests(PostgresDatabaseFixture fixture) : IClassFixtur
     public async Task BackChannelLogout_IsLoggedOnceWithItsCountAndCounted()
     {
         using var metrics = new MetricCapture("Croft.Web").Start();
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", new TokenEntry("at-1", "rt-1", Now.AddHours(1), Sid: "idp-sid-1"));
         await store.SetAsync("s2", new TokenEntry("at-2", "rt-2", Now.AddHours(1), Sid: "idp-sid-1"));
         var logger = new CapturingLogger<BackchannelLogoutService>();

@@ -28,7 +28,7 @@ public class BackchannelLogoutServiceTests : IDisposable
     [Fact]
     public async Task Logout_ValidTokenWithSid_RemovesOnlySessionsOfThatSid()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", BaseEntry with { Sid = "idp-sid-1", Sub = "admin-id" });
         await store.SetAsync("s2", BaseEntry with { Sid = "idp-sid-2", Sub = "admin-id" });
         await store.SetAsync("s3", BaseEntry with { Sub = "admin-id" });
@@ -45,7 +45,7 @@ public class BackchannelLogoutServiceTests : IDisposable
     [Fact]
     public async Task Logout_SidMatchingNoStoredSession_FallsBackToSubAndRemovesSessionsOfThatUser()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", BaseEntry with { Sub = "admin-id" });
         var service = CreateService(store);
 
@@ -58,7 +58,7 @@ public class BackchannelLogoutServiceTests : IDisposable
     [Fact]
     public async Task Logout_ValidTokenWithSubOnly_RemovesEverySessionOfThatUser()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", BaseEntry with { Sid = "idp-sid-1", Sub = "admin-id" });
         await store.SetAsync("s2", BaseEntry with { Sid = "idp-sid-2", Sub = "admin-id" });
         await store.SetAsync("s3", BaseEntry with { Sid = "idp-sid-3", Sub = "editor-id" });
@@ -75,7 +75,7 @@ public class BackchannelLogoutServiceTests : IDisposable
     [Fact]
     public async Task Logout_InvalidToken_RemovesNothingAndReturnsFalse()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         await store.SetAsync("s1", BaseEntry with { Sid = "idp-sid-1", Sub = "admin-id" });
         var service = CreateService(store);
 
@@ -88,7 +88,7 @@ public class BackchannelLogoutServiceTests : IDisposable
     [Fact]
     public async Task Logout_MissingToken_ReturnsFalse()
     {
-        var store = new InMemoryTokenStore();
+        var store = new InMemoryTokenStore(new FakeTimeProvider(Now));
         var service = CreateService(store);
 
         (await service.LogoutAsync(null, CancellationToken.None)).Should().BeFalse();
