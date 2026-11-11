@@ -1,4 +1,4 @@
-// WORKAROUND-FILE(W-058, Blazor): hand-rolled blazorpack client: depends on the StartCircuit signature, the prerender component markers and the MessagePack framing
+// WORKAROUND-FILE(W-058, Blazor): hand-rolled blazorpack client: depends on the long-polling order, the StartCircuit signature, the prerender component markers and the MessagePack framing
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -20,18 +20,19 @@ internal sealed class BlazorCircuitClient : IAsyncDisposable
 
     private readonly HttpClient _http;
     private readonly string _connectionToken;
+    private readonly TimeSpan _timeout;
     private readonly Channel<HubMessage> _messages = Channel.CreateUnbounded<HubMessage>();
     private readonly CancellationTokenSource _stop = new();
-    private readonly Task _pollLoop;
+    private Task _pollLoop = Task.CompletedTask;
     private readonly MemoryStream _inbox = new();
     private long _invocationId;
     private bool _handshakeComplete;
 
-    private BlazorCircuitClient(HttpClient http, string connectionToken)
+    private BlazorCircuitClient(HttpClient http, string connectionToken, TimeSpan timeout)
     {
         _http = http;
         _connectionToken = connectionToken;
-        _pollLoop = PollLoopAsync();
+        _timeout = timeout;
     }
 
     /// <summary>Server-side "JS.Error" invocations, surfaced when something fails.</summary>
@@ -80,16 +81,42 @@ internal sealed class BlazorCircuitClient : IAsyncDisposable
         return $"[{string.Join(',', markers)}]";
     }
 
-    public static async Task<BlazorCircuitClient> ConnectAsync(HttpClient http)
+    /// <summary>Negotiates, opens the long-polling transport and completes the hub handshake.</summary>
+    /// <param name="http">A client for the app (the test server's).</param>
+    /// <param name="timeout">How long the first poll and each wait for a message may take (10 s by default).</param>
+    public static async Task<BlazorCircuitClient> ConnectAsync(HttpClient http, TimeSpan? timeout = null)
     {
         using var negotiate = await http.PostAsync("/_blazor/negotiate?negotiateVersion=1", content: null);
         negotiate.EnsureSuccessStatusCode();
         using var document = JsonDocument.Parse(await negotiate.Content.ReadAsStringAsync());
         var connectionToken = document.RootElement.GetProperty("connectionToken").GetString()!;
 
-        var client = new BlazorCircuitClient(http, connectionToken);
+        var client = new BlazorCircuitClient(http, connectionToken, timeout ?? TimeSpan.FromSeconds(10));
         try
         {
+            // Long polling: the first poll opens the transport and must complete before the first
+            // send, as in the JS client (ASP.NET Core 11 GA answers an earlier send with 400).
+            using (var firstPoll = new CancellationTokenSource(client._timeout))
+            {
+                bool open;
+                try
+                {
+                    open = await client.PollOnceAsync(firstPoll.Token);
+                }
+                catch (OperationCanceledException) when (firstPoll.IsCancellationRequested)
+                {
+                    throw new TimeoutException(
+                        $"the first long poll did not complete within {client._timeout.TotalSeconds.ToString("0.###", CultureInfo.InvariantCulture)} s");
+                }
+
+                if (!open)
+                {
+                    throw new InvalidOperationException("the server closed the connection before the handshake");
+                }
+            }
+
+            client._pollLoop = client.PollLoopAsync();
+
             // The handshake is always text, whatever the negotiated protocol is.
             await client.SendAsync(
                 Encoding.UTF8.GetBytes($"{{\"protocol\":\"blazorpack\",\"version\":2}}{RecordSeparator}"));
@@ -134,22 +161,28 @@ internal sealed class BlazorCircuitClient : IAsyncDisposable
         {
             await _pollLoop;
         }
-        catch (Exception ex) when (ex is OperationCanceledException or IOException or HttpRequestException)
+        catch (Exception ex) when (ex is OperationCanceledException or IOException or HttpRequestException or InvalidOperationException)
         {
             // Teardown of a connection that is being closed anyway: the abort surfaces as a
-            // transport error here and carries no information.
+            // transport error here and carries no information. A protocol fault
+            // (InvalidOperationException from the MessagePack reader) already reached the waiting
+            // call through the completed channel; rethrowing it here would hide whatever the
+            // caller is failing with.
         }
 
         _stop.Dispose();
     }
 
-    private Task SendAsync(byte[] payload)
-        => _http.PostAsync($"/_blazor?id={_connectionToken}", new ByteArrayContent(payload));
+    private async Task SendAsync(byte[] payload)
+    {
+        using var response = await _http.PostAsync($"/_blazor?id={_connectionToken}", new ByteArrayContent(payload));
+        response.EnsureSuccessStatusCode();
+    }
 
     private async Task<HubMessage> WaitForMessageAsync(Func<HubMessage, bool> predicate, string because)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);
-        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        timeout.CancelAfter(_timeout);
         var skipped = new List<string>();
         try
         {
@@ -170,24 +203,61 @@ internal sealed class BlazorCircuitClient : IAsyncDisposable
                 $"timed out waiting for {because}; messages seen meanwhile: {string.Join(" | ", skipped)};"
                 + $" server errors: {string.Join(" | ", ServerErrors)}");
         }
+        catch (ChannelClosedException closed)
+        {
+            // The poll loop completed the channel: cleanly on a 204, or with the poll's failure
+            // as the inner exception.
+            var what = closed.InnerException is null
+                ? "the server closed the connection"
+                : "the long poll failed";
+            throw new InvalidOperationException(
+                $"{what} while waiting for {because}; messages seen meanwhile: {string.Join(" | ", skipped)};"
+                + $" server errors: {string.Join(" | ", ServerErrors)}",
+                closed.InnerException ?? closed);
+        }
     }
 
+    /// <summary>
+    /// Polls until the server closes the connection or the client stops. However it ends, the
+    /// message channel is completed (with the failure, if any), so a test waiting for a message
+    /// sees why at once instead of waiting out its timeout.
+    /// </summary>
     private async Task PollLoopAsync()
     {
-        while (!_stop.IsCancellationRequested)
+        Exception? failure = null;
+        try
         {
-            using var response = await _http.GetAsync(
-                $"/_blazor?id={_connectionToken}", HttpCompletionOption.ResponseHeadersRead, _stop.Token);
-            if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
+            while (!_stop.IsCancellationRequested && await PollOnceAsync(_stop.Token))
             {
-                break;
             }
-
-            var payload = await response.Content.ReadAsByteArrayAsync(_stop.Token);
-            _inbox.Position = _inbox.Length;
-            _inbox.Write(payload);
-            DrainInbox();
         }
+        catch (Exception ex)
+        {
+            failure = ex;
+            throw;
+        }
+        finally
+        {
+            _messages.Writer.TryComplete(failure);
+        }
+    }
+
+    /// <summary>One long poll; false once the server has closed the connection (204).</summary>
+    private async Task<bool> PollOnceAsync(CancellationToken ct)
+    {
+        using var response = await _http.GetAsync(
+            $"/_blazor?id={_connectionToken}", HttpCompletionOption.ResponseHeadersRead, ct);
+        if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
+        {
+            return false;
+        }
+
+        response.EnsureSuccessStatusCode();
+        var payload = await response.Content.ReadAsByteArrayAsync(ct);
+        _inbox.Position = _inbox.Length;
+        _inbox.Write(payload);
+        DrainInbox();
+        return true;
     }
 
     private void DrainInbox()

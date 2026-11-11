@@ -10,13 +10,13 @@
 
   <ItemGroup>
     <PackageReference Include="Markdig" Version="1.5.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="11.0.0-rc.3.26522.148" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="11.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="11.0.0-rc.3.26522.148" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="11.0.0-rc.3.26522.148">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="11.0.0" />
     <PackageReference Include="MudBlazor" Version="9.11.0" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="11.0.0-rc.3" />
   </ItemGroup>
@@ -38,7 +38,8 @@
   </PropertyGroup>
 
   <!-- WORKAROUND(W-104, .NET SDK): SDK 11 adds a dotnet-watch JS initializer to every Debug build of a Blazor Web app -->
-  <!-- The initializer (Microsoft.NET.Sdk.BlazorWeb.DotNetWatch.lib.module.js) is a build-only
+  <!-- The initializer (Microsoft.NET.Sdk.BlazorWeb.HotReload.lib.module.js since 11.0 GA,
+       ...DotNetWatch.lib.module.js before) is a build-only
        static web asset that never reaches publish output, but in a Debug build it makes every
        full page load end in a Blazor-Web-Initializers comment and fetch
        /_framework/dotnet-browser-tools/hot-reload-settings.json. The suites run Debug builds and
@@ -48,7 +49,7 @@
        Hot Reload's runtime options are untouched. -->
   <Target Name="CroftOmitDotNetWatchBrowserTools" BeforeTargets="ResolveProjectStaticWebAssets">
     <PropertyGroup>
-      <DotNetWatchBrowserToolsAssetPrefix />
+      <HotReloadBrowserToolsAssetPrefix />
     </PropertyGroup>
   </Target>
   <!-- END WORKAROUND(W-104) -->
