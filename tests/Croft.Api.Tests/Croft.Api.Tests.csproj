@@ -26,14 +26,14 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="11.0.0-rc.3.26522.148" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="11.0.0-rc.3.26522.148" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
-    <PackageReference Include="OpenTelemetry.Exporter.InMemory" Version="1.20.1" />
+    <PackageReference Include="OpenTelemetry.Exporter.InMemory" Version="1.21.0" />
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.16.0" />
     <!-- xunit.v3 with its Microsoft.Testing.Platform integration left out (the mtp-off flavour
          of the xunit.v3 package, xunit's documented choice): the default flavour pulls in the
          MTP v2 MSBuild targets, which refuse `dotnet test`'s VSTest mode on SDK 10 and later
          ("Testing with VSTest target is no longer supported"). This repository runs every
          suite through VSTest (xunit.runner.visualstudio, the default VSTestTestCaseFilter). -->
-    <PackageReference Include="xunit.v3.mtp-off" Version="4.0.2" />
+    <PackageReference Include="xunit.v3.mtp-off" Version="4.0.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1" />
   </ItemGroup>
 
