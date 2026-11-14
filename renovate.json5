@@ -56,10 +56,19 @@
       platformAutomerge: true,
     },
     {
-      description: 'global.json: follow the SDK feature band the repo is pinned to (11.0.1xx); a new band is a decision',
-      matchManagers: ['dotnet-version'],
-      matchUpdateTypes: ['patch'],
+      description: 'global.json SDK (datasource dotnet-version; there is no dotnet-version manager, so the old matchManagers rule matched nothing): a new feature band (11.0.200 is a semver "patch" and would otherwise automerge through the rule above) or .NET 12 is a decision, shown on the Dependency Dashboard',
+      matchDatasources: ['dotnet-version'],
+      automerge: false,
+      dependencyDashboardApproval: true,
+    },
+    {
+      description: 'global.json SDK: a patch inside the pinned feature band 11.0.1xx automerges (after the catch-all rule above, so it wins)',
+      matchDatasources: ['dotnet-version'],
+      matchNewValue: '/^11\\.0\\.1\\d\\d$/',
+      dependencyDashboardApproval: false,
       automerge: true,
+      automergeType: 'pr',
+      platformAutomerge: true,
     },
     {
       description: 'Compose dev images (Postgres, mock OIDC) are dev-only: automerge minors too',
