@@ -19,9 +19,14 @@ three of them shut:
   the whole manifest, values included, in the `kubectl.kubernetes.io/last-applied-configuration`
   annotation: in plain text if the manifest used `stringData`. `kubectl describe secret`, the
   command meant to be safe for Secrets, hides the values but prints annotations in full. Use
-  `kubectl create`, `kubectl replace`, or `kubectl apply --server-side` (which keeps only field
-  names) for Secrets, as the commands below do. To find old copies:
-  `kubectl get secret -A -o json | jq -r '.items[] | select(.metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"] // "" | test("\"(data|stringData)\"")) | "\(.metadata.namespace)/\(.metadata.name)"'`.
+  `kubectl create` or `kubectl replace` for Secrets, as the commands below do, or
+  `kubectl apply --server-side --field-manager=<a name of your own>`. The field manager matters:
+  a bare `kubectl apply --server-side` (kubectl's default manager) deliberately keeps an existing
+  annotation and updates it with every apply. To find old copies:
+  `kubectl get secret -A -o json | jq -r '.items[] | select(.metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"] // "" | test("\"(data|stringData)\"")) | "\(.metadata.namespace)/\(.metadata.name)"'`,
+  and to remove one: `kubectl -n <namespace> annotate secret <name> kubectl.kubernetes.io/last-applied-configuration-`
+  (with CloudNativePG, read the next point first: any change to a role's password Secret makes
+  the operator set that password again).
 - **No statement logging on the database while a password changes.** With CloudNativePG,
   changing a managed role's password secret makes the operator run
   `ALTER ROLE ... PASSWORD '...'`. PostgreSQL's `log_statement` set to `ddl`, `mod` or `all`
