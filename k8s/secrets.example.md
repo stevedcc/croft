@@ -11,8 +11,8 @@ three of them shut:
 
 - **No value on a command line.** An argument such as `--from-literal=password=...` stays in the
   shell history and, while the command runs, is visible in the process list (`ps`) to every user
-  of the machine. The commands below read each value with `read -rs` (not echoed, not kept in the
-  history) and hand it to `kubectl` as a file: `--from-file=<key>=<(printf '%s' "$VAR")`. `printf`
+  of the machine. The commands below read each value with `IFS= read -rs` (not echoed, not kept in
+  the history, spaces and backslashes kept as typed) and hand it to `kubectl` as a file: `--from-file=<key>=<(printf '%s' "$VAR")`. `printf`
   is a shell builtin, so the value never becomes a process argument either, and `printf '%s'` adds
   no trailing newline.
 - **No client-side `kubectl apply` for Secrets.** A plain `kubectl apply -f secret.yaml` stores
@@ -27,7 +27,10 @@ three of them shut:
   `ALTER ROLE ... PASSWORD '...'`. PostgreSQL's `log_statement` set to `ddl`, `mod` or `all`
   writes that statement, password included, to the server log. Keep `log_statement: none` (the
   default) on a cluster whose role passwords come from Secrets; slow queries are still logged
-  through `log_min_duration_statement`.
+  through `log_min_duration_statement`. A statement that **fails** is logged in full whatever
+  `log_statement` says (`log_min_error_statement`, default `error`), so a failed `ALTER ROLE` would
+  still carry the password; `log_min_error_statement: panic` closes that too, at the price of the
+  failing statement's text in the server log (the error itself is still logged).
 
 Generate the analytics ingest key **once** and use the same value in both secrets — the Web app
 sends it with every page-view beacon and the API only counts beacons that carry it:
@@ -36,8 +39,11 @@ sends it with every page-view beacon and the API only counts beacons that carry 
 ANALYTICS_INGEST_KEY="$(openssl rand -base64 32)"
 ```
 
-Run each block in one shell, and `unset` the variables when you are done (the last line of each
-block does).
+Run the blocks in bash or zsh (they use process substitution, `<(...)`), all in the same shell:
+the ingest key above is used by two of them. Each block ends by unsetting what it read; the ingest
+key is unset at the end of the `blog-api-secrets` block. Paste a block, then type each value at its
+prompt. If the prompt instead shows the block's next line as the "value" (a terminal or multiplexer
+without bracketed paste), paste the lines one at a time.
 
 ## `blog-db` (database connection)
 
@@ -47,7 +53,7 @@ CloudNativePG's generated app secret uses, so pointing the base at such a secret
 changes; anything else works too as long as the keys match.
 
 ```bash
-read -rsp 'Database password: ' DB_PASSWORD; echo
+printf 'Database password: ' >&2; IFS= read -rs DB_PASSWORD; echo
 kubectl -n blog create secret generic blog-db \
   --from-literal=host='<database host>' \
   --from-literal=port='5432' \
@@ -66,7 +72,7 @@ init container and the `web` container both read `ConnectionStrings__WebDb` from
 runs with no Web database at all, deletes both readers of this key, and needs no Secret.
 
 ```bash
-read -rsp 'Web database password: ' WEB_DB_PASSWORD; echo
+printf 'Web database password: ' >&2; IFS= read -rs WEB_DB_PASSWORD; echo
 kubectl -n blog create secret generic croft-web-db \
   --from-file=connection-string=<(printf 'Host=%s;Port=5432;Database=croft_web;Username=%s;Password=%s' \
     '<database host>' '<database user>' "$WEB_DB_PASSWORD")
@@ -84,7 +90,7 @@ every login redirect) and lives in `Oidc__ClientId` in `k8s/configmap.yaml`; the
 `Oidc__Audience` must equal that same client ID.
 
 ```bash
-read -rsp 'OIDC client secret: ' OIDC_CLIENT_SECRET; echo
+printf 'OIDC client secret: ' >&2; IFS= read -rs OIDC_CLIENT_SECRET; echo
 kubectl -n blog create secret generic blog-web-secrets \
   --from-file=Oidc__ClientSecret=<(printf '%s' "$OIDC_CLIENT_SECRET") \
   --from-file=Analytics__IngestKey=<(printf '%s' "$ANALYTICS_INGEST_KEY")
@@ -108,8 +114,8 @@ nothing is sent to it. Use the narrowest credentials there are: a Mastodon acces
 `write:statuses` only, and a Bluesky app password without access to direct messages.
 
 ```bash
-read -rsp 'Mastodon access token: ' MASTODON_TOKEN; echo
-read -rsp 'Bluesky app password: ' BLUESKY_PASSWORD; echo
+printf 'Mastodon access token: ' >&2; IFS= read -rs MASTODON_TOKEN; echo
+printf 'Bluesky app password: ' >&2; IFS= read -rs BLUESKY_PASSWORD; echo
 kubectl -n blog patch secret blog-api-secrets --type merge --patch-file <(
   MASTODON_TOKEN="$MASTODON_TOKEN" BLUESKY_PASSWORD="$BLUESKY_PASSWORD" jq -n \
     '{stringData: {Social__Mastodon__AccessToken: env.MASTODON_TOKEN, Social__Bluesky__AppPassword: env.BLUESKY_PASSWORD}}')
@@ -147,11 +153,15 @@ the request to the CA).
 
 ## Changing a value later
 
-Replace the whole Secret rather than applying a manifest over it: run the same command with
-`--dry-run=client -o yaml` and pipe it into `kubectl replace -f -`, for example
+Replace the whole Secret rather than applying a manifest over it: build it with
+`kubectl create ... --dry-run=client -o yaml` and pipe it into `kubectl replace -f -`. `replace`
+writes exactly the keys you pass and **drops every other key**, so list every key the Secret holds
+(`kubectl -n blog get secret <name> -o json | jq '.data | keys'`), take the ones you keep from the
+live Secret as the example does with the ingest key, and give the non-secret ones their real values,
+not the placeholders above. For example, changing only the OIDC client secret:
 
 ```bash
-read -rsp 'New OIDC client secret: ' OIDC_CLIENT_SECRET; echo
+printf 'New OIDC client secret: ' >&2; IFS= read -rs OIDC_CLIENT_SECRET; echo
 kubectl -n blog create secret generic blog-web-secrets --dry-run=client -o yaml \
   --from-file=Oidc__ClientSecret=<(printf '%s' "$OIDC_CLIENT_SECRET") \
   --from-file=Analytics__IngestKey=<(kubectl -n blog get secret blog-web-secrets -o jsonpath='{.data.Analytics__IngestKey}' | base64 -d) \
