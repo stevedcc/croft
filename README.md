@@ -543,7 +543,8 @@ matching blog session(s).
 | `Croft__Web__MaxConcurrentConnections` | both | Open connections per pod (default 512). A pod-wide ceiling only: limit connections per client address at the ingress (Traefik), not here. Every request held by a slow reader, and every request waiting in a client's queue, keeps its socket open, so the connection ceiling and the per-client permits and queue limits must be sized together |
 
 **Secrets** (never in this repository; `k8s/secrets.example.md` has the `kubectl create secret`
-commands):
+commands, written so that no value lands on a command line, in a `last-applied-configuration`
+annotation or in the database log):
 
 | Secret | Keys | Used by |
 |---|---|---|
